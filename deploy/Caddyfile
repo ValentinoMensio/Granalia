@@ -1,6 +1,4 @@
-{$GRANALIA_DOMAIN:granalia.localhost} {
-    tls internal
-
+{$GRANALIA_CADDY_SITE::80} {
     encode zstd gzip
 
     header {

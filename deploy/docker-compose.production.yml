@@ -54,8 +54,7 @@ services:
       api:
         condition: service_healthy
     ports:
-      - "80:80"
-      - "443:443"
+      - "127.0.0.1:${GRANALIA_LOCAL_CADDY_PORT:-8088}:80"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ../frontend/dist:/srv/granalia/frontend/dist:ro

@@ -170,7 +170,16 @@ Servicios incluidos:
 
 - `postgres` con healthcheck
 - `api` FastAPI + migraciones automáticas al iniciar
-- `caddy` como reverse proxy HTTPS
+- `caddy` como web origin interno
+
+En este modo `Granalia` publica solo `127.0.0.1:${GRANALIA_LOCAL_CADDY_PORT:-8088}` en la notebook.
+El `cloudflared` de tu otro proyecto puede publicar un hostname nuevo apuntando a:
+
+```text
+http://host.docker.internal:8088
+```
+
+o al puerto que definas en `GRANALIA_LOCAL_CADDY_PORT`.
 
 Healthchecks utiles:
 
