@@ -5,6 +5,7 @@ function InvoiceFormCard({
   bootstrap,
   customers,
   availableDiscountGroups,
+  editingInvoiceId,
   form,
   saving,
   generating,
@@ -16,13 +17,19 @@ function InvoiceFormCard({
   onGenerate,
   onRemoveFooterDiscount,
   onSave,
+  onCancelEdit,
 }) {
   return (
     <div className="surface p-6 lg:p-7">
       <div className="mb-6 flex items-center justify-between gap-4 border-b border-stone-200 pb-5">
         <div>
-          <h2 className="subsection-title text-2xl">Nueva factura</h2>
+          <h2 className="subsection-title text-2xl">{editingInvoiceId ? `Editar factura #${editingInvoiceId}` : 'Nueva factura'}</h2>
         </div>
+        {editingInvoiceId && (
+          <Button variant="ghost" onClick={onCancelEdit}>
+            Cancelar edición
+          </Button>
+        )}
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">

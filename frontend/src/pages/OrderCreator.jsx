@@ -9,6 +9,7 @@ export default function OrderCreator() {
     customers,
     catalog,
     availableDiscountGroups,
+    editingInvoiceId,
     uploading,
     saving,
     generating,
@@ -28,6 +29,7 @@ export default function OrderCreator() {
     saveCustomer,
     uploadPriceList,
     generateInvoice,
+    clearInvoiceEditing,
   } = useGranalia()
 
   return (
@@ -37,6 +39,7 @@ export default function OrderCreator() {
           bootstrap={bootstrap}
           customers={customers}
           availableDiscountGroups={availableDiscountGroups}
+          editingInvoiceId={editingInvoiceId}
           form={form}
           saving={saving}
           generating={generating}
@@ -48,9 +51,11 @@ export default function OrderCreator() {
           onGenerate={generateInvoice}
           onRemoveFooterDiscount={removeFooterDiscountRow}
           onSave={saveCustomer}
+          onCancelEdit={clearInvoiceEditing}
         />
 
         <ProductRowsCard
+          editingInvoiceId={editingInvoiceId}
           form={form}
           catalog={catalog}
           productsById={productsById}

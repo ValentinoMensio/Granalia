@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
 
 from ...dependencies import get_repository
-from ...schemas import InvoiceCreateOut, InvoiceDetailOut, InvoiceListItemOut, InvoiceRequest
+from ...schemas import InvoiceCreateOut, InvoiceDetailOut, InvoiceListItemOut, InvoiceRequest, StatusResponse
 from ...services.invoicing import generate_invoice_document
 
 
@@ -50,3 +50,30 @@ def create_invoice(payload: InvoiceRequest) -> InvoiceCreateOut:
         "download_url": f"/api/invoices/{invoice_id}/xlsx",
         "summary": snapshot["summary"],
     })
+
+
+@router.put("/{invoice_id}", response_model=InvoiceCreateOut)
+def update_invoice(invoice_id: int, payload: InvoiceRequest) -> InvoiceCreateOut:
+    repository = get_repository()
+    if not repository.get_invoice_detail(invoice_id):
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+    order = payload.order.model_dump()
+    profile = payload.profile.model_dump()
+    catalog = repository.get_active_catalog()
+    filename, xlsx_bytes, snapshot = generate_invoice_document(order, profile, catalog)
+    repository.update_invoice(invoice_id, order, profile, snapshot, filename, xlsx_bytes)
+    return InvoiceCreateOut.model_validate({
+        "invoice_id": invoice_id,
+        "filename": filename,
+        "download_url": f"/api/invoices/{invoice_id}/xlsx",
+        "summary": snapshot["summary"],
+    })
+
+
+@router.delete("/{invoice_id}", response_model=StatusResponse)
+def delete_invoice(invoice_id: int) -> StatusResponse:
+    repository = get_repository()
+    if not repository.get_invoice_detail(invoice_id):
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+    repository.delete_invoice(invoice_id)
+    return StatusResponse(status="deleted")

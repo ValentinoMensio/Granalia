@@ -5,6 +5,7 @@ import { createInitialForm } from './form'
 import {
   applyCustomerToForm,
   buildAvailableDiscountGroups,
+  buildFormFromInvoiceDetail,
   buildInvoicePayload,
   buildProductsById,
   buildProfilePayload,
@@ -17,6 +18,7 @@ function useGranaliaData() {
   const [catalog, setCatalog] = useState([])
   const [invoices, setInvoices] = useState([])
   const [invoiceDetail, setInvoiceDetail] = useState(null)
+  const [editingInvoiceId, setEditingInvoiceId] = useState(null)
   const [status, setStatus] = useState('')
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -65,6 +67,10 @@ function useGranaliaData() {
 
   function clearInvoiceDetail() {
     setInvoiceDetail(null)
+  }
+
+  function clearInvoiceEditing() {
+    setEditingInvoiceId(null)
   }
 
   function invoiceDownloadUrl(invoiceId) {
@@ -148,6 +154,26 @@ function useGranaliaData() {
     setInvoices(await request('/api/invoices'))
   }
 
+  async function startInvoiceEdit(invoiceId) {
+    const detail = await loadInvoiceDetail(invoiceId)
+    setEditingInvoiceId(invoiceId)
+    setForm(buildFormFromInvoiceDetail(detail, customers))
+    setStatus(`Editando factura ${invoiceId}.`)
+    return detail
+  }
+
+  async function deleteInvoice(invoiceId) {
+    await request(`/api/invoices/${invoiceId}`, { method: 'DELETE' })
+    await refreshInvoices()
+    if (String(invoiceDetail?.id || '') === String(invoiceId)) {
+      clearInvoiceDetail()
+    }
+    if (String(editingInvoiceId || '') === String(invoiceId)) {
+      clearInvoiceEditing()
+    }
+    setStatus(`Factura ${invoiceId} eliminada.`)
+  }
+
   async function saveCustomer() {
     if (!form.clientName.trim()) {
       setStatus('Ingresá un cliente.')
@@ -219,14 +245,17 @@ function useGranaliaData() {
 
     setGenerating(true)
     try {
-      const data = await request('/api/invoices', {
-        method: 'POST',
+      const isEditing = editingInvoiceId !== null
+      const invoiceId = editingInvoiceId
+      const data = await request(isEditing ? `/api/invoices/${invoiceId}` : '/api/invoices', {
+        method: isEditing ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(buildInvoicePayload(form, currentCustomer)),
       })
       downloadInvoice(data.invoice_id)
       await refreshInvoices()
-      setStatus(`Factura ${data.invoice_id} guardada y descargada.`)
+      setEditingInvoiceId(null)
+      setStatus(`Factura ${data.invoice_id} ${isEditing ? 'actualizada' : 'guardada'} y descargada.`)
     } finally {
       setGenerating(false)
     }
@@ -238,6 +267,7 @@ function useGranaliaData() {
     catalog,
     invoices,
     invoiceDetail,
+    editingInvoiceId,
     status,
     uploading,
     saving,
@@ -251,6 +281,9 @@ function useGranaliaData() {
     setStatus,
     loadInvoiceDetail,
     clearInvoiceDetail,
+    clearInvoiceEditing,
+    startInvoiceEdit,
+    deleteInvoice,
     invoiceDownloadUrl,
     downloadInvoice,
     applyCustomer,

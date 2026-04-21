@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import cast
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.engine import Engine
 from sqlalchemy.sql.schema import Table
 
@@ -178,6 +178,104 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     item_payload["invoice_id"] = invoice_id
                 connection.execute(self.invoice_items.insert(), item_payloads)
         return invoice_id
+
+    def update_invoice(
+        self,
+        invoice_id: int,
+        order: OrderData,
+        profile: CustomerProfileData,
+        snapshot: InvoiceSnapshotData,
+        filename: str,
+        xlsx_bytes: bytes,
+    ) -> int:
+        updated_at = utc_now()
+        order_date = datetime.strptime(order["date"], "%Y-%m-%d").date()
+        _mode, footer_discounts, line_discounts_by_format = canonicalize_discount_config(
+            profile.get("footer_discounts", []),
+            profile.get("line_discounts_by_format", {}),
+        )
+
+        with self.engine.begin() as connection:
+            existing_invoice = connection.execute(
+                select(self.invoices).where(self.invoices.c.id == invoice_id)
+            ).mappings().first()
+            if not existing_invoice:
+                raise ValueError("Factura no encontrada")
+
+            transport_name = order.get("transport") or profile.get("transport") or ""
+            transport_id = self._resolve_transport_id(connection=connection, transport_name=transport_name, now=updated_at)
+            customer_id = self._upsert_customer(
+                {
+                    "id": profile.get("id") or existing_invoice.get("customer_id"),
+                    "name": order["client_name"],
+                    "secondary_line": order.get("secondary_line") or profile.get("secondary_line") or "",
+                    "notes": order.get("notes") or profile.get("notes") or [],
+                    "footer_discounts": footer_discounts,
+                    "line_discounts_by_format": line_discounts_by_format,
+                    "source_count": int(profile.get("source_count", 0)),
+                    "transport_id": transport_id,
+                    "created_at": existing_invoice.get("created_at") or updated_at,
+                    "updated_at": updated_at,
+                },
+                connection=connection,
+                now=updated_at,
+            )
+
+            connection.execute(
+                update(self.invoices)
+                .where(self.invoices.c.id == invoice_id)
+                .values(
+                    customer_id=customer_id,
+                    transport_id=transport_id,
+                    client_name=order["client_name"],
+                    order_date=order_date,
+                    secondary_line=order.get("secondary_line") or profile.get("secondary_line") or "",
+                    transport=transport_name,
+                    notes=order.get("notes") or profile.get("notes") or [],
+                    footer_discounts=footer_discounts,
+                    line_discounts_by_format=line_discounts_by_format,
+                    total_bultos=int(snapshot["summary"]["total_bultos"]),
+                    gross_total=int(snapshot["summary"]["gross_total"]),
+                    discount_total=int(snapshot["summary"]["discount_total"]),
+                    final_total=int(snapshot["summary"]["final_total"]),
+                    output_filename=filename,
+                    xlsx_data=xlsx_bytes,
+                    xlsx_size=len(xlsx_bytes),
+                )
+            )
+
+            connection.execute(
+                self.invoice_items.delete().where(self.invoice_items.c.invoice_id == invoice_id)
+            )
+
+            item_payloads = []
+            for index, item in enumerate(snapshot["rows"], start=1):
+                item_payloads.append(
+                    {
+                        "invoice_id": invoice_id,
+                        "line_number": index,
+                        "product_id": item.get("product_id"),
+                        "offering_id": item.get("offering_id"),
+                        "label": item["label"],
+                        "quantity": int(item["quantity"]),
+                        "unit_price": int(item["unit_price"]),
+                        "gross": int(item["gross"]),
+                        "discount": int(item["discount"]),
+                        "total": int(item["total"]),
+                    }
+                )
+            if item_payloads:
+                connection.execute(self.invoice_items.insert(), item_payloads)
+
+        return invoice_id
+
+    def delete_invoice(self, invoice_id: int) -> None:
+        with self.engine.begin() as connection:
+            result = connection.execute(
+                self.invoices.delete().where(self.invoices.c.id == invoice_id)
+            )
+            if result.rowcount == 0:
+                raise ValueError("Factura no encontrada")
 
     def get_invoice_file(self, invoice_id: int) -> InvoiceFileData | None:
         with self.engine.connect() as connection:

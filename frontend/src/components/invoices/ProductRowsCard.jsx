@@ -3,6 +3,7 @@ import Metric from '../ui/Metric'
 import { money } from '../../lib/format'
 
 function ProductRowsCard({
+  editingInvoiceId,
   form,
   catalog,
   productsById,
@@ -309,7 +310,7 @@ function ProductRowsCard({
           onClick={onGenerate}
           disabled={generating}
         >
-          {generating ? 'Generando...' : 'Generar factura'}
+          {generating ? 'Guardando...' : editingInvoiceId ? 'Actualizar factura' : 'Generar factura'}
         </Button>
       </div>
     </div>

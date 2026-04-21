@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useGranalia } from '../context/GranaliaContext'
 import { money } from '../lib/format'
 import Button from '../components/ui/Button'
@@ -8,9 +9,11 @@ const PAGE_SIZE = 10
 const EMPTY_FILTERS = { customerId: '', dateFrom: '', dateTo: '', transport: '', minTotal: '', maxTotal: '' }
 
 export default function InvoiceHistory() {
-  const { bootstrap, invoices, customers, invoiceDetail, loadInvoiceDetail, clearInvoiceDetail, invoiceDownloadUrl } = useGranalia()
+  const navigate = useNavigate()
+  const { bootstrap, invoices, customers, invoiceDetail, loadInvoiceDetail, clearInvoiceDetail, invoiceDownloadUrl, startInvoiceEdit, deleteInvoice } = useGranalia()
   const [filters, setFilters] = useState(EMPTY_FILTERS)
   const [loadingDetail, setLoadingDetail] = useState(false)
+  const [deletingInvoiceId, setDeletingInvoiceId] = useState(null)
   const [page, setPage] = useState(1)
 
   const filteredInvoices = useMemo(() => {
@@ -52,6 +55,28 @@ export default function InvoiceHistory() {
       await loadInvoiceDetail(invoiceId)
     } finally {
       setLoadingDetail(false)
+    }
+  }
+
+  async function handleEditInvoice(invoiceId) {
+    setLoadingDetail(true)
+    try {
+      await startInvoiceEdit(invoiceId)
+      navigate('/')
+    } finally {
+      setLoadingDetail(false)
+    }
+  }
+
+  async function handleDeleteInvoice(invoiceId) {
+    if (!window.confirm(`¿Eliminar la factura #${invoiceId}? Esta acción no se puede deshacer.`)) {
+      return
+    }
+    setDeletingInvoiceId(invoiceId)
+    try {
+      await deleteInvoice(invoiceId)
+    } finally {
+      setDeletingInvoiceId(null)
     }
   }
 
@@ -170,6 +195,9 @@ export default function InvoiceHistory() {
                       <Button variant="ghost" className="px-0 py-0 text-sm text-brand-red" onClick={() => handleSelectInvoice(invoice.invoice_id)}>
                         Ver detalle
                       </Button>
+                      <Button variant="ghost" className="px-0 py-0 text-sm text-brand-ink" onClick={() => handleEditInvoice(invoice.invoice_id)}>
+                        Editar
+                      </Button>
                       <a
                         href={invoiceDownloadUrl(invoice.invoice_id)}
                         target="_blank"
@@ -178,6 +206,14 @@ export default function InvoiceHistory() {
                       >
                         Descargar
                       </a>
+                      <Button
+                        variant="ghost"
+                        className="px-0 py-0 text-sm text-red-600"
+                        onClick={() => handleDeleteInvoice(invoice.invoice_id)}
+                        disabled={deletingInvoiceId === invoice.invoice_id}
+                      >
+                        {deletingInvoiceId === invoice.invoice_id ? 'Eliminando...' : 'Eliminar'}
+                      </Button>
                     </div>
                   </td>
                 </tr>
