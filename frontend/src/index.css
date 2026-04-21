@@ -1,0 +1,244 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg: 247 243 235;
+    --bg-strong: 239 229 213;
+    --surface: 255 255 255;
+    --surface-muted: 248 245 239;
+    --border: 225 214 195;
+    --border-strong: 203 188 161;
+    --text: 42 35 28;
+    --text-soft: 106 96 84;
+    --primary: 153 51 35;
+    --primary-strong: 126 38 25;
+    --accent: 196 160 94;
+    --danger: 185 59 48;
+    --success: 49 117 78;
+    --shadow: 68 43 22;
+  }
+
+  html {
+    @apply antialiased;
+  }
+
+  body {
+    font-family: 'Manrope', sans-serif;
+    color: rgb(var(--text));
+    background:
+      radial-gradient(circle at top left, rgba(196, 160, 94, 0.18), transparent 24%),
+      radial-gradient(circle at 85% 15%, rgba(153, 51, 35, 0.10), transparent 22%),
+      linear-gradient(180deg, rgba(255,255,255,0.65), rgba(255,255,255,0.2)),
+      rgb(var(--bg));
+  }
+
+  #root {
+    @apply min-h-screen;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: 'Fraunces', serif;
+  }
+}
+
+@layer components {
+  .app-shell {
+    @apply mx-auto max-w-[1500px] px-4 py-6 lg:px-8 lg:py-8;
+  }
+
+  .surface {
+    @apply rounded-[28px] border bg-white shadow-card;
+    border-color: rgb(var(--border) / 0.95);
+    background-color: rgb(var(--surface) / 0.92);
+    backdrop-filter: blur(14px);
+  }
+
+  .surface-muted {
+    @apply rounded-3xl border;
+    border-color: rgb(var(--border) / 0.9);
+    background-color: rgb(var(--surface-muted) / 0.95);
+  }
+
+  .surface-strong {
+    @apply rounded-[32px] border shadow-card;
+    border-color: rgb(var(--border-strong) / 0.75);
+    background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(248,245,239,0.96));
+  }
+
+  .page-header {
+    @apply flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between;
+  }
+
+  .eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-[0.28em];
+    color: rgb(var(--primary) / 0.7);
+  }
+
+  .section-title {
+    @apply text-3xl font-semibold leading-tight;
+    color: rgb(var(--primary));
+  }
+
+  .section-subtitle {
+    @apply text-sm leading-6;
+    color: rgb(var(--text-soft));
+  }
+
+  .field-label {
+    @apply mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em];
+    color: rgb(var(--text-soft));
+  }
+
+  .input {
+    @apply w-full rounded-2xl border px-4 py-3 text-sm outline-none transition duration-150;
+    border-color: rgb(var(--border));
+    background-color: rgb(var(--surface));
+    color: rgb(var(--text));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.65), 0 1px 2px rgba(68,43,22,0.04);
+  }
+
+  .input::placeholder {
+    color: rgb(var(--text-soft) / 0.7);
+  }
+
+  .input:focus {
+    border-color: rgb(var(--accent));
+    box-shadow: 0 0 0 4px rgba(196,160,94,0.18);
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition duration-150 disabled:cursor-not-allowed disabled:opacity-55;
+  }
+
+  .btn-primary {
+    @apply btn text-white shadow-sm;
+    background: linear-gradient(180deg, rgb(var(--primary)), rgb(var(--primary-strong)));
+  }
+
+  .btn-primary:hover {
+    filter: brightness(1.03);
+  }
+
+  .btn-secondary {
+    @apply btn border;
+    border-color: rgb(var(--border-strong));
+    background-color: rgb(var(--surface-muted));
+    color: rgb(var(--text));
+  }
+
+  .btn-secondary:hover {
+    background-color: rgb(var(--bg-strong) / 0.65);
+  }
+
+  .btn-ghost {
+    @apply btn;
+    color: rgb(var(--text-soft));
+  }
+
+  .btn-ghost:hover {
+    background-color: rgb(var(--surface-muted));
+    color: rgb(var(--primary));
+  }
+
+  .btn-danger {
+    @apply btn;
+    color: rgb(var(--danger));
+  }
+
+  .btn-danger:hover {
+    background-color: rgba(185,59,48,0.08);
+  }
+
+  .badge {
+    @apply inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold;
+    background-color: rgb(var(--bg-strong) / 0.65);
+    color: rgb(var(--primary));
+  }
+
+  .metric-card {
+    @apply rounded-3xl border px-5 py-4;
+    border-color: rgb(var(--border));
+    background-color: rgb(var(--surface-muted));
+  }
+
+  .table-shell {
+    @apply overflow-hidden rounded-[24px] border;
+    border-color: rgb(var(--border));
+  }
+
+  .table-base {
+    @apply w-full text-left text-sm;
+  }
+
+  .table-head {
+    background-color: rgb(var(--surface-muted));
+    color: rgb(var(--text-soft));
+  }
+
+  .table-head th {
+    @apply px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.16em];
+  }
+
+  .table-row {
+    @apply border-t;
+    border-color: rgb(var(--border) / 0.8);
+  }
+
+  .table-row:hover {
+    background-color: rgb(var(--surface-muted) / 0.72);
+  }
+
+  .table-cell {
+    @apply px-4 py-3 align-middle;
+  }
+
+  .tab-nav {
+    @apply inline-flex rounded-2xl border p-1.5;
+    border-color: rgb(var(--border));
+    background-color: rgb(var(--surface-muted));
+  }
+
+  .tab-button {
+    @apply rounded-xl px-4 py-2 text-sm font-semibold transition;
+    color: rgb(var(--text-soft));
+  }
+
+  .tab-button-active {
+    @apply shadow-sm;
+    background-color: rgb(var(--surface));
+    color: rgb(var(--primary));
+  }
+
+  .status-bar {
+    @apply mt-6 rounded-[24px] border px-5 py-4 text-sm;
+    border-color: rgb(var(--border));
+    background-color: rgb(var(--surface) / 0.86);
+    color: rgb(var(--text-soft));
+    box-shadow: 0 10px 30px rgba(68,43,22,0.06);
+  }
+
+  .editor-shell {
+    @apply mx-auto mt-8 max-w-5xl space-y-6;
+  }
+
+  .editor-card {
+    @apply surface p-7;
+  }
+
+  .subsection-title {
+    @apply text-lg font-semibold;
+    color: rgb(var(--text));
+  }
+
+  .soft-note {
+    @apply text-sm;
+    color: rgb(var(--text-soft));
+  }
+}

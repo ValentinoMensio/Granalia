@@ -1,0 +1,60 @@
+{$GRANALIA_DOMAIN:granalia.localhost} {
+    tls internal
+
+    encode zstd gzip
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "camera=(), microphone=(), geolocation=()"
+        -Server
+    }
+
+    handle /api/* {
+        reverse_proxy {$GRANALIA_API_UPSTREAM:host.docker.internal:8000} {
+            header_up X-Forwarded-Proto https
+            header_up X-Forwarded-Host {host}
+            header_up X-Forwarded-For {remote_host}
+        }
+    }
+
+    handle /health/* {
+        reverse_proxy {$GRANALIA_API_UPSTREAM:host.docker.internal:8000} {
+            header_up X-Forwarded-Proto https
+            header_up X-Forwarded-Host {host}
+            header_up X-Forwarded-For {remote_host}
+        }
+    }
+
+    handle /docs* {
+        reverse_proxy {$GRANALIA_API_UPSTREAM:host.docker.internal:8000} {
+            header_up X-Forwarded-Proto https
+            header_up X-Forwarded-Host {host}
+            header_up X-Forwarded-For {remote_host}
+        }
+    }
+
+    handle /redoc* {
+        reverse_proxy {$GRANALIA_API_UPSTREAM:host.docker.internal:8000} {
+            header_up X-Forwarded-Proto https
+            header_up X-Forwarded-Host {host}
+            header_up X-Forwarded-For {remote_host}
+        }
+    }
+
+    handle /openapi.json {
+        reverse_proxy {$GRANALIA_API_UPSTREAM:host.docker.internal:8000} {
+            header_up X-Forwarded-Proto https
+            header_up X-Forwarded-Host {host}
+            header_up X-Forwarded-For {remote_host}
+        }
+    }
+
+    handle {
+        root * /srv/granalia/frontend/dist
+        try_files {path} /index.html
+        file_server
+    }
+}

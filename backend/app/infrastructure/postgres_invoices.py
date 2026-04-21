@@ -1,0 +1,190 @@
+from __future__ import annotations
+
+from datetime import datetime
+from typing import cast
+
+from sqlalchemy import select
+from sqlalchemy.engine import Engine
+from sqlalchemy.sql.schema import Table
+
+from ..core.utils import canonicalize_discount_config
+from ..types import CustomerProfileData, InvoiceDetailData, InvoiceFileData, InvoiceListItemData, InvoiceSnapshotData, OrderData
+from .postgres_protocol import PostgresRepositoryProtocol
+from .postgres_utils import serialize_value, utc_now
+
+
+class PostgresInvoiceMixin(PostgresRepositoryProtocol):
+    engine: Engine
+    invoices: Table
+    customers: Table
+    transports: Table
+    invoice_items: Table
+    products: Table
+    product_offerings: Table
+
+    def list_invoices(self, limit: int = 50) -> list[InvoiceListItemData]:
+        with self.engine.connect() as connection:
+            rows = connection.execute(
+                select(
+                    self.invoices.c.id.label("invoice_id"),
+                    self.invoices.c.customer_id,
+                    self.invoices.c.transport_id,
+                    self.invoices.c.client_name,
+                    self.invoices.c.transport,
+                    self.invoices.c.order_date,
+                    self.invoices.c.total_bultos,
+                    self.invoices.c.gross_total,
+                    self.invoices.c.discount_total,
+                    self.invoices.c.final_total,
+                    self.invoices.c.output_filename,
+                    self.invoices.c.xlsx_size,
+                    self.invoices.c.created_at,
+                )
+                .order_by(self.invoices.c.created_at.desc())
+                .limit(limit)
+            ).mappings().all()
+        payload: list[InvoiceListItemData] = cast(list[InvoiceListItemData], [{key: serialize_value(value) for key, value in row.items()} for row in rows])
+        return payload
+
+    def get_invoice_detail(self, invoice_id: int) -> InvoiceDetailData | None:
+        with self.engine.connect() as connection:
+            invoice_row = connection.execute(
+                select(
+                    self.invoices.c.id,
+                    self.invoices.c.customer_id,
+                    self.invoices.c.transport_id,
+                    self.invoices.c.legacy_key,
+                    self.invoices.c.client_name,
+                    self.invoices.c.order_date,
+                    self.invoices.c.secondary_line,
+                    self.invoices.c.transport,
+                    self.invoices.c.notes,
+                    self.invoices.c.footer_discounts,
+                    self.invoices.c.line_discounts_by_format,
+                    self.invoices.c.total_bultos,
+                    self.invoices.c.gross_total,
+                    self.invoices.c.discount_total,
+                    self.invoices.c.final_total,
+                    self.invoices.c.output_filename,
+                    self.invoices.c.xlsx_size,
+                    self.invoices.c.created_at,
+                    self.customers.c.name.label("customer_name"),
+                    self.transports.c.name.label("transport_name"),
+                )
+                .select_from(
+                    self.invoices
+                    .outerjoin(self.customers, self.invoices.c.customer_id == self.customers.c.id)
+                    .outerjoin(self.transports, self.invoices.c.transport_id == self.transports.c.transport_id)
+                )
+                .where(self.invoices.c.id == invoice_id)
+            ).mappings().first()
+            if not invoice_row:
+                return None
+
+            item_rows = connection.execute(
+                select(
+                    self.invoice_items,
+                    self.products.c.name.label("product_name"),
+                    self.product_offerings.c.label.label("offering_label"),
+                )
+                .select_from(
+                    self.invoice_items
+                    .outerjoin(self.products, self.invoice_items.c.product_id == self.products.c.id)
+                    .outerjoin(self.product_offerings, self.invoice_items.c.offering_id == self.product_offerings.c.id)
+                )
+                .where(self.invoice_items.c.invoice_id == invoice_id)
+                .order_by(self.invoice_items.c.line_number)
+            ).mappings().all()
+
+        invoice = {key: serialize_value(value) for key, value in invoice_row.items()}
+        items = [{key: serialize_value(value) for key, value in row.items()} for row in item_rows]
+        invoice["items"] = items
+        return cast(InvoiceDetailData, invoice)
+
+    def save_invoice(
+        self,
+        order: OrderData,
+        profile: CustomerProfileData,
+        snapshot: InvoiceSnapshotData,
+        filename: str,
+        xlsx_bytes: bytes,
+    ) -> int:
+        created_at = utc_now()
+        order_date = datetime.strptime(order["date"], "%Y-%m-%d").date()
+        _mode, footer_discounts, line_discounts_by_format = canonicalize_discount_config(
+            profile.get("footer_discounts", []),
+            profile.get("line_discounts_by_format", {}),
+        )
+        invoice_payload = {
+            "customer_id": None,
+            "transport_id": None,
+            "legacy_key": f"invoice:{int(created_at.timestamp())}:{order['client_name']}",
+            "client_name": order["client_name"],
+            "order_date": order_date,
+            "secondary_line": order.get("secondary_line") or profile.get("secondary_line") or "",
+            "transport": order.get("transport") or profile.get("transport") or "",
+            "notes": order.get("notes") or profile.get("notes") or [],
+            "footer_discounts": footer_discounts,
+            "line_discounts_by_format": line_discounts_by_format,
+            "total_bultos": int(snapshot["summary"]["total_bultos"]),
+            "gross_total": int(snapshot["summary"]["gross_total"]),
+            "discount_total": int(snapshot["summary"]["discount_total"]),
+            "final_total": int(snapshot["summary"]["final_total"]),
+            "output_filename": filename,
+            "xlsx_data": xlsx_bytes,
+            "xlsx_size": len(xlsx_bytes),
+            "created_at": created_at,
+        }
+        item_payloads = []
+        for index, item in enumerate(snapshot["rows"], start=1):
+            item_payloads.append(
+                {
+                    "line_number": index,
+                    "product_id": item.get("product_id"),
+                    "offering_id": item.get("offering_id"),
+                    "label": item["label"],
+                    "quantity": int(item["quantity"]),
+                    "unit_price": int(item["unit_price"]),
+                    "gross": int(item["gross"]),
+                    "discount": int(item["discount"]),
+                    "total": int(item["total"]),
+                }
+            )
+        with self.engine.begin() as connection:
+            transport_name = order.get("transport") or profile.get("transport") or ""
+            transport_id = self._resolve_transport_id(connection=connection, transport_name=transport_name, now=created_at)
+            customer_id = self._upsert_customer(
+                {
+                    "id": profile.get("id"),
+                    "name": order["client_name"],
+                    "secondary_line": order.get("secondary_line") or profile.get("secondary_line") or "",
+                    "notes": order.get("notes") or profile.get("notes") or [],
+                    "footer_discounts": invoice_payload["footer_discounts"],
+                    "line_discounts_by_format": invoice_payload["line_discounts_by_format"],
+                    "source_count": int(profile.get("source_count", 0)),
+                    "transport_id": transport_id,
+                    "created_at": created_at,
+                    "updated_at": created_at,
+                },
+                connection=connection,
+                now=created_at,
+            )
+            customer_row = connection.execute(select(self.customers).where(self.customers.c.id == customer_id)).mappings().first()
+            invoice_payload["customer_id"] = customer_row["id"] if customer_row else None
+            invoice_payload["transport_id"] = transport_id
+            invoice_id = connection.execute(self.invoices.insert().values(**invoice_payload).returning(self.invoices.c.id)).scalar_one()
+            if item_payloads:
+                for item_payload in item_payloads:
+                    item_payload["invoice_id"] = invoice_id
+                connection.execute(self.invoice_items.insert(), item_payloads)
+        return invoice_id
+
+    def get_invoice_file(self, invoice_id: int) -> InvoiceFileData | None:
+        with self.engine.connect() as connection:
+            row = connection.execute(
+                select(self.invoices.c.output_filename, self.invoices.c.xlsx_data, self.invoices.c.xlsx_size).where(self.invoices.c.id == invoice_id)
+            ).mappings().first()
+        if not row:
+            return None
+        payload: InvoiceFileData = cast(InvoiceFileData, {key: serialize_value(value) for key, value in row.items()})
+        return payload

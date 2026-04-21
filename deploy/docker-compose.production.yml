@@ -1,0 +1,68 @@
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - granalia_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.backend
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      GRANALIA_POSTGRES_URL: ${GRANALIA_POSTGRES_URL}
+      GRANALIA_ENV: ${GRANALIA_ENV:-production}
+      GRANALIA_LOG_LEVEL: ${GRANALIA_LOG_LEVEL:-INFO}
+      GRANALIA_LOG_JSON: ${GRANALIA_LOG_JSON:-true}
+      GRANALIA_ALLOWED_ORIGINS: ${GRANALIA_ALLOWED_ORIGINS}
+      GRANALIA_SECURE_COOKIES: ${GRANALIA_SECURE_COOKIES:-true}
+      GRANALIA_SESSION_SECRET: ${GRANALIA_SESSION_SECRET}
+      GRANALIA_AUTH_USERNAME: ${GRANALIA_AUTH_USERNAME}
+      GRANALIA_AUTH_PASSWORD_HASH: ${GRANALIA_AUTH_PASSWORD_HASH:-}
+      GRANALIA_AUTH_PASSWORD: ${GRANALIA_AUTH_PASSWORD:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  caddy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      GRANALIA_API_UPSTREAM: api:8000
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../frontend/dist:/srv/granalia/frontend/dist:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  granalia_postgres_data:
+  caddy_data:
+  caddy_config:

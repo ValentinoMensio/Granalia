@@ -1,0 +1,87 @@
+import { useState, useEffect } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
+import { useGranalia } from '../context/GranaliaContext'
+import { request } from '../lib/api'
+import Button from '../components/ui/Button'
+import PageSectionHeader from '../components/ui/PageSectionHeader'
+
+export default function TransportEditor() {
+  const { id } = useParams()
+  const transportId = Number(id)
+  const isNewTransport = !id || id === 'new' || Number.isNaN(transportId)
+  const navigate = useNavigate()
+  const { bootstrap, setStatus, saving, refreshAll } = useGranalia()
+  
+  const transport = bootstrap?.transports.find((t) => t.transport_id === transportId)
+  const [formData, setFormData] = useState(null)
+
+  useEffect(() => {
+    if (isNewTransport) {
+      setFormData({ name: '', notes: [] })
+    } else if (transport) {
+      setFormData({ ...transport })
+    }
+  }, [transport, isNewTransport])
+
+  if (!isNewTransport && !transport) return <div className="mt-8 p-4 text-center">Transporte no encontrado.</div>
+  if (!formData) return null
+
+  async function handleSave() {
+    try {
+      await request(isNewTransport ? '/api/transports' : `/api/transports/${id}`, {
+        method: isNewTransport ? 'POST' : 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.name,
+          notes: formData.notes || [],
+        }),
+      })
+      await refreshAll()
+      setStatus('Transporte actualizado correctamente.')
+      navigate('/management')
+    } catch (e) {
+      setStatus(`Error al guardar: ${e.message}`)
+    }
+  }
+
+  return (
+    <div className="editor-shell max-w-3xl">
+      <PageSectionHeader
+        title={isNewTransport ? 'Nuevo transporte' : 'Editar transporte'}
+        description="Mantené el nombre y las observaciones de transporte con el mismo criterio visual del resto del sistema."
+        aside={<Button variant="ghost" onClick={() => navigate('/management')}>Volver a gestión</Button>}
+      />
+
+      <div className="editor-card grid gap-6">
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-slate-700">Nombre del Transporte</label>
+          <input
+            type="text"
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-slate-700">Notas / Observaciones</label>
+          <textarea
+            rows={4}
+            value={formData.notes?.join('\\n') || ''}
+            onChange={(e) => setFormData({ ...formData, notes: e.target.value.split('\\n').filter(Boolean) })}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
+          />
+        </div>
+
+        <div className="flex justify-end gap-3 pt-6 border-t">
+          <Button variant="secondary" onClick={() => navigate('/management')}>
+            Cancelar
+          </Button>
+          <Button variant="primary" onClick={handleSave} disabled={saving}>
+            {saving ? 'Guardando...' : 'Guardar Cambios'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}

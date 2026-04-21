@@ -1,0 +1,198 @@
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { request } from '../lib/api'
+import { summarizeDiscounts } from '../lib/format'
+import { useGranalia } from '../context/GranaliaContext'
+import Button from '../components/ui/Button'
+import PageSectionHeader from '../components/ui/PageSectionHeader'
+
+export default function Management() {
+  const { setStatus, customers, bootstrap, catalog, refreshAll } = useGranalia()
+  const navigate = useNavigate()
+  const [tab, setTab] = useState('customers')
+  const [loading, setLoading] = useState(false)
+
+  async function handleDelete(type, id) {
+    if (!confirm('¿Estás seguro de eliminar este elemento?')) return
+    setLoading(true)
+    try {
+      const path = type === 'customer' 
+        ? `/api/customers/${id}` 
+        : type === 'transport' 
+        ? `/api/transports/${id}` 
+        : `/api/products/${id}`
+      
+      await request(path, { method: 'DELETE' })
+      await refreshAll()
+      setStatus(`${type} eliminado correctamente.`)
+    } catch (e) {
+      setStatus(`Error al eliminar: ${e.message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="mt-8 space-y-6">
+      <PageSectionHeader
+        eyebrow="Administración"
+        title="Gestión del sistema"
+      />
+
+      <div className="page-header">
+        <div className="soft-note">Elegí una sección para editar registros, crear nuevos elementos y depurar datos.</div>
+        <nav className="tab-nav">
+          {['customers', 'transports', 'products'].map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`tab-button ${
+                tab === t ? 'tab-button-active' : ''
+              }`}
+            >
+              {t === 'customers' ? 'Clientes' : t === 'transports' ? 'Transportes' : 'Productos'}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      <div className="surface p-6">
+        {tab === 'customers' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="subsection-title">Clientes</h2>
+              </div>
+              <Button variant="primary" onClick={() => navigate('/customers/new')}>
+                Nuevo Cliente
+              </Button>
+            </div>
+
+            <div className="table-shell">
+              <table className="table-base">
+                <thead className="table-head">
+                  <tr>
+                    <th>ID</th>
+                    <th>Nombre</th>
+                    <th>Transporte</th>
+                    <th>Descuentos</th>
+                    <th className="text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {customers.map((c) => (
+                    <tr key={c.id} className="table-row">
+                      <td className="table-cell font-mono text-xs">{c.id}</td>
+                      <td className="table-cell font-medium">{c.name}</td>
+                      <td className="table-cell text-slate-600">{c.transport || '—'}</td>
+                      <td className="table-cell text-slate-600">{summarizeDiscounts(c)}</td>
+                      <td className="table-cell">
+                        <div className="flex items-center justify-end gap-2">
+                          <Button variant="ghost" onClick={() => navigate(`/customers/${c.id}`)}>
+                            Editar
+                          </Button>
+                          <Button variant="danger" onClick={() => handleDelete('customer', c.id)} disabled={loading}>
+                            Eliminar
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {tab === 'transports' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="subsection-title">Transportes</h2>
+              </div>
+              <Button variant="primary" onClick={() => navigate('/transports/new')}>
+                Nuevo Transporte
+              </Button>
+            </div>
+
+            <div className="table-shell">
+              <table className="table-base">
+                <thead className="table-head">
+                  <tr>
+                    <th>ID</th>
+                    <th>Nombre</th>
+                    <th className="text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bootstrap?.transports.map((t) => (
+                    <tr key={t.transport_id} className="table-row">
+                      <td className="table-cell font-mono text-xs">{t.transport_id}</td>
+                      <td className="table-cell font-medium">{t.name}</td>
+                      <td className="table-cell text-right space-x-2">
+                        <Button variant="ghost" onClick={() => navigate(`/transports/${t.transport_id}`)}>
+                          Editar
+                        </Button>
+                        <Button variant="danger" onClick={() => handleDelete('transport', t.transport_id)} disabled={loading}>
+                          Eliminar
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {tab === 'products' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="eyebrow">Catálogo</div>
+                <h2 className="subsection-title mt-2">Productos</h2>
+              </div>
+              <Button variant="primary" onClick={() => navigate('/products/new')}>
+                Nuevo Producto
+              </Button>
+            </div>
+
+            <div className="table-shell">
+              <table className="table-base">
+                <thead className="table-head">
+                  <tr>
+                    <th>ID</th>
+                    <th>Nombre</th>
+                    <th>Presentaciones</th>
+                    <th className="text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {catalog.map((p) => (
+                    <tr key={p.id} className="table-row">
+                      <td className="table-cell font-mono text-xs">{p.id}</td>
+                      <td className="table-cell font-medium">{p.name}</td>
+                      <td className="table-cell text-slate-600">
+                        {p.offerings?.length
+                          ? p.offerings.map((offering) => offering.label).join(', ')
+                          : 'Sin presentaciones'}
+                      </td>
+                      <td className="table-cell text-right space-x-2">
+                        <Button variant="ghost" onClick={() => navigate(`/products/${p.id}`)}>
+                          Editar
+                        </Button>
+                        <Button variant="danger" onClick={() => handleDelete('product', p.id)} disabled={loading}>
+                          Eliminar
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
