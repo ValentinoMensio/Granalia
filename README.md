@@ -181,6 +181,26 @@ http://host.docker.internal:8088
 
 o al puerto que definas en `GRANALIA_LOCAL_CADDY_PORT`.
 
+## Acceso PostgreSQL con DBeaver por SSH
+
+`Granalia` publica PostgreSQL solo en localhost del host:
+
+```text
+127.0.0.1:${GRANALIA_LOCAL_POSTGRES_PORT:-5433}
+```
+
+Configuracion sugerida en DBeaver:
+
+- Main / Host: `127.0.0.1`
+- Main / Port: `5433`
+- Main / Database: `granalia`
+- Main / Username: `granalia`
+- Main / Password: valor de `POSTGRES_PASSWORD`
+- SSH / Use SSH Tunnel: habilitado
+- SSH / Host: IP o dominio de la notebook
+- SSH / Port: `22`
+- SSH / User: tu usuario del servidor
+
 Healthchecks utiles:
 
 - `GET /health/live`

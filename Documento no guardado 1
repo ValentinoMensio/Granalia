@@ -1,0 +1,13 @@
+https://github.com/ValentinoMensio/Granalia
+git remote add origin https://github.com/ValentinoMensio/Granalia.git
+
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ8mUXp4KFDBywa2cWu14Bcl/Gq0sP0n0oFWeYwLAe7o valentino.mensio@mi.unc.edu.ar
+
+
+git clone https://github.com/ValentinoMensio/Granalia
+cd Granalia
+cp .env.example .env
+
+ https://kijiji-publicly-magnitude-sagem.trycloudflare.com   
+
+https://lease-knights-ins-presents.trycloudflare.com
