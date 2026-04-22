@@ -39,7 +39,7 @@ def build_invoice_pdf(invoice: dict) -> bytes:
     width, height = A4
     margin = 40
     y = height - margin
-    logo_path = Path(__file__).resolve().parents[3] / "img" / "logo.png"
+    logo_path = Path(__file__).resolve().parents[3] / "img" / "logo-bw.png"
 
     pdf.setTitle(f"Factura {invoice['id']}")
 

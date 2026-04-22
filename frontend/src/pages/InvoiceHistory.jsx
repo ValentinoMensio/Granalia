@@ -215,7 +215,8 @@ export default function InvoiceHistory() {
                         PDF
                       </a>
                       <Button
-                        variant="danger"
+                        variant="ghost"
+                        className="px-0 py-0 text-sm text-red-600"
                         onClick={() => handleDeleteInvoice(invoice.invoice_id)}
                         disabled={deletingInvoiceId === invoice.invoice_id}
                       >
