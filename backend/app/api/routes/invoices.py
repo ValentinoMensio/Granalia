@@ -5,6 +5,7 @@ from fastapi.responses import Response
 
 from ...dependencies import get_repository
 from ...schemas import InvoiceCreateOut, InvoiceDetailOut, InvoiceListItemOut, InvoiceRequest, StatusResponse
+from ...services.pdf import build_invoice_pdf
 from ...services.invoicing import generate_invoice_document
 
 
@@ -33,6 +34,19 @@ def download_invoice(invoice_id: int) -> Response:
         content=invoice["xlsx_data"],
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{invoice["output_filename"]}"'},
+    )
+
+
+@router.get("/{invoice_id}/pdf")
+def download_invoice_pdf(invoice_id: int) -> Response:
+    invoice = get_repository().get_invoice_detail(invoice_id)
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+    pdf_bytes = build_invoice_pdf(invoice)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="factura-{invoice_id}.pdf"'},
     )
 
 

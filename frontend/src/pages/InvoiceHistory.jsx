@@ -10,7 +10,7 @@ const EMPTY_FILTERS = { customerId: '', dateFrom: '', dateTo: '', transport: '',
 
 export default function InvoiceHistory() {
   const navigate = useNavigate()
-  const { bootstrap, invoices, customers, invoiceDetail, loadInvoiceDetail, clearInvoiceDetail, invoiceDownloadUrl, startInvoiceEdit, deleteInvoice } = useGranalia()
+  const { bootstrap, invoices, customers, invoiceDetail, loadInvoiceDetail, clearInvoiceDetail, invoiceDownloadUrl, invoicePdfUrl, startInvoiceEdit, deleteInvoice } = useGranalia()
   const [filters, setFilters] = useState(EMPTY_FILTERS)
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [deletingInvoiceId, setDeletingInvoiceId] = useState(null)
@@ -206,6 +206,14 @@ export default function InvoiceHistory() {
                       >
                         Descargar
                       </a>
+                      <a
+                        href={invoicePdfUrl(invoice.invoice_id)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-sm font-semibold text-brand-ink hover:text-brand-red"
+                      >
+                        PDF
+                      </a>
                       <Button
                         variant="ghost"
                         className="px-0 py-0 text-sm text-red-600"
@@ -353,8 +361,16 @@ export default function InvoiceHistory() {
               >
                 Descargar XLSX
               </a>
+              <a
+                href={invoicePdfUrl(invoiceDetail.id)}
+                target="_blank"
+                rel="noreferrer"
+                className="btn-secondary"
+              >
+                Descargar PDF
+              </a>
               <Button
-                variant="secondary"
+                variant="danger"
                 onClick={() => handleDeleteInvoice(invoiceDetail.id)}
                 disabled={deletingInvoiceId === invoiceDetail.id}
               >

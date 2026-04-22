@@ -149,8 +149,7 @@ export default function Management() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <div className="eyebrow">Catálogo</div>
-                <h2 className="subsection-title mt-2">Productos</h2>
+                <h2 className="subsection-title">Productos</h2>
               </div>
               <Button variant="primary" onClick={() => navigate('/products/new')}>
                 Nuevo Producto

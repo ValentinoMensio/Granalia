@@ -88,6 +88,10 @@ function useGranaliaData() {
     return `${API_BASE}/api/invoices/${invoiceId}/xlsx`
   }
 
+  function invoicePdfUrl(invoiceId) {
+    return `${API_BASE}/api/invoices/${invoiceId}/pdf`
+  }
+
   function downloadInvoice(invoiceId) {
     const link = document.createElement('a')
     link.href = invoiceDownloadUrl(invoiceId)
@@ -296,6 +300,7 @@ function useGranaliaData() {
     startInvoiceEdit,
     deleteInvoice,
     invoiceDownloadUrl,
+    invoicePdfUrl,
     downloadInvoice,
     applyCustomer,
     updateFormField,
