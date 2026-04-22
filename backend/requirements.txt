@@ -4,6 +4,7 @@ sqlalchemy
 psycopg[binary]
 python-multipart
 openpyxl
+pillow
 pypdf
 alembic
 reportlab

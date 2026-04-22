@@ -26,11 +26,14 @@ def _discount_summary(invoice: dict) -> str:
     return " + ".join(f"{rate:g}%" for rate in rates) or "Sin descuentos"
 
 
-def _draw_logo(pdf: canvas.Canvas, *, margin: int, y: float, logo_path: Path) -> None:
+def _draw_logo(pdf: canvas.Canvas, *, margin: int, y: float, logo_path: Path) -> float:
     if not logo_path.exists():
-        return
+        return y
     image = ImageReader(str(logo_path))
-    pdf.drawImage(image, margin, y - 52, width=210, height=52, preserveAspectRatio=True, mask='auto')
+    logo_width = 150
+    logo_height = 38
+    pdf.drawImage(image, margin, y - logo_height, width=logo_width, height=logo_height, preserveAspectRatio=True, mask='auto')
+    return y - logo_height - 12
 
 
 def build_invoice_pdf(invoice: dict) -> bytes:
@@ -43,10 +46,10 @@ def build_invoice_pdf(invoice: dict) -> bytes:
 
     pdf.setTitle(f"Factura {invoice['id']}")
 
-    _draw_logo(pdf, margin=margin, y=y, logo_path=logo_path)
+    y = _draw_logo(pdf, margin=margin, y=y, logo_path=logo_path)
     pdf.setFont("Helvetica-Bold", 14)
     pdf.drawRightString(width - margin, y, f"Factura #{invoice['id']}")
-    y -= 28
+    y -= 20
 
     pdf.setFont("Helvetica", 10)
     pdf.drawString(margin, y, f"Fecha: {invoice['order_date']}")
@@ -83,7 +86,7 @@ def build_invoice_pdf(invoice: dict) -> bytes:
         if y < 110:
             pdf.showPage()
             y = height - margin
-            _draw_logo(pdf, margin=margin, y=y, logo_path=logo_path)
+            y = _draw_logo(pdf, margin=margin, y=y, logo_path=logo_path)
             pdf.setFont("Helvetica", 10)
         label = str(item.get("label") or "")
         if stringWidth(label, "Helvetica", 10) > 260:
