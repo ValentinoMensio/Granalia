@@ -1,14 +1,36 @@
 from __future__ import annotations
 
 from io import BytesIO
+from pathlib import Path
 
 from reportlab.lib.pagesizes import A4
+from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen import canvas
+
+from ..core.utils import clean_cell_text
 
 
 def _money(value: int | float) -> str:
     return f"$ {int(round(value or 0)):,}".replace(",", ".")
+
+
+def _discount_summary(invoice: dict) -> str:
+    line_discounts = invoice.get("line_discounts_by_format") or {}
+    if line_discounts:
+        rates = sorted({round(float(rate) * 100, 2) for rate in line_discounts.values() if float(rate) > 0})
+        return " + ".join(f"{rate:g}%" for rate in rates) or "Sin descuentos"
+
+    footer_discounts = invoice.get("footer_discounts") or []
+    rates = [round(float(item.get("rate") or 0) * 100, 2) for item in footer_discounts if float(item.get("rate") or 0) > 0]
+    return " + ".join(f"{rate:g}%" for rate in rates) or "Sin descuentos"
+
+
+def _draw_logo(pdf: canvas.Canvas, *, margin: int, y: float, logo_path: Path) -> None:
+    if not logo_path.exists():
+        return
+    image = ImageReader(str(logo_path))
+    pdf.drawImage(image, margin, y - 38, width=118, height=38, preserveAspectRatio=True, mask='auto')
 
 
 def build_invoice_pdf(invoice: dict) -> bytes:
@@ -17,11 +39,13 @@ def build_invoice_pdf(invoice: dict) -> bytes:
     width, height = A4
     margin = 40
     y = height - margin
+    logo_path = Path(__file__).resolve().parents[3] / "img" / "logo.png"
 
     pdf.setTitle(f"Factura {invoice['id']}")
 
+    _draw_logo(pdf, margin=margin, y=y, logo_path=logo_path)
     pdf.setFont("Helvetica-Bold", 18)
-    pdf.drawString(margin, y, "Granalia")
+    pdf.drawString(margin + 126, y, "Granalia")
     pdf.setFont("Helvetica-Bold", 14)
     pdf.drawRightString(width - margin, y, f"Factura #{invoice['id']}")
     y -= 28
@@ -35,6 +59,9 @@ def build_invoice_pdf(invoice: dict) -> bytes:
     if secondary_line:
         y -= 18
         pdf.drawString(margin, y, secondary_line)
+    discount_summary = _discount_summary(invoice)
+    y -= 18
+    pdf.drawString(margin, y, f"Descuentos: {discount_summary}")
     y -= 24
 
     headers = [
@@ -55,6 +82,7 @@ def build_invoice_pdf(invoice: dict) -> bytes:
         if y < 110:
             pdf.showPage()
             y = height - margin
+            _draw_logo(pdf, margin=margin, y=y, logo_path=logo_path)
             pdf.setFont("Helvetica", 10)
         label = str(item.get("label") or "")
         if stringWidth(label, "Helvetica", 10) > 260:
@@ -66,13 +94,14 @@ def build_invoice_pdf(invoice: dict) -> bytes:
         y -= 16
 
     y -= 10
-    pdf.line(width - 220, y, width - margin, y)
+    pdf.line(margin, y, width - margin, y)
     y -= 18
     pdf.setFont("Helvetica-Bold", 10)
     pdf.drawString(width - 200, y, "Bruto")
     pdf.drawRightString(width - margin, y, _money(invoice.get("gross_total") or 0))
     y -= 16
-    pdf.drawString(width - 200, y, "Descuento")
+    discount_label = f"Descuento ({discount_summary})" if discount_summary != "Sin descuentos" else "Descuento"
+    pdf.drawString(width - 200, y, clean_cell_text(discount_label))
     pdf.drawRightString(width - margin, y, _money(invoice.get("discount_total") or 0))
     y -= 16
     pdf.setFont("Helvetica-Bold", 11)
