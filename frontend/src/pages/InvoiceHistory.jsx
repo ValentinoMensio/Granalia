@@ -264,20 +264,6 @@ export default function InvoiceHistory() {
 
         {invoiceDetail && !loadingDetail && (
           <div className="mt-6 space-y-6">
-            <div className="flex flex-wrap justify-end gap-3">
-              <Button variant="secondary" onClick={() => handleEditInvoice(invoiceDetail.id)}>
-                Editar factura
-              </Button>
-              <Button
-                variant="ghost"
-                className="text-red-600"
-                onClick={() => handleDeleteInvoice(invoiceDetail.id)}
-                disabled={deletingInvoiceId === invoiceDetail.id}
-              >
-                {deletingInvoiceId === invoiceDetail.id ? 'Eliminando...' : 'Eliminar factura'}
-              </Button>
-            </div>
-
             <div className="surface-muted grid gap-4 p-4 text-sm md:grid-cols-3 xl:grid-cols-6">
               <div>
                 <div className="text-xs uppercase tracking-wide text-slate-400">Factura</div>
@@ -308,14 +294,6 @@ export default function InvoiceHistory() {
             <div>
               <div className="mb-3 flex items-center justify-between">
                 <h3 className="font-medium">Lineas</h3>
-                <a
-                  href={invoiceDownloadUrl(invoiceDetail.id)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-sm font-semibold text-brand-red hover:underline"
-                >
-                  Descargar XLSX
-                </a>
               </div>
               <div className="table-shell">
                 <table className="table-base">
@@ -361,6 +339,27 @@ export default function InvoiceHistory() {
                 <div className="text-xs uppercase tracking-wide text-slate-400">Final</div>
                 <div className="mt-2 text-lg font-semibold text-brand-red">${money(invoiceDetail.final_total)}</div>
               </div>
+            </div>
+
+            <div className="flex flex-wrap justify-end gap-3 border-t border-stone-200 pt-4">
+              <Button variant="secondary" onClick={() => handleEditInvoice(invoiceDetail.id)}>
+                Editar factura
+              </Button>
+              <a
+                href={invoiceDownloadUrl(invoiceDetail.id)}
+                target="_blank"
+                rel="noreferrer"
+                className="btn-secondary"
+              >
+                Descargar XLSX
+              </a>
+              <Button
+                variant="secondary"
+                onClick={() => handleDeleteInvoice(invoiceDetail.id)}
+                disabled={deletingInvoiceId === invoiceDetail.id}
+              >
+                {deletingInvoiceId === invoiceDetail.id ? 'Eliminando...' : 'Eliminar factura'}
+              </Button>
             </div>
           </div>
         )}

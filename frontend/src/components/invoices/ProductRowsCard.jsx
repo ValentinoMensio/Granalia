@@ -11,6 +11,7 @@ function ProductRowsCard({
   generating,
   onAddItem,
   onGenerate,
+  onCancelEdit,
   onRemoveItem,
   onUpdateItem,
 }) {
@@ -303,7 +304,7 @@ function ProductRowsCard({
         <Metric label="Total estimado" value={money(totals.total)} />
       </div>
 
-      <div className="mt-6 flex justify-start border-t border-stone-200 pt-5">
+      <div className="mt-6 flex flex-wrap justify-start gap-3 border-t border-stone-200 pt-5">
         <Button
           variant="primary"
           className="min-w-[180px]"
@@ -312,6 +313,11 @@ function ProductRowsCard({
         >
           {generating ? 'Guardando...' : editingInvoiceId ? 'Actualizar factura' : 'Generar factura'}
         </Button>
+        {editingInvoiceId && (
+          <Button variant="secondary" className="min-w-[180px]" onClick={onCancelEdit}>
+            Cancelar edición
+          </Button>
+        )}
       </div>
     </div>
   )

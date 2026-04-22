@@ -2,8 +2,10 @@ import InvoiceFormCard from '../components/invoices/InvoiceFormCard'
 import ProductRowsCard from '../components/invoices/ProductRowsCard'
 import PriceListPanel from '../components/sidebar/PriceListPanel'
 import { useGranalia } from '../context/GranaliaContext'
+import { useNavigate } from 'react-router-dom'
 
 export default function OrderCreator() {
+  const navigate = useNavigate()
   const {
     bootstrap,
     customers,
@@ -32,6 +34,11 @@ export default function OrderCreator() {
     clearInvoiceEditing,
   } = useGranalia()
 
+  function handleCancelInvoiceEdit() {
+    clearInvoiceEditing()
+    navigate('/history')
+  }
+
   return (
     <main className="relative mt-8 xl:pr-[330px]">
       <section className="space-y-6">
@@ -51,7 +58,7 @@ export default function OrderCreator() {
           onGenerate={generateInvoice}
           onRemoveFooterDiscount={removeFooterDiscountRow}
           onSave={saveCustomer}
-          onCancelEdit={clearInvoiceEditing}
+          onCancelEdit={handleCancelInvoiceEdit}
         />
 
         <ProductRowsCard
@@ -62,6 +69,7 @@ export default function OrderCreator() {
           totals={totals}
           generating={generating}
           onAddItem={addItemRow}
+          onCancelEdit={handleCancelInvoiceEdit}
           onGenerate={generateInvoice}
           onRemoveItem={removeItemRow}
           onUpdateItem={updateItem}
