@@ -46,10 +46,13 @@ function useGranaliaData() {
 
   function primeForm(nextBootstrap) {
     const sourceCustomers = Object.values(nextBootstrap.profiles || {})
-    if (!sourceCustomers.length) return
+    if (!sourceCustomers.length) {
+      setForm(createInitialForm())
+      return
+    }
 
     const firstCustomer = sourceCustomers[0]
-    setForm((current) => applyCustomerToForm(current, firstCustomer))
+    setForm(applyCustomerToForm(createInitialForm(), firstCustomer))
   }
 
   async function loadAll() {
@@ -70,7 +73,15 @@ function useGranaliaData() {
   }
 
   function clearInvoiceEditing() {
+    const sourceCustomers = customers
     setEditingInvoiceId(null)
+    if (!sourceCustomers.length) {
+      setForm(createInitialForm())
+      setStatus('Edición cancelada.')
+      return
+    }
+    setForm(applyCustomerToForm(createInitialForm(), sourceCustomers[0]))
+    setStatus('Edición cancelada.')
   }
 
   function invoiceDownloadUrl(invoiceId) {

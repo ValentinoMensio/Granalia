@@ -264,6 +264,20 @@ export default function InvoiceHistory() {
 
         {invoiceDetail && !loadingDetail && (
           <div className="mt-6 space-y-6">
+            <div className="flex flex-wrap justify-end gap-3">
+              <Button variant="secondary" onClick={() => handleEditInvoice(invoiceDetail.id)}>
+                Editar factura
+              </Button>
+              <Button
+                variant="ghost"
+                className="text-red-600"
+                onClick={() => handleDeleteInvoice(invoiceDetail.id)}
+                disabled={deletingInvoiceId === invoiceDetail.id}
+              >
+                {deletingInvoiceId === invoiceDetail.id ? 'Eliminando...' : 'Eliminar factura'}
+              </Button>
+            </div>
+
             <div className="surface-muted grid gap-4 p-4 text-sm md:grid-cols-3 xl:grid-cols-6">
               <div>
                 <div className="text-xs uppercase tracking-wide text-slate-400">Factura</div>

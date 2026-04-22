@@ -25,11 +25,6 @@ function InvoiceFormCard({
         <div>
           <h2 className="subsection-title text-2xl">{editingInvoiceId ? `Editar factura #${editingInvoiceId}` : 'Nueva factura'}</h2>
         </div>
-        {editingInvoiceId && (
-          <Button variant="ghost" onClick={onCancelEdit}>
-            Cancelar edición
-          </Button>
-        )}
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -137,6 +132,11 @@ function InvoiceFormCard({
         <Button variant="primary" className="min-w-[180px]" onClick={onSave} disabled={saving}>
           {saving ? 'Guardando...' : 'Guardar cambios'}
         </Button>
+        {editingInvoiceId && (
+          <Button variant="secondary" className="min-w-[180px]" onClick={onCancelEdit}>
+            Cancelar edición
+          </Button>
+        )}
       </div>
     </div>
   )
