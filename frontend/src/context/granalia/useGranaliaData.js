@@ -92,6 +92,16 @@ function useGranaliaData() {
     return `${API_BASE}/api/invoices/${invoiceId}/pdf`
   }
 
+  function downloadInvoicePdf(invoiceId) {
+    const link = document.createElement('a')
+    link.href = invoicePdfUrl(invoiceId)
+    link.target = '_blank'
+    link.rel = 'noreferrer'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
   function downloadInvoice(invoiceId) {
     const link = document.createElement('a')
     link.href = invoiceDownloadUrl(invoiceId)
@@ -267,10 +277,10 @@ function useGranaliaData() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(buildInvoicePayload(form, currentCustomer)),
       })
-      downloadInvoice(data.invoice_id)
+      downloadInvoicePdf(data.invoice_id)
       await refreshInvoices()
       setEditingInvoiceId(null)
-      setStatus(`Factura ${data.invoice_id} ${isEditing ? 'actualizada' : 'guardada'} y descargada.`)
+      setStatus(`Factura ${data.invoice_id} ${isEditing ? 'actualizada' : 'guardada'} y descargada en PDF.`)
     } finally {
       setGenerating(false)
     }
@@ -302,6 +312,7 @@ function useGranaliaData() {
     invoiceDownloadUrl,
     invoicePdfUrl,
     downloadInvoice,
+    downloadInvoicePdf,
     applyCustomer,
     updateFormField,
     addFooterDiscountRow,

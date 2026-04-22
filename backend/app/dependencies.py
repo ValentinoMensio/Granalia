@@ -9,7 +9,15 @@ from .core.security import AuthManager
 from .infrastructure.postgres import PostgresRepository
 
 
-BASE_DIR = Path(__file__).resolve().parents[2]
+def _resolve_base_dir() -> Path:
+    current = Path(__file__).resolve()
+    for candidate in current.parents:
+        if (candidate / "img").exists():
+            return candidate
+    return current.parents[1]
+
+
+BASE_DIR = _resolve_base_dir()
 
 
 @lru_cache

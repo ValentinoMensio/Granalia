@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from io import BytesIO
-from pathlib import Path
 
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
@@ -9,6 +8,7 @@ from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen import canvas
 
 from ..core.utils import clean_cell_text
+from ..dependencies import BASE_DIR
 
 
 def _money(value: int | float) -> str:
@@ -39,7 +39,7 @@ def build_invoice_pdf(invoice: dict) -> bytes:
     width, height = A4
     margin = 40
     y = height - margin
-    logo_path = Path(__file__).resolve().parents[3] / "img" / "logo-bw.png"
+    logo_path = BASE_DIR / "img" / "logo-bw.png"
 
     pdf.setTitle(f"Factura {invoice['id']}")
 
