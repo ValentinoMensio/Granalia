@@ -204,7 +204,7 @@ export default function InvoiceHistory() {
                         rel="noreferrer"
                         className="text-sm font-semibold text-brand-ink hover:text-brand-red"
                       >
-                        Descargar
+                        XLSX
                       </a>
                       <a
                         href={invoicePdfUrl(invoice.invoice_id)}
