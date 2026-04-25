@@ -156,19 +156,65 @@ class PostgresTransportMixin(PostgresRepositoryProtocol):
 
         with self.engine.begin() as connection:
             if transport_id is None:
-                stmt = insert(self.transports).values(
-                    name=transport_name,
-                    notes=transport_notes,
-                    created_at=now,
-                    updated_at=now,
-                )
-                stmt = stmt.on_conflict_do_update(
-                    index_elements=[self.transports.c.name],
-                    set_={"notes": transport_notes, "updated_at": now},
-                )
-                connection.execute(stmt)
-                row = connection.execute(select(self.transports).where(self.transports.c.name == transport_name)).mappings().first()
+                row = connection.execute(
+                    select(self.transports)
+                    .where(self.transports.c.name == transport_name)
+                    .order_by(self.transports.c.transport_id)
+                    .limit(1)
+                ).mappings().first()
+                if row:
+                    connection.execute(
+                        update(self.transports)
+                        .where(self.transports.c.transport_id == row["transport_id"])
+                        .values(notes=transport_notes, updated_at=now)
+                    )
+                    row = connection.execute(
+                        select(self.transports).where(self.transports.c.transport_id == row["transport_id"])
+                    ).mappings().first()
+                else:
+                    row = connection.execute(
+                        insert(self.transports)
+                        .values(
+                            name=transport_name,
+                            notes=transport_notes,
+                            created_at=now,
+                            updated_at=now,
+                        )
+                        .returning(self.transports)
+                    ).mappings().first()
             else:
+                duplicate = connection.execute(
+                    select(self.transports)
+                    .where(
+                        self.transports.c.name == transport_name,
+                        self.transports.c.transport_id != transport_id,
+                    )
+                    .order_by(self.transports.c.transport_id)
+                    .limit(1)
+                ).mappings().first()
+                if duplicate:
+                    target_id = duplicate["transport_id"]
+                    connection.execute(
+                        update(self.customers)
+                        .where(self.customers.c.transport_id == transport_id)
+                        .values(transport_id=target_id, updated_at=now)
+                    )
+                    connection.execute(
+                        update(self.invoices)
+                        .where(self.invoices.c.transport_id == transport_id)
+                        .values(transport_id=target_id, transport=transport_name)
+                    )
+                    connection.execute(
+                        update(self.transports)
+                        .where(self.transports.c.transport_id == target_id)
+                        .values(notes=transport_notes, updated_at=now)
+                    )
+                    connection.execute(self.transports.delete().where(self.transports.c.transport_id == transport_id))
+                    row = connection.execute(
+                        select(self.transports).where(self.transports.c.transport_id == target_id)
+                    ).mappings().first()
+                    return cast(TransportData, serialize_value(row))
+
                 result = connection.execute(
                     update(self.transports)
                     .where(self.transports.c.transport_id == transport_id)
