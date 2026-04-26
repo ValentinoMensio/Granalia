@@ -277,10 +277,15 @@ function useGranaliaData() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(buildInvoicePayload(form, currentCustomer)),
       })
-      downloadInvoicePdf(data.invoice_id)
+      const shouldDownload = window.confirm(`Factura ${data.invoice_id} ${isEditing ? 'actualizada' : 'guardada'}. ¿Querés descargarla en PDF?`)
+      if (shouldDownload) {
+        downloadInvoicePdf(data.invoice_id)
+      }
       await refreshInvoices()
       setEditingInvoiceId(null)
-      setStatus(`Factura ${data.invoice_id} ${isEditing ? 'actualizada' : 'guardada'} y descargada en PDF.`)
+      setForm(createInitialForm())
+      setStatus(`Factura ${data.invoice_id} ${isEditing ? 'actualizada' : 'guardada'}${shouldDownload ? ' y descargada en PDF' : ''}.`)
+      return { invoiceId: data.invoice_id, updated: isEditing }
     } finally {
       setGenerating(false)
     }

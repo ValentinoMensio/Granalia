@@ -39,6 +39,13 @@ export default function OrderCreator() {
     navigate('/history')
   }
 
+  async function handleGenerateInvoice() {
+    const result = await generateInvoice()
+    if (result?.updated) {
+      navigate('/history')
+    }
+  }
+
   return (
     <main className="relative mt-8 xl:pr-[330px]">
       <section className="space-y-6">
@@ -55,7 +62,7 @@ export default function OrderCreator() {
           onFooterDiscountChange={updateFooterDiscountRow}
           onFieldChange={updateFormField}
           onLineDiscountChange={updateLineDiscountGroup}
-          onGenerate={generateInvoice}
+          onGenerate={handleGenerateInvoice}
           onRemoveFooterDiscount={removeFooterDiscountRow}
           onSave={saveCustomer}
           onCancelEdit={handleCancelInvoiceEdit}
@@ -70,7 +77,7 @@ export default function OrderCreator() {
           generating={generating}
           onAddItem={addItemRow}
           onCancelEdit={handleCancelInvoiceEdit}
-          onGenerate={generateInvoice}
+          onGenerate={handleGenerateInvoice}
           onRemoveItem={removeItemRow}
           onUpdateItem={updateItem}
         />

@@ -188,7 +188,7 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
                         )
                         .returning(self.products)
                     ).mappings().first()
-        return cast(CatalogProductData, serialize_value(row))
+        return cast(CatalogProductData, {key: serialize_value(value) for key, value in row.items()})
 
     def save_product_offerings(self, product_id: int, offerings: list[CatalogOfferingData]) -> None:
         now = utc_now()
@@ -210,6 +210,37 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
                 offering_id = off.get("id") if isinstance(off.get("id"), int) else None
 
                 if offering_id is not None:
+                    duplicate = connection.execute(
+                        select(self.product_offerings)
+                        .where(
+                            self.product_offerings.c.product_id == product_id,
+                            self.product_offerings.c.label == offering_label,
+                            self.product_offerings.c.id != offering_id,
+                        )
+                        .order_by(self.product_offerings.c.id)
+                        .limit(1)
+                    ).mappings().first()
+                    if duplicate:
+                        target_id = int(duplicate["id"])
+                        connection.execute(
+                            update(self.invoice_items)
+                            .where(self.invoice_items.c.offering_id == offering_id)
+                            .values(offering_id=target_id)
+                        )
+                        connection.execute(
+                            update(self.product_offerings)
+                            .where(self.product_offerings.c.id == target_id)
+                            .values(
+                                price=int(off["price"]),
+                                position=position,
+                                active=True,
+                                updated_at=now,
+                            )
+                        )
+                        connection.execute(self.product_offerings.delete().where(self.product_offerings.c.id == offering_id))
+                        seen_ids.add(target_id)
+                        continue
+
                     connection.execute(
                         update(self.product_offerings)
                         .where(self.product_offerings.c.id == offering_id)
@@ -223,20 +254,43 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
                     )
                     seen_ids.add(int(offering_id))
                 else:
-                    inserted_id = connection.execute(
-                        insert(self.product_offerings)
-                        .values(
-                            product_id=product_id,
-                            label=offering_label,
-                            price=int(off["price"]),
-                            position=position,
-                            active=True,
-                            created_at=now,
-                            updated_at=now,
+                    existing = connection.execute(
+                        select(self.product_offerings)
+                        .where(
+                            self.product_offerings.c.product_id == product_id,
+                            self.product_offerings.c.label == offering_label,
                         )
-                        .returning(self.product_offerings.c.id)
-                    ).scalar_one()
-                    seen_ids.add(inserted_id)
+                        .order_by(self.product_offerings.c.id)
+                        .limit(1)
+                    ).mappings().first()
+                    if existing:
+                        existing_id = int(existing["id"])
+                        connection.execute(
+                            update(self.product_offerings)
+                            .where(self.product_offerings.c.id == existing_id)
+                            .values(
+                                price=int(off["price"]),
+                                position=position,
+                                active=True,
+                                updated_at=now,
+                            )
+                        )
+                        seen_ids.add(existing_id)
+                    else:
+                        inserted_id = connection.execute(
+                            insert(self.product_offerings)
+                            .values(
+                                product_id=product_id,
+                                label=offering_label,
+                                price=int(off["price"]),
+                                position=position,
+                                active=True,
+                                created_at=now,
+                                updated_at=now,
+                            )
+                            .returning(self.product_offerings.c.id)
+                        ).scalar_one()
+                        seen_ids.add(inserted_id)
 
             for row in existing_rows:
                 if row["id"] not in seen_ids:
