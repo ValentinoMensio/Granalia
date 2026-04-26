@@ -125,7 +125,50 @@ export default function ProductEditor() {
             <h3 className="subsection-title">Presentaciones y precios</h3>
           </div>
 
-          <div className="table-shell">
+          <div className="mobile-list">
+            {offerings.map((off, i) => (
+              <article key={i} className="mobile-card">
+                <div className="mobile-card-kicker">Presentación {i + 1}</div>
+                <div className="mt-3 grid gap-3">
+                  <div>
+                    <label className="field-label">Etiqueta</label>
+                    <select
+                      value={off.label}
+                      onChange={(e) => updateOffering(i, 'label', e.target.value)}
+                      className="input"
+                    >
+                      <option value="">Seleccionar etiqueta</option>
+                      {availableOfferingLabels.map((label) => (
+                        <option key={label} value={label}>{label}</option>
+                      ))}
+                      {off.label && !availableOfferingLabels.includes(off.label) ? (
+                        <option value={off.label}>{off.label}</option>
+                      ) : null}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="field-label">Precio</label>
+                    <input
+                      type="number"
+                      value={off.price}
+                      onChange={(e) => updateOffering(i, 'price', e.target.value)}
+                      className="input text-right"
+                    />
+                  </div>
+                  <Button variant="danger" className="w-full" onClick={() => removeOffering(i)}>
+                    Eliminar presentación
+                  </Button>
+                </div>
+              </article>
+            ))}
+            {offerings.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm italic text-slate-400">
+                No hay presentaciones configuradas para este producto.
+              </div>
+            )}
+          </div>
+
+          <div className="table-shell hidden lg:block">
             <table className="table-base">
               <thead className="table-head">
                 <tr>

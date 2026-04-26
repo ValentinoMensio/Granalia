@@ -171,7 +171,7 @@ export default function InvoiceHistory() {
           <div className="badge self-start md:mt-1">{filteredInvoices.length} resultados</div>
         </div>
 
-        <div className="mt-6 grid gap-3 md:hidden">
+        <div className="mobile-list mt-6">
           {paginatedInvoices.map((invoice) => {
             const isUpcoming = invoice.order_date >= todayKey
 
@@ -236,7 +236,7 @@ export default function InvoiceHistory() {
           )}
         </div>
 
-        <div className="table-shell mt-6 hidden md:block">
+        <div className="table-shell mt-6 hidden lg:block">
           <table className="table-base table-fixed">
             <colgroup>
               <col className="w-[9%]" />
@@ -381,7 +381,34 @@ export default function InvoiceHistory() {
               <div className="mb-3 flex items-center justify-between">
                 <h3 className="font-medium">Lineas</h3>
               </div>
-              <div className="table-shell">
+              <div className="mobile-list">
+                {invoiceDetail.items.map((item) => (
+                  <article key={item.id} className="mobile-card">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="mobile-card-kicker">Línea {item.line_number}</div>
+                        <h4 className="mobile-card-title mt-1 break-words">{item.label}</h4>
+                        {itemSecondaryLabel(item) ? (
+                          <div className="mt-1 text-xs text-slate-400">{itemSecondaryLabel(item)}</div>
+                        ) : null}
+                      </div>
+                      <div className="shrink-0 text-right text-sm font-semibold text-brand-red">${money(item.total)}</div>
+                    </div>
+                    <div className="mobile-field-grid">
+                      <div className="mobile-field">
+                        <span className="mobile-field-label">Cantidad</span>
+                        <span className="mobile-field-value">{item.quantity}</span>
+                      </div>
+                      <div className="mobile-field">
+                        <span className="mobile-field-label">Precio</span>
+                        <span className="mobile-field-value">${money(item.unit_price)}</span>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+
+              <div className="table-shell hidden lg:block">
                 <table className="table-base">
                   <thead className="table-head">
                     <tr>

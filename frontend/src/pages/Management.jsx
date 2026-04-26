@@ -100,7 +100,43 @@ export default function Management() {
               </Button>
             </div>
 
-            <div className="table-shell">
+            <div className="mobile-list">
+              {filteredCustomers.map((c) => (
+                <article key={c.id} className="mobile-card">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="mobile-card-kicker">#{c.id}</div>
+                      <h3 className="mobile-card-title mt-1 break-words">{c.name}</h3>
+                    </div>
+                  </div>
+                  <div className="mobile-field-grid">
+                    <div className="mobile-field">
+                      <span className="mobile-field-label">Transporte</span>
+                      <span className="mobile-field-value">{c.transport || 'Sin transporte'}</span>
+                    </div>
+                    <div className="mobile-field">
+                      <span className="mobile-field-label">Descuentos</span>
+                      <span className="mobile-field-value break-words">{summarizeDiscounts(c)}</span>
+                    </div>
+                  </div>
+                  <div className="mobile-actions">
+                    <Button variant="secondary" className="w-full" onClick={() => navigate(`/customers/${c.id}`)}>
+                      Editar
+                    </Button>
+                    <Button variant="danger" className="w-full" onClick={() => handleDelete('customer', c.id)} disabled={loading}>
+                      Eliminar
+                    </Button>
+                  </div>
+                </article>
+              ))}
+              {filteredCustomers.length === 0 && (
+                <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm italic text-slate-400">
+                  No hay clientes que coincidan con la búsqueda.
+                </div>
+              )}
+            </div>
+
+            <div className="table-shell hidden lg:block">
               <table className="table-base">
                 <thead className="table-head">
                   <tr>
@@ -159,7 +195,31 @@ export default function Management() {
               </Button>
             </div>
 
-            <div className="table-shell">
+            <div className="mobile-list">
+              {filteredTransports.map((t) => (
+                <article key={t.transport_id} className="mobile-card">
+                  <div className="min-w-0">
+                    <div className="mobile-card-kicker">#{t.transport_id}</div>
+                    <h3 className="mobile-card-title mt-1 break-words">{t.name}</h3>
+                  </div>
+                  <div className="mobile-actions">
+                    <Button variant="secondary" className="w-full" onClick={() => navigate(`/transports/${t.transport_id}`)}>
+                      Editar
+                    </Button>
+                    <Button variant="danger" className="w-full" onClick={() => handleDelete('transport', t.transport_id)} disabled={loading}>
+                      Eliminar
+                    </Button>
+                  </div>
+                </article>
+              ))}
+              {filteredTransports.length === 0 && (
+                <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm italic text-slate-400">
+                  No hay transportes que coincidan con la búsqueda.
+                </div>
+              )}
+            </div>
+
+            <div className="table-shell hidden lg:block">
               <table className="table-base">
                 <thead className="table-head">
                   <tr>
@@ -212,7 +272,41 @@ export default function Management() {
               </Button>
             </div>
 
-            <div className="table-shell">
+            <div className="mobile-list">
+              {filteredProducts.map((p) => (
+                <article key={p.id} className="mobile-card">
+                  <div className="min-w-0">
+                    <div className="mobile-card-kicker">#{p.id}</div>
+                    <h3 className="mobile-card-title mt-1 break-words">{p.name}</h3>
+                  </div>
+                  <div className="mobile-field-grid">
+                    <div className="mobile-field">
+                      <span className="mobile-field-label">Presentaciones</span>
+                      <span className="mobile-field-value break-words">
+                        {p.offerings?.length
+                          ? p.offerings.map((offering) => offering.label).join(', ')
+                          : 'Sin presentaciones'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="mobile-actions">
+                    <Button variant="secondary" className="w-full" onClick={() => navigate(`/products/${p.id}`)}>
+                      Editar
+                    </Button>
+                    <Button variant="danger" className="w-full" onClick={() => handleDelete('product', p.id)} disabled={loading}>
+                      Eliminar
+                    </Button>
+                  </div>
+                </article>
+              ))}
+              {filteredProducts.length === 0 && (
+                <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm italic text-slate-400">
+                  No hay productos que coincidan con la búsqueda.
+                </div>
+              )}
+            </div>
+
+            <div className="table-shell hidden lg:block">
               <table className="table-base">
                 <thead className="table-head">
                   <tr>

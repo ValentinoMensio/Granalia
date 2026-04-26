@@ -39,7 +39,7 @@ function ProductRowsCard({
       </div>
 
       <div className="overflow-hidden rounded-[26px] border border-stone-200 bg-stone-50/70">
-        <div className="hidden md:block">
+        <div className="hidden lg:block">
           <table className="table-base w-full table-fixed border-collapse">
             <colgroup>
               <col className="w-[27%]" />
@@ -185,7 +185,7 @@ function ProductRowsCard({
           </table>
         </div>
 
-        <div className="grid gap-4 p-4 md:hidden">
+        <div className="grid gap-4 p-4 lg:hidden">
           {form.items.map((item, index) => {
             const product = productsById[item.product_id]
             const offeringOptions = optionsWithHistoricalSelection(product?.offerings || [], item.offering_id, item.offering_label)

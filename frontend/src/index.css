@@ -258,7 +258,7 @@
   }
 
   .table-base {
-    @apply w-full min-w-[640px] text-left text-sm;
+    @apply w-full min-w-[760px] text-left text-sm;
   }
 
   .table-head {
@@ -325,5 +325,44 @@
   .soft-note {
     @apply text-sm;
     color: rgb(var(--text-soft));
+  }
+
+  .mobile-list {
+    @apply grid gap-3 lg:hidden;
+  }
+
+  .mobile-card {
+    @apply rounded-2xl border bg-white p-4 shadow-sm;
+    border-color: rgb(var(--border));
+  }
+
+  .mobile-card-title {
+    @apply text-base font-semibold leading-5 tracking-[-0.02em];
+    color: rgb(var(--text));
+  }
+
+  .mobile-card-kicker {
+    @apply font-mono text-xs;
+    color: rgb(var(--text-soft));
+  }
+
+  .mobile-field-grid {
+    @apply mt-3 grid gap-2 text-sm;
+  }
+
+  .mobile-field {
+    @apply flex justify-between gap-3 border-t border-slate-100 pt-2;
+  }
+
+  .mobile-field-label {
+    @apply shrink-0 text-slate-500;
+  }
+
+  .mobile-field-value {
+    @apply min-w-0 text-right font-medium text-slate-800;
+  }
+
+  .mobile-actions {
+    @apply mt-4 grid grid-cols-2 gap-2;
   }
 }
