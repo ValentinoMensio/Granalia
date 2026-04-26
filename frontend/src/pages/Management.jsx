@@ -82,21 +82,18 @@ export default function Management() {
       </div>
 
       <div className="surface p-6">
-        <div className="mb-5">
-          <input
-            type="search"
-            value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
-            placeholder={`Buscar ${tab === 'customers' ? 'clientes' : tab === 'transports' ? 'transportes' : 'productos'} por nombre...`}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
-          />
-        </div>
-
         {tab === 'customers' && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
               <div>
                 <h2 className="subsection-title">Clientes</h2>
+                <input
+                  type="search"
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  placeholder="Buscar clientes por nombre..."
+                  className="mt-3 w-full min-w-[280px] rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red md:w-96"
+                />
               </div>
               <Button variant="primary" onClick={() => navigate('/customers/new')}>
                 Nuevo Cliente
@@ -146,9 +143,16 @@ export default function Management() {
 
         {tab === 'transports' && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
               <div>
                 <h2 className="subsection-title">Transportes</h2>
+                <input
+                  type="search"
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  placeholder="Buscar transportes por nombre..."
+                  className="mt-3 w-full min-w-[280px] rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red md:w-96"
+                />
               </div>
               <Button variant="primary" onClick={() => navigate('/transports/new')}>
                 Nuevo Transporte
@@ -192,9 +196,16 @@ export default function Management() {
 
         {tab === 'products' && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
               <div>
                 <h2 className="subsection-title">Productos</h2>
+                <input
+                  type="search"
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  placeholder="Buscar productos por nombre..."
+                  className="mt-3 w-full min-w-[280px] rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red md:w-96"
+                />
               </div>
               <Button variant="primary" onClick={() => navigate('/products/new')}>
                 Nuevo Producto
