@@ -213,7 +213,7 @@ class PostgresTransportMixin(PostgresRepositoryProtocol):
                     row = connection.execute(
                         select(self.transports).where(self.transports.c.transport_id == target_id)
                     ).mappings().first()
-                    return cast(TransportData, serialize_value(row))
+                    return cast(TransportData, {key: serialize_value(value) for key, value in row.items()})
 
                 result = connection.execute(
                     update(self.transports)
@@ -225,7 +225,7 @@ class PostgresTransportMixin(PostgresRepositoryProtocol):
                 row = connection.execute(
                     select(self.transports).where(self.transports.c.transport_id == transport_id)
                 ).mappings().first()
-        return cast(TransportData, serialize_value(row))
+        return cast(TransportData, {key: serialize_value(value) for key, value in row.items()})
 
     def delete_transport(self, transport_id: int) -> None:
         with self.engine.begin() as connection:
