@@ -112,9 +112,9 @@ def build_invoice_pdf(invoice: dict) -> bytes:
     pdf.line(margin, y, width - margin, y)
     y -= 4
     pdf.setFont("Helvetica-Bold", 11)
-    pdf.drawString(width - 200, y, "Bulto")
+    pdf.drawString(margin + 250, y, "Bulto")
     total_bultos = sum(int(item.get("quantity") or 0) for item in invoice.get("items", []))
-    pdf.drawRightString(width - margin, y, str(total_bultos))
+    pdf.drawCentredString(margin + 285, y, str(total_bultos))
     y -= 4
     pdf.line(margin, y, width - margin, y)
     y -= 18
