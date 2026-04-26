@@ -108,16 +108,13 @@ def build_invoice_pdf(invoice: dict) -> bytes:
         pdf.drawRightString(width - margin, y, _money(item.get("total") or 0))
         y -= 16
 
-    y -= 10
-    pdf.line(margin, y, width - margin, y)
-    y -= 4
-    pdf.setFont("Helvetica-Bold", 11)
-    pdf.drawString(margin + 250, y, "Bulto")
-    total_bultos = sum(int(item.get("quantity") or 0) for item in invoice.get("items", []))
-    pdf.drawCentredString(margin + 285, y, str(total_bultos))
-    y -= 4
+    y -= 14
     pdf.line(margin, y, width - margin, y)
     y -= 18
+    total_bultos = sum(int(item.get("quantity") or 0) for item in invoice.get("items", []))
+    pdf.setFont("Helvetica-Bold", 11)
+    pdf.drawString(margin + 250, y + 16, "Bulto")
+    pdf.drawCentredString(margin + 285, y + 16, str(total_bultos))
     pdf.setFont("Helvetica-Bold", 13)
     pdf.drawString(width - 200, y, "Bruto")
     pdf.drawRightString(width - margin, y, _money(invoice.get("gross_total") or 0))
