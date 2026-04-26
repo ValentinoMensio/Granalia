@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from io import BytesIO
 
+from PIL import Image, ImageChops
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase.pdfmetrics import stringWidth
@@ -29,10 +30,21 @@ def _discount_summary(invoice: dict) -> str:
 def _draw_logo(pdf: canvas.Canvas, *, margin: int, y: float, logo_path: Path) -> float:
     if not logo_path.exists():
         return y
-    image = ImageReader(str(logo_path))
-    logo_width = 190
-    logo_height = 58
-    pdf.drawImage(image, margin, y - logo_height, width=logo_width, height=logo_height, preserveAspectRatio=True, mask='auto')
+    with Image.open(logo_path) as source:
+        image = source.convert("RGBA")
+        alpha_bbox = image.getchannel("A").getbbox()
+        white = Image.new("RGBA", image.size, (255, 255, 255, 0))
+        content_bbox = alpha_bbox or ImageChops.difference(image, white).getbbox()
+        if content_bbox:
+            image = image.crop(content_bbox)
+
+        image_buffer = BytesIO()
+        image.save(image_buffer, format="PNG")
+        image_buffer.seek(0)
+
+    logo_width = 235
+    logo_height = logo_width * image.height / image.width
+    pdf.drawImage(ImageReader(image_buffer), margin, y - logo_height, width=logo_width, height=logo_height, preserveAspectRatio=False, mask='auto')
     return y
 
 
@@ -40,8 +52,8 @@ def build_invoice_pdf(invoice: dict) -> bytes:
     buffer = BytesIO()
     pdf = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
-    margin = 28
-    y = height - 26
+    margin = 36
+    y = height - 28
     logo_path = BASE_DIR / "img" / "logo-bw.png"
 
     pdf.setTitle(f"Factura {invoice['id']}")
@@ -49,7 +61,7 @@ def build_invoice_pdf(invoice: dict) -> bytes:
     _draw_logo(pdf, margin=margin, y=y, logo_path=logo_path)
     pdf.setFont("Helvetica-Bold", 14)
     pdf.drawRightString(width - margin, y, f"Factura #{invoice['id']}")
-    y -= 94
+    y -= 118
 
     pdf.setFont("Helvetica", 10)
     pdf.drawString(margin, y, f"Fecha: {invoice['order_date']}")
