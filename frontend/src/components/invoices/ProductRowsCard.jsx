@@ -39,22 +39,22 @@ function ProductRowsCard({
 
             <thead className="table-head">
               <tr>
-                <th className="table-cell text-left text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500">
+                <th className="table-cell text-center text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500">
                   Producto
                 </th>
-                <th className="table-cell text-left text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500">
+                <th className="table-cell text-center text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500">
                   Presentación
                 </th>
-                <th className="table-cell text-left text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500">
+                <th className="table-cell text-center text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500">
                   Cantidad
                 </th>
-                <th className="table-cell text-left text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500">
+                <th className="table-cell text-center text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500">
                   Bonificación
                 </th>
-                <th className="table-cell text-right text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500">
+                <th className="table-cell text-center text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500">
                   Precio
                 </th>
-                <th className="table-cell text-right text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500">
+                <th className="table-cell text-center text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500">
                   Total
                 </th>
                 <th className="table-cell" />
