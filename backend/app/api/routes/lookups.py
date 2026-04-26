@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from ...dependencies import get_repository
 from ...schemas import (
+    MAX_PRODUCT_OFFERINGS,
     ProductCatalogOut,
     ProductOfferingUpsert,
     ProductOut,
@@ -56,6 +57,8 @@ def upsert_product(payload: ProductUpsert) -> ProductOut:
 
 @router.post("/api/products/{product_id}/offerings", response_model=StatusResponse)
 def update_product_offerings(product_id: int, payload: list[ProductOfferingUpsert]) -> StatusResponse:
+    if len(payload) > MAX_PRODUCT_OFFERINGS:
+        raise HTTPException(status_code=400, detail=f"Máximo {MAX_PRODUCT_OFFERINGS} presentaciones por producto")
     get_repository().save_product_offerings(
         product_id,
         [offering.model_dump() for offering in payload],

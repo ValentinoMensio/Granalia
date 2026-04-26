@@ -6,20 +6,20 @@
 
 @layer base {
   :root {
-    --bg: 247 243 235;
-    --bg-strong: 239 229 213;
+    --bg: 241 234 222;
+    --bg-strong: 226 211 188;
     --surface: 255 255 255;
-    --surface-muted: 248 245 239;
-    --border: 225 214 195;
-    --border-strong: 203 188 161;
-    --text: 42 35 28;
-    --text-soft: 106 96 84;
-    --primary: 153 51 35;
-    --primary-strong: 126 38 25;
-    --accent: 196 160 94;
-    --danger: 185 59 48;
-    --success: 49 117 78;
-    --shadow: 68 43 22;
+    --surface-muted: 244 239 230;
+    --border: 205 190 166;
+    --border-strong: 156 130 96;
+    --text: 30 25 21;
+    --text-soft: 78 67 56;
+    --primary: 132 38 26;
+    --primary-strong: 92 26 18;
+    --accent: 175 127 45;
+    --danger: 159 44 36;
+    --success: 31 104 68;
+    --shadow: 44 31 22;
   }
 
   html {
@@ -30,9 +30,9 @@
     font-family: 'Manrope', sans-serif;
     color: rgb(var(--text));
     background:
-      radial-gradient(circle at top left, rgba(196, 160, 94, 0.18), transparent 24%),
-      radial-gradient(circle at 85% 15%, rgba(153, 51, 35, 0.10), transparent 22%),
-      linear-gradient(180deg, rgba(255,255,255,0.65), rgba(255,255,255,0.2)),
+      radial-gradient(circle at top left, rgba(175, 127, 45, 0.22), transparent 24%),
+      radial-gradient(circle at 86% 8%, rgba(132, 38, 26, 0.13), transparent 20%),
+      linear-gradient(180deg, rgba(255,255,255,0.72), rgba(245,238,226,0.74)),
       rgb(var(--bg));
   }
 
@@ -54,22 +54,25 @@
   }
 
   .surface {
-    @apply rounded-[28px] border bg-white shadow-card;
-    border-color: rgb(var(--border) / 0.95);
-    background-color: rgb(var(--surface) / 0.92);
-    backdrop-filter: blur(14px);
+    @apply rounded-[26px] border bg-white shadow-card;
+    border-color: rgb(var(--border));
+    background: linear-gradient(180deg, rgb(var(--surface)), rgba(252,249,244,0.98));
+    box-shadow: 0 18px 42px rgba(var(--shadow), 0.13), 0 1px 0 rgba(255,255,255,0.85) inset;
   }
 
   .surface-muted {
     @apply rounded-3xl border;
-    border-color: rgb(var(--border) / 0.9);
-    background-color: rgb(var(--surface-muted) / 0.95);
+    border-color: rgb(var(--border));
+    background: linear-gradient(180deg, rgb(var(--surface-muted)), rgba(238,229,214,0.96));
   }
 
   .surface-strong {
-    @apply rounded-[32px] border shadow-card;
-    border-color: rgb(var(--border-strong) / 0.75);
-    background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(248,245,239,0.96));
+    @apply rounded-[30px] border shadow-card;
+    border-color: rgb(var(--border-strong));
+    background:
+      linear-gradient(135deg, rgba(255,255,255,0.98), rgba(244,235,220,0.98)),
+      rgb(var(--surface));
+    box-shadow: 0 22px 55px rgba(var(--shadow), 0.16), 0 1px 0 rgba(255,255,255,0.9) inset;
   }
 
   .page-header {
@@ -78,12 +81,13 @@
 
   .eyebrow {
     @apply text-[11px] font-semibold uppercase tracking-[0.28em];
-    color: rgb(var(--primary) / 0.7);
+    color: rgb(var(--primary));
   }
 
   .section-title {
-    @apply text-3xl font-semibold leading-tight;
-    color: rgb(var(--primary));
+    @apply text-3xl font-semibold leading-tight lg:text-4xl;
+    color: rgb(var(--primary-strong));
+    letter-spacing: -0.02em;
   }
 
   .section-subtitle {
@@ -98,10 +102,10 @@
 
   .input {
     @apply w-full rounded-2xl border px-4 py-3 text-sm outline-none transition duration-150;
-    border-color: rgb(var(--border));
-    background-color: rgb(var(--surface));
+    border-color: rgb(var(--border-strong) / 0.72);
+    background-color: rgba(255,255,255,0.96);
     color: rgb(var(--text));
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.65), 0 1px 2px rgba(68,43,22,0.04);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.78), 0 1px 2px rgba(var(--shadow),0.06);
   }
 
   .input::placeholder {
@@ -109,32 +113,36 @@
   }
 
   .input:focus {
-    border-color: rgb(var(--accent));
-    box-shadow: 0 0 0 4px rgba(196,160,94,0.18);
+    border-color: rgb(var(--primary));
+    box-shadow: 0 0 0 4px rgba(132,38,26,0.13), 0 2px 10px rgba(var(--shadow),0.08);
   }
 
   .btn {
     @apply inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition duration-150 disabled:cursor-not-allowed disabled:opacity-55;
+    letter-spacing: -0.01em;
   }
 
   .btn-primary {
     @apply btn text-white shadow-sm;
     background: linear-gradient(180deg, rgb(var(--primary)), rgb(var(--primary-strong)));
+    box-shadow: 0 10px 22px rgba(92,26,18,0.22), inset 0 1px 0 rgba(255,255,255,0.16);
   }
 
   .btn-primary:hover {
-    filter: brightness(1.03);
+    filter: brightness(1.07);
+    transform: translateY(-1px);
   }
 
   .btn-secondary {
     @apply btn border;
     border-color: rgb(var(--border-strong));
-    background-color: rgb(var(--surface-muted));
+    background: linear-gradient(180deg, rgb(var(--surface)), rgb(var(--surface-muted)));
     color: rgb(var(--text));
   }
 
   .btn-secondary:hover {
-    background-color: rgb(var(--bg-strong) / 0.65);
+    border-color: rgb(var(--primary) / 0.5);
+    background: linear-gradient(180deg, rgb(var(--surface)), rgb(var(--bg-strong) / 0.78));
   }
 
   .btn-ghost {
@@ -143,37 +151,41 @@
   }
 
   .btn-ghost:hover {
-    background-color: rgb(var(--surface-muted));
+    background-color: rgba(132,38,26,0.08);
     color: rgb(var(--primary));
   }
 
   .btn-danger {
     @apply btn border;
-    border-color: rgb(var(--danger) / 0.35);
-    background-color: rgba(185,59,48,0.08);
+    border-color: rgb(var(--danger) / 0.48);
+    background-color: rgba(159,44,36,0.09);
     color: rgb(var(--danger));
   }
 
   .btn-danger:hover {
-    background-color: rgba(185,59,48,0.14);
-    border-color: rgb(var(--danger) / 0.5);
+    background-color: rgba(159,44,36,0.16);
+    border-color: rgb(var(--danger) / 0.72);
   }
 
   .badge {
-    @apply inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold;
-    background-color: rgb(var(--bg-strong) / 0.65);
-    color: rgb(var(--primary));
+    @apply inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold;
+    border-color: rgb(var(--border-strong) / 0.55);
+    background-color: rgb(var(--bg-strong) / 0.78);
+    color: rgb(var(--primary-strong));
   }
 
   .metric-card {
     @apply rounded-3xl border px-5 py-4;
-    border-color: rgb(var(--border));
-    background-color: rgb(var(--surface-muted));
+    border-color: rgb(var(--border-strong) / 0.75);
+    background: linear-gradient(180deg, rgba(255,255,255,0.98), rgb(var(--surface-muted)));
+    box-shadow: 0 10px 24px rgba(var(--shadow),0.07);
   }
 
   .table-shell {
     @apply overflow-hidden rounded-[24px] border;
-    border-color: rgb(var(--border));
+    border-color: rgb(var(--border-strong) / 0.72);
+    background-color: rgb(var(--surface));
+    box-shadow: 0 12px 30px rgba(var(--shadow),0.08);
   }
 
   .table-base {
@@ -181,21 +193,21 @@
   }
 
   .table-head {
-    background-color: rgb(var(--surface-muted));
-    color: rgb(var(--text-soft));
+    background: linear-gradient(180deg, rgb(var(--bg-strong)), rgb(var(--surface-muted)));
+    color: rgb(var(--text));
   }
 
   .table-head th {
-    @apply px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.16em];
+    @apply px-4 py-3 text-[11px] font-bold uppercase tracking-[0.16em];
   }
 
   .table-row {
     @apply border-t;
-    border-color: rgb(var(--border) / 0.8);
+    border-color: rgb(var(--border) / 0.9);
   }
 
   .table-row:hover {
-    background-color: rgb(var(--surface-muted) / 0.72);
+    background-color: rgba(226,211,188,0.34);
   }
 
   .table-cell {
@@ -204,8 +216,9 @@
 
   .tab-nav {
     @apply inline-flex rounded-2xl border p-1.5;
-    border-color: rgb(var(--border));
-    background-color: rgb(var(--surface-muted));
+    border-color: rgb(var(--border-strong) / 0.68);
+    background-color: rgba(255,255,255,0.72);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.82);
   }
 
   .tab-button {
@@ -215,16 +228,16 @@
 
   .tab-button-active {
     @apply shadow-sm;
-    background-color: rgb(var(--surface));
-    color: rgb(var(--primary));
+    background: linear-gradient(180deg, rgb(var(--primary)), rgb(var(--primary-strong)));
+    color: white;
   }
 
   .status-bar {
     @apply mt-6 rounded-[24px] border px-5 py-4 text-sm;
-    border-color: rgb(var(--border));
-    background-color: rgb(var(--surface) / 0.86);
-    color: rgb(var(--text-soft));
-    box-shadow: 0 10px 30px rgba(68,43,22,0.06);
+    border-color: rgb(var(--border-strong) / 0.7);
+    background-color: rgba(255,255,255,0.93);
+    color: rgb(var(--text));
+    box-shadow: 0 10px 30px rgba(var(--shadow),0.08);
   }
 
   .editor-shell {
@@ -237,7 +250,7 @@
 
   .subsection-title {
     @apply text-lg font-semibold;
-    color: rgb(var(--text));
+    color: rgb(var(--primary-strong));
   }
 
   .soft-note {

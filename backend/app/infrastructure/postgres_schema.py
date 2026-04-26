@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import BigInteger, Boolean, Column, Date, DateTime, ForeignKey, Integer, LargeBinary, MetaData, String, Table, Text, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, Column, Date, DateTime, ForeignKey, Integer, LargeBinary, MetaData, String, Table, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 
 
@@ -17,6 +17,9 @@ def build_metadata() -> tuple[MetaData, dict[str, Table]]:
             Column("catalog", JSONB, nullable=False),
             Column("created_at", DateTime(timezone=True), nullable=False),
             Column("updated_at", DateTime(timezone=True), nullable=False),
+            CheckConstraint("char_length(btrim(name)) > 0", name="ck_catalogs_name_not_blank"),
+            CheckConstraint("char_length(btrim(source)) > 0", name="ck_catalogs_source_not_blank"),
+            CheckConstraint("jsonb_typeof(catalog) = 'array'", name="ck_catalogs_catalog_array"),
         ),
         "price_lists": Table(
             "price_lists",
@@ -30,6 +33,11 @@ def build_metadata() -> tuple[MetaData, dict[str, Table]]:
             Column("source", String(120), nullable=False),
             Column("uploaded_at", DateTime(timezone=True), nullable=False),
             Column("updated_at", DateTime(timezone=True), nullable=False),
+            CheckConstraint("char_length(btrim(filename)) > 0", name="ck_price_lists_filename_not_blank"),
+            CheckConstraint("char_length(btrim(content_type)) > 0", name="ck_price_lists_content_type_not_blank"),
+            CheckConstraint("char_length(btrim(source)) > 0", name="ck_price_lists_source_not_blank"),
+            CheckConstraint("size > 0 AND size <= 20971520", name="ck_price_lists_size_range"),
+            CheckConstraint("octet_length(pdf_data) = size", name="ck_price_lists_pdf_size_matches"),
         ),
         "transports": Table(
             "transports",
@@ -39,6 +47,9 @@ def build_metadata() -> tuple[MetaData, dict[str, Table]]:
             Column("notes", JSONB, nullable=False),
             Column("created_at", DateTime(timezone=True), nullable=False),
             Column("updated_at", DateTime(timezone=True), nullable=False),
+            CheckConstraint("char_length(btrim(name)) > 0", name="ck_transports_name_not_blank"),
+            CheckConstraint("jsonb_typeof(notes) = 'array'", name="ck_transports_notes_array"),
+            CheckConstraint("CASE WHEN jsonb_typeof(notes) = 'array' THEN jsonb_array_length(notes) <= 30 ELSE false END", name="ck_transports_notes_max_items"),
         ),
         "customers": Table(
             "customers",
@@ -53,6 +64,14 @@ def build_metadata() -> tuple[MetaData, dict[str, Table]]:
             Column("transport_id", BigInteger, ForeignKey("transports.transport_id", ondelete="SET NULL")),
             Column("created_at", DateTime(timezone=True), nullable=False),
             Column("updated_at", DateTime(timezone=True), nullable=False),
+            CheckConstraint("char_length(btrim(name)) > 0", name="ck_customers_name_not_blank"),
+            CheckConstraint("char_length(secondary_line) <= 500", name="ck_customers_secondary_line_max_length"),
+            CheckConstraint("jsonb_typeof(notes) = 'array'", name="ck_customers_notes_array"),
+            CheckConstraint("CASE WHEN jsonb_typeof(notes) = 'array' THEN jsonb_array_length(notes) <= 30 ELSE false END", name="ck_customers_notes_max_items"),
+            CheckConstraint("jsonb_typeof(footer_discounts) = 'array'", name="ck_customers_footer_discounts_array"),
+            CheckConstraint("CASE WHEN jsonb_typeof(footer_discounts) = 'array' THEN jsonb_array_length(footer_discounts) <= 30 ELSE false END", name="ck_customers_footer_discounts_max_items"),
+            CheckConstraint("jsonb_typeof(line_discounts_by_format) = 'object'", name="ck_customers_line_discounts_object"),
+            CheckConstraint("source_count >= 0", name="ck_customers_source_count_nonnegative"),
         ),
         "products": Table(
             "products",
@@ -63,6 +82,9 @@ def build_metadata() -> tuple[MetaData, dict[str, Table]]:
             Column("active", Boolean, nullable=False, server_default="true"),
             Column("created_at", DateTime(timezone=True), nullable=False),
             Column("updated_at", DateTime(timezone=True), nullable=False),
+            CheckConstraint("char_length(btrim(name)) > 0", name="ck_products_name_not_blank"),
+            CheckConstraint("jsonb_typeof(aliases) = 'array'", name="ck_products_aliases_array"),
+            CheckConstraint("CASE WHEN jsonb_typeof(aliases) = 'array' THEN jsonb_array_length(aliases) <= 50 ELSE false END", name="ck_products_aliases_max_items"),
         ),
         "product_offerings": Table(
             "product_offerings",
@@ -75,6 +97,9 @@ def build_metadata() -> tuple[MetaData, dict[str, Table]]:
             Column("active", Boolean, nullable=False, server_default="true"),
             Column("created_at", DateTime(timezone=True), nullable=False),
             Column("updated_at", DateTime(timezone=True), nullable=False),
+            CheckConstraint("char_length(btrim(label)) > 0", name="ck_product_offerings_label_not_blank"),
+            CheckConstraint("price >= 0", name="ck_product_offerings_price_nonnegative"),
+            CheckConstraint("position > 0", name="ck_product_offerings_position_positive"),
             UniqueConstraint("product_id", "label"),
         ),
         "invoices": Table(
@@ -99,6 +124,23 @@ def build_metadata() -> tuple[MetaData, dict[str, Table]]:
             Column("xlsx_data", LargeBinary, nullable=False),
             Column("xlsx_size", Integer, nullable=False),
             Column("created_at", DateTime(timezone=True), nullable=False),
+            CheckConstraint("legacy_key IS NULL OR char_length(btrim(legacy_key)) > 0", name="ck_invoices_legacy_key_not_blank"),
+            CheckConstraint("char_length(btrim(client_name)) > 0", name="ck_invoices_client_name_not_blank"),
+            CheckConstraint("char_length(secondary_line) <= 500", name="ck_invoices_secondary_line_max_length"),
+            CheckConstraint("char_length(transport) <= 500", name="ck_invoices_transport_max_length"),
+            CheckConstraint("jsonb_typeof(notes) = 'array'", name="ck_invoices_notes_array"),
+            CheckConstraint("CASE WHEN jsonb_typeof(notes) = 'array' THEN jsonb_array_length(notes) <= 30 ELSE false END", name="ck_invoices_notes_max_items"),
+            CheckConstraint("jsonb_typeof(footer_discounts) = 'array'", name="ck_invoices_footer_discounts_array"),
+            CheckConstraint("CASE WHEN jsonb_typeof(footer_discounts) = 'array' THEN jsonb_array_length(footer_discounts) <= 30 ELSE false END", name="ck_invoices_footer_discounts_max_items"),
+            CheckConstraint("jsonb_typeof(line_discounts_by_format) = 'object'", name="ck_invoices_line_discounts_object"),
+            CheckConstraint("total_bultos >= 0", name="ck_invoices_total_bultos_nonnegative"),
+            CheckConstraint("gross_total >= 0", name="ck_invoices_gross_total_nonnegative"),
+            CheckConstraint("discount_total >= 0", name="ck_invoices_discount_total_nonnegative"),
+            CheckConstraint("final_total >= 0", name="ck_invoices_final_total_nonnegative"),
+            CheckConstraint("discount_total <= gross_total", name="ck_invoices_discount_not_above_gross"),
+            CheckConstraint("char_length(btrim(output_filename)) > 0", name="ck_invoices_output_filename_not_blank"),
+            CheckConstraint("xlsx_size > 0", name="ck_invoices_xlsx_size_positive"),
+            CheckConstraint("octet_length(xlsx_data) = xlsx_size", name="ck_invoices_xlsx_size_matches"),
         ),
         "invoice_items": Table(
             "invoice_items",
@@ -114,6 +156,14 @@ def build_metadata() -> tuple[MetaData, dict[str, Table]]:
             Column("gross", Integer, nullable=False),
             Column("discount", Integer, nullable=False),
             Column("total", Integer, nullable=False),
+            CheckConstraint("line_number > 0", name="ck_invoice_items_line_number_positive"),
+            CheckConstraint("char_length(btrim(label)) > 0", name="ck_invoice_items_label_not_blank"),
+            CheckConstraint("quantity >= 0", name="ck_invoice_items_quantity_nonnegative"),
+            CheckConstraint("unit_price >= 0", name="ck_invoice_items_unit_price_nonnegative"),
+            CheckConstraint("gross >= 0", name="ck_invoice_items_gross_nonnegative"),
+            CheckConstraint("discount >= 0", name="ck_invoice_items_discount_nonnegative"),
+            CheckConstraint("total >= 0", name="ck_invoice_items_total_nonnegative"),
+            CheckConstraint("discount <= gross", name="ck_invoice_items_discount_not_above_gross"),
         ),
         "app_users": Table(
             "app_users",
@@ -124,6 +174,8 @@ def build_metadata() -> tuple[MetaData, dict[str, Table]]:
             Column("is_active", Boolean, nullable=False, server_default="true"),
             Column("created_at", DateTime(timezone=True), nullable=False),
             Column("updated_at", DateTime(timezone=True), nullable=False),
+            CheckConstraint("char_length(btrim(username)) > 0", name="ck_app_users_username_not_blank"),
+            CheckConstraint("char_length(btrim(password_hash)) > 0", name="ck_app_users_password_hash_not_blank"),
         ),
     }
     return metadata, tables
