@@ -6,6 +6,7 @@ from typing import TypedDict
 
 from pypdf import PdfReader
 
+from ..core.utils import normalize_text
 from ..domain.models import CatalogOffering, CatalogProduct
 
 
@@ -43,6 +44,14 @@ PRODUCT_SPECS: dict[str, ProductSpec] = {
     "Arroz Yamaní": {"id": "arroz_yamani", "formats": ["x5kg", "bulk"]},
     "Harina de Maíz Abatí": {"id": "harina_maiz_abati", "formats": ["x5kg", "bulk"]},
     "Harina de Garbanzos": {"id": "harina_garbanzos", "formats": ["x5kg", "bulk"]},
+}
+
+PRODUCT_NAME_ALIASES = {
+    "Maíz Partido Blanco": "Maíz Pisado Blanco",
+    "Semola de Trigo": "Semola de Trigo",
+    "Sémola de Trigo": "Semola de Trigo",
+    "Trigo Burgol": "Trigo Machacado Burgol",
+    "Arroz 5/0 Largo Fino": "Arroz Largo Fino 5/0",
 }
 
 
@@ -112,8 +121,17 @@ def build_catalog_from_pdf(pdf_bytes: bytes, current_catalog: list[CatalogProduc
     catalog: list[CatalogProduct] = []
     for product in current_catalog:
         spec: ProductSpec | None = None
+        normalized_product_names = {
+            normalize_text(product.name),
+            *(normalize_text(alias) for alias in product.aliases),
+        }
         for product_name, data in PRODUCT_SPECS.items():
-            if product_name == product.name or data["id"] == str(product.id):
+            canonical_name = PRODUCT_NAME_ALIASES.get(product.name, product.name)
+            if (
+                normalize_text(product_name) in normalized_product_names
+                or normalize_text(canonical_name) == normalize_text(product_name)
+                or data["id"] == str(product.id)
+            ):
                 spec = data
                 break
         if not spec:
