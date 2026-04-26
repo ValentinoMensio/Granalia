@@ -40,7 +40,7 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     self.invoices.c.xlsx_size,
                     self.invoices.c.created_at,
                 )
-                .order_by(self.invoices.c.created_at.desc())
+                .order_by(self.invoices.c.order_date.desc(), self.invoices.c.id.desc())
                 .limit(limit)
             ).mappings().all()
         payload: list[InvoiceListItemData] = cast(list[InvoiceListItemData], [{key: serialize_value(value) for key, value in row.items()} for row in rows])

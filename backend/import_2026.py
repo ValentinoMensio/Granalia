@@ -4,7 +4,7 @@ import argparse
 import os
 import re
 import unicodedata
-from collections import defaultdict
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
@@ -543,7 +543,9 @@ def import_invoices(source_dir: Path, dry_run: bool = False, reset_db: bool = Fa
 
     print(f"Facturas parseadas: {len(parsed)}; omitidas: {skipped}")
     if parsed:
+        invoices_by_month = Counter(f"{invoice.order_date.year}-{invoice.order_date.month:02d}" for invoice in parsed)
         print(f"Rango de fechas: {parsed[0].order_date.isoformat()} a {parsed[-1].order_date.isoformat()}")
+        print("Facturas por mes: " + ", ".join(f"{month}={count}" for month, count in sorted(invoices_by_month.items())))
     if dry_run:
         customers = {invoice.client_name for invoice in parsed}
         transports = {invoice.transport for invoice in parsed if invoice.transport}

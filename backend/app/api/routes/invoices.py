@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api/invoices", tags=["invoices"])
 
 
 @router.get("", response_model=list[InvoiceListItemOut])
-def invoices(limit: int = 50) -> list[InvoiceListItemOut]:
+def invoices(limit: int = 500) -> list[InvoiceListItemOut]:
     return [InvoiceListItemOut.model_validate(item) for item in get_repository().list_invoices(limit=limit)]
 
 
