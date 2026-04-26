@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { request } from '../lib/api'
 import { summarizeDiscounts } from '../lib/format'
 import { useGranalia } from '../context/GranaliaContext'
@@ -9,8 +9,21 @@ import PageSectionHeader from '../components/ui/PageSectionHeader'
 export default function Management() {
   const { setStatus, customers, bootstrap, catalog, refreshAll } = useGranalia()
   const navigate = useNavigate()
-  const [tab, setTab] = useState('customers')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requestedTab = searchParams.get('tab')
+  const [tab, setTab] = useState(['customers', 'transports', 'products'].includes(requestedTab) ? requestedTab : 'customers')
   const [loading, setLoading] = useState(false)
+
+  function selectTab(nextTab) {
+    setTab(nextTab)
+    setSearchParams({ tab: nextTab })
+  }
+
+  useEffect(() => {
+    if (['customers', 'transports', 'products'].includes(requestedTab) && requestedTab !== tab) {
+      setTab(requestedTab)
+    }
+  }, [requestedTab, tab])
 
   async function handleDelete(type, id) {
     if (!confirm('¿Estás seguro de eliminar este elemento?')) return
@@ -45,7 +58,7 @@ export default function Management() {
           {['customers', 'transports', 'products'].map((t) => (
             <button
               key={t}
-              onClick={() => setTab(t)}
+              onClick={() => selectTab(t)}
               className={`tab-button ${
                 tab === t ? 'tab-button-active' : ''
               }`}

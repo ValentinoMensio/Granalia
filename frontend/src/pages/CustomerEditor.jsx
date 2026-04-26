@@ -12,6 +12,7 @@ export default function CustomerEditor() {
   const isNewCustomer = !id || id === 'new' || Number.isNaN(customerId)
   const navigate = useNavigate()
   const { customers, bootstrap, catalog, updateCustomer, saving, refreshAll, setStatus } = useGranalia()
+  const managementPath = '/management?tab=customers'
   
   const customer = customers.find((c) => c.id === customerId)
   const [formData, setFormData] = useState(null)
@@ -53,7 +54,7 @@ export default function CustomerEditor() {
         await updateCustomer(customerId, payload)
       }
       await refreshAll()
-      navigate('/management')
+      navigate(managementPath)
     } catch (e) {
       setStatus(`No se pudo guardar el cliente: ${e.message}`)
     }
@@ -91,7 +92,7 @@ export default function CustomerEditor() {
         eyebrow="Ficha comercial"
         title={isNewCustomer ? 'Nuevo cliente' : `Editar cliente: ${customer.name}`}
         description="Definí transporte, notas y reglas de descuento con un esquema simple y consistente."
-        aside={<Button variant="ghost" onClick={() => navigate('/management')}>Volver a gestión</Button>}
+        aside={<Button variant="ghost" onClick={() => navigate(managementPath)}>Volver a gestión</Button>}
       />
 
       <div className="editor-card grid gap-6">
@@ -211,7 +212,7 @@ export default function CustomerEditor() {
         </div>
 
         <div className="flex justify-end gap-3 pt-6 border-t">
-          <Button variant="secondary" onClick={() => navigate('/management')}>
+          <Button variant="secondary" onClick={() => navigate(managementPath)}>
             Cancelar
           </Button>
           <Button variant="primary" onClick={handleSave} disabled={saving}>

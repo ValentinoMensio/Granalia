@@ -11,6 +11,7 @@ export default function ProductEditor() {
   const isNewProduct = !id || id === 'new' || Number.isNaN(productId)
   const navigate = useNavigate()
   const { catalog, setStatus, saving, refreshAll } = useGranalia()
+  const managementPath = '/management?tab=products'
   
   const product = catalog.find((p) => p.id === productId)
   const [formData, setFormData] = useState(null)
@@ -63,7 +64,7 @@ export default function ProductEditor() {
 
       await refreshAll()
       setStatus(isNewProduct ? 'Producto creado correctamente.' : 'Producto y presentaciones actualizados.')
-      navigate('/management')
+      navigate(managementPath)
     } catch (e) {
       setStatus(`Error al guardar: ${e.message}`)
     }
@@ -88,7 +89,7 @@ export default function ProductEditor() {
       <PageSectionHeader
         title={isNewProduct ? 'Nuevo producto' : `Editar producto: ${product.name}`}
         description="Organizá el nombre comercial y las presentaciones con una estructura simple y consistente."
-        aside={<Button variant="ghost" onClick={() => navigate('/management')}>Volver a gestión</Button>}
+        aside={<Button variant="ghost" onClick={() => navigate(managementPath)}>Volver a gestión</Button>}
       />
 
       <div className="editor-card grid gap-6">
@@ -170,7 +171,7 @@ export default function ProductEditor() {
         </div>
 
         <div className="flex justify-end gap-3 pt-6 border-t">
-          <Button variant="secondary" onClick={() => navigate('/management')}>
+          <Button variant="secondary" onClick={() => navigate(managementPath)}>
             Cancelar
           </Button>
           <Button variant="primary" onClick={handleSave} disabled={saving}>
