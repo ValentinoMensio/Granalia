@@ -30,9 +30,9 @@ def _draw_logo(pdf: canvas.Canvas, *, margin: int, y: float, logo_path: Path) ->
     if not logo_path.exists():
         return y
     image = ImageReader(str(logo_path))
-    logo_width = 260
-    logo_height = 68
-    pdf.drawImage(image, margin - 4, y - logo_height, width=logo_width, height=logo_height, preserveAspectRatio=True, mask='auto')
+    logo_width = 190
+    logo_height = 58
+    pdf.drawImage(image, margin, y - logo_height, width=logo_width, height=logo_height, preserveAspectRatio=True, mask='auto')
     return y
 
 
@@ -40,8 +40,8 @@ def build_invoice_pdf(invoice: dict) -> bytes:
     buffer = BytesIO()
     pdf = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
-    margin = 40
-    y = height - margin
+    margin = 28
+    y = height - 26
     logo_path = BASE_DIR / "img" / "logo-bw.png"
 
     pdf.setTitle(f"Factura {invoice['id']}")
@@ -49,7 +49,7 @@ def build_invoice_pdf(invoice: dict) -> bytes:
     _draw_logo(pdf, margin=margin, y=y, logo_path=logo_path)
     pdf.setFont("Helvetica-Bold", 14)
     pdf.drawRightString(width - margin, y, f"Factura #{invoice['id']}")
-    y -= 84
+    y -= 94
 
     pdf.setFont("Helvetica", 10)
     pdf.drawString(margin, y, f"Fecha: {invoice['order_date']}")
@@ -98,16 +98,16 @@ def build_invoice_pdf(invoice: dict) -> bytes:
 
     y -= 10
     pdf.line(margin, y, width - margin, y)
-    y -= 22
+    y -= 26
     pdf.setFont("Helvetica-Bold", 13)
     pdf.drawString(width - 200, y, "Bruto")
     pdf.drawRightString(width - margin, y, _money(invoice.get("gross_total") or 0))
-    y -= 22
+    y -= 24
     if int(invoice.get("discount_total") or 0) > 0:
         discount_label = f"Descuento ({discount_summary})" if discount_summary != "Sin descuentos" else "Descuento"
         pdf.drawString(width - 200, y, clean_cell_text(discount_label))
         pdf.drawRightString(width - margin, y, _money(invoice.get("discount_total") or 0))
-        y -= 24
+        y -= 17
     pdf.setFont("Helvetica-Bold", 14)
     pdf.drawString(width - 200, y, "Total")
     pdf.drawRightString(width - margin, y, _money(invoice.get("final_total") or 0))
