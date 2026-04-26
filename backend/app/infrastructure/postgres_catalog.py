@@ -52,6 +52,13 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
             for row in product_rows
         ]
 
+    def _refresh_active_catalog_snapshot(self, *, connection, now) -> None:
+        connection.execute(
+            update(self.catalogs)
+            .where(self.catalogs.c.active.is_(True))
+            .values(catalog=self._catalog_snapshot(connection=connection), updated_at=now)
+        )
+
     def _sync_catalog_tables(self, catalog: list[CatalogProductData], *, connection, now) -> None:
         active_product_db_ids: set[int] = set()
         active_offering_db_ids: set[int] = set()
@@ -237,6 +244,7 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
                         )
                         .returning(self.products)
                     ).mappings().first()
+            self._refresh_active_catalog_snapshot(connection=connection, now=now)
         return cast(CatalogProductData, {key: serialize_value(value) for key, value in row.items()})
 
     def save_product_offerings(self, product_id: int, offerings: list[CatalogOfferingData]) -> None:
@@ -348,10 +356,13 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
                         .where(self.product_offerings.c.id == row["id"])
                         .values(active=False, updated_at=now)
                     )
+            self._refresh_active_catalog_snapshot(connection=connection, now=now)
 
     def delete_product(self, product_id: int) -> None:
+        now = utc_now()
         with self.engine.begin() as connection:
             connection.execute(self.products.delete().where(self.products.c.id == product_id))
+            self._refresh_active_catalog_snapshot(connection=connection, now=now)
 
     def replace_active_catalog(self, catalog: list[CatalogProductData], name: str = "Lista activa") -> dict[str, object]:
         now = utc_now()
