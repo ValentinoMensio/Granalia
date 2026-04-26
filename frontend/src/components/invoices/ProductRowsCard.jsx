@@ -2,6 +2,20 @@ import Button from '../ui/Button'
 import Metric from '../ui/Metric'
 import { money } from '../../lib/format'
 
+function optionsWithHistoricalSelection(options, selectedId, selectedLabel) {
+  if (!selectedId || options.some((entry) => String(entry.id) === String(selectedId))) {
+    return options
+  }
+  return [...options, { id: selectedId, label: `${selectedLabel || 'Presentación anterior'} (inactiva)`, price: 0 }]
+}
+
+function productsWithHistoricalSelection(catalog, selectedId, selectedName) {
+  if (!selectedId || catalog.some((entry) => String(entry.id) === String(selectedId))) {
+    return catalog
+  }
+  return [...catalog, { id: selectedId, name: `${selectedName || 'Producto anterior'} (inactivo)`, offerings: [] }]
+}
+
 function ProductRowsCard({
   editingInvoiceId,
   form,
@@ -64,10 +78,12 @@ function ProductRowsCard({
             <tbody>
               {form.items.map((item, index) => {
                 const product = productsById[item.product_id]
-                const offering = product?.offerings.find((entry) => entry.id === item.offering_id)
+                const offeringOptions = optionsWithHistoricalSelection(product?.offerings || [], item.offering_id, item.offering_label)
+                const offering = offeringOptions.find((entry) => String(entry.id) === String(item.offering_id))
                 const price = item.unit_price === '' || item.unit_price === undefined ? Number(offering?.price || 0) : Number(item.unit_price || 0)
                 const quantity = Number(item.quantity || 0)
                 const rowTotal = quantity * price
+                const productOptions = productsWithHistoricalSelection(catalog, item.product_id, item.product_name)
 
                 return (
                     <tr key={index} className="table-row">
@@ -84,7 +100,7 @@ function ProductRowsCard({
                         }
                       >
                         <option value="">Producto</option>
-                        {catalog.map((productItem) => (
+                        {productOptions.map((productItem) => (
                           <option key={productItem.id} value={productItem.id}>
                             {productItem.name}
                           </option>
@@ -105,7 +121,7 @@ function ProductRowsCard({
                         }
                       >
                         <option value="">Presentación</option>
-                        {(product?.offerings || []).map((entry) => (
+                        {offeringOptions.map((entry) => (
                           <option key={entry.id} value={entry.id}>
                             {entry.label}
                           </option>
@@ -172,10 +188,12 @@ function ProductRowsCard({
         <div className="grid gap-4 p-4 md:hidden">
           {form.items.map((item, index) => {
             const product = productsById[item.product_id]
-            const offering = product?.offerings.find((entry) => entry.id === item.offering_id)
+            const offeringOptions = optionsWithHistoricalSelection(product?.offerings || [], item.offering_id, item.offering_label)
+            const offering = offeringOptions.find((entry) => String(entry.id) === String(item.offering_id))
             const price = item.unit_price === '' || item.unit_price === undefined ? Number(offering?.price || 0) : Number(item.unit_price || 0)
             const quantity = Number(item.quantity || 0)
             const rowTotal = quantity * price
+            const productOptions = productsWithHistoricalSelection(catalog, item.product_id, item.product_name)
 
             return (
               <div key={index} className="surface-muted p-4">
@@ -196,7 +214,7 @@ function ProductRowsCard({
                       }
                     >
                       <option value="">Producto</option>
-                      {catalog.map((productItem) => (
+                      {productOptions.map((productItem) => (
                         <option key={productItem.id} value={productItem.id}>
                           {productItem.name}
                         </option>
@@ -220,7 +238,7 @@ function ProductRowsCard({
                       }
                     >
                       <option value="">Presentación</option>
-                      {(product?.offerings || []).map((entry) => (
+                      {offeringOptions.map((entry) => (
                         <option key={entry.id} value={entry.id}>
                           {entry.label}
                         </option>

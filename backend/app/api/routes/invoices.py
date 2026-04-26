@@ -12,6 +12,41 @@ from ...services.invoicing import generate_invoice_document
 router = APIRouter(prefix="/api/invoices", tags=["invoices"])
 
 
+def catalog_with_invoice_history(catalog: list[dict], invoice: dict) -> list[dict]:
+    next_catalog = [{**product, "offerings": [dict(offering) for offering in product.get("offerings", [])]} for product in catalog]
+    products_by_id = {str(product.get("id")): product for product in next_catalog}
+
+    for item in invoice.get("items", []):
+        product_id = item.get("product_id")
+        offering_id = item.get("offering_id")
+        if not product_id or not offering_id:
+            continue
+
+        product_key = str(product_id)
+        product = products_by_id.get(product_key)
+        if not product:
+            product = {
+                "id": product_id,
+                "name": item.get("product_name") or "Producto anterior",
+                "aliases": [],
+                "offerings": [],
+            }
+            next_catalog.append(product)
+            products_by_id[product_key] = product
+
+        if any(str(offering.get("id")) == str(offering_id) for offering in product.get("offerings", [])):
+            continue
+
+        product["offerings"].append(
+            {
+                "id": offering_id,
+                "label": item.get("offering_label") or item.get("label") or "Presentación anterior",
+                "price": int(item.get("unit_price") or 0),
+            }
+        )
+    return next_catalog
+
+
 @router.get("", response_model=list[InvoiceListItemOut])
 def invoices(limit: int = 500) -> list[InvoiceListItemOut]:
     return [InvoiceListItemOut.model_validate(item) for item in get_repository().list_invoices(limit=limit)]
@@ -72,11 +107,12 @@ def create_invoice(payload: InvoiceRequest) -> InvoiceCreateOut:
 @router.put("/{invoice_id}", response_model=InvoiceCreateOut)
 def update_invoice(invoice_id: int, payload: InvoiceRequest) -> InvoiceCreateOut:
     repository = get_repository()
-    if not repository.get_invoice_detail(invoice_id):
+    invoice = repository.get_invoice_detail(invoice_id)
+    if not invoice:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
     order = payload.order.model_dump()
     profile = payload.profile.model_dump()
-    catalog = repository.get_active_catalog()
+    catalog = catalog_with_invoice_history(repository.get_active_catalog(), invoice)
     try:
         filename, xlsx_bytes, snapshot = generate_invoice_document(order, profile, catalog)
         repository.update_invoice(invoice_id, order, profile, snapshot, filename, xlsx_bytes)
