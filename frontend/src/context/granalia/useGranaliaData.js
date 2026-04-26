@@ -159,6 +159,12 @@ function useGranaliaData() {
       items[index] = { ...items[index], [field]: value }
       if (field === 'product_id') {
         items[index].offering_id = ''
+        items[index].unit_price = ''
+      }
+      if (field === 'offering_id') {
+        const product = catalog.find((entry) => entry.id === items[index].product_id)
+        const offering = product?.offerings.find((entry) => entry.id === value)
+        items[index].unit_price = offering ? Number(offering.price || 0) : ''
       }
       return { ...current, items }
     })

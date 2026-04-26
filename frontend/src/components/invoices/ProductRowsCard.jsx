@@ -65,7 +65,7 @@ function ProductRowsCard({
               {form.items.map((item, index) => {
                 const product = productsById[item.product_id]
                 const offering = product?.offerings.find((entry) => entry.id === item.offering_id)
-                const price = Number(offering?.price || 0)
+                const price = item.unit_price === '' || item.unit_price === undefined ? Number(offering?.price || 0) : Number(item.unit_price || 0)
                 const quantity = Number(item.quantity || 0)
                 const rowTotal = quantity * price
 
@@ -137,10 +137,14 @@ function ProductRowsCard({
                       />
                     </td>
 
-                      <td className="table-cell text-right align-middle">
-                      <span className="text-sm font-medium text-brand-ink/70">
-                        ${money(price)}
-                      </span>
+                      <td className="table-cell align-middle">
+                      <input
+                        className="input w-full min-w-0 text-right"
+                        type="number"
+                        min="0"
+                        value={item.unit_price === undefined ? '' : item.unit_price}
+                        onChange={(event) => onUpdateItem(index, 'unit_price', event.target.value === '' ? '' : Number(event.target.value))}
+                      />
                     </td>
 
                       <td className="table-cell text-right align-middle">
@@ -169,7 +173,7 @@ function ProductRowsCard({
           {form.items.map((item, index) => {
             const product = productsById[item.product_id]
             const offering = product?.offerings.find((entry) => entry.id === item.offering_id)
-            const price = Number(offering?.price || 0)
+            const price = item.unit_price === '' || item.unit_price === undefined ? Number(offering?.price || 0) : Number(item.unit_price || 0)
             const quantity = Number(item.quantity || 0)
             const rowTotal = quantity * price
 
@@ -261,9 +265,13 @@ function ProductRowsCard({
                       <div className="mb-1 text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500">
                         Precio
                       </div>
-                      <div className="text-sm font-medium text-brand-ink/70">
-                        ${money(price)}
-                      </div>
+                      <input
+                        className="input w-full min-w-0 text-right"
+                        type="number"
+                        min="0"
+                        value={item.unit_price === undefined ? '' : item.unit_price}
+                        onChange={(event) => onUpdateItem(index, 'unit_price', event.target.value === '' ? '' : Number(event.target.value))}
+                      />
                     </div>
 
                     <div className="text-right">

@@ -158,7 +158,8 @@ def expand_rows(order: Order, profile: CustomerProfile, catalog: list[CatalogPro
             rows.append(InvoiceRow(item.product_id, item.offering_id, label, quantity, unit_price, gross, discount, total))
 
         if qty > 0:
-            append_row(qty, int(offering["price"]))
+            unit_price = item.unit_price if item.unit_price is not None else int(offering["price"])
+            append_row(qty, int(unit_price))
         if bonus_qty > 0:
             append_row(bonus_qty, 0)
     return rows

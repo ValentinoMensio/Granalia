@@ -32,6 +32,7 @@ class InvoiceItemInput(BaseModel):
     offering_id: int
     quantity: NonNegativeInt
     bonus_quantity: NonNegativeInt = 0
+    unit_price: NonNegativeInt | None = None
 
 
 class InvoiceCreate(BaseModel):

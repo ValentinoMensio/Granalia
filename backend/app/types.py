@@ -53,6 +53,7 @@ class OrderItemData(TypedDict):
     offering_id: int
     quantity: int
     bonus_quantity: int
+    unit_price: NotRequired[int]
 
 
 class OrderData(TypedDict):

@@ -73,6 +73,7 @@ class OrderItem:
     offering_id: int
     quantity: int
     bonus_quantity: int = 0
+    unit_price: int | None = None
 
     @classmethod
     def from_data(cls, data: OrderItemData) -> "OrderItem":
@@ -81,6 +82,7 @@ class OrderItem:
             offering_id=int(data["offering_id"]),
             quantity=int(data["quantity"]),
             bonus_quantity=int(data.get("bonus_quantity", 0)),
+            unit_price=int(data["unit_price"]) if data.get("unit_price") is not None else None,
         )
 
     def to_data(self) -> OrderItemData:

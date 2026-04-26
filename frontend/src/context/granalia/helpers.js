@@ -23,7 +23,8 @@ function buildTotals(form, productsById) {
 
     const qty = Number(item.quantity || 0)
     const bonus = Number(item.bonus_quantity || 0)
-    const gross = qty * Number(offering.price || 0)
+    const unitPrice = item.unit_price === '' || item.unit_price === undefined ? Number(offering.price || 0) : Number(item.unit_price || 0)
+    const gross = qty * unitPrice
     subtotal += gross
     bultos += qty + bonus
     total += gross
@@ -85,7 +86,12 @@ function buildInvoicePayload(form, currentCustomer) {
       secondary_line: form.secondaryLine,
       transport: form.transport,
       notes: splitNotes(form.notes),
-      items: form.items.filter((item) => item.product_id && item.offering_id && (item.quantity > 0 || item.bonus_quantity > 0)),
+      items: form.items
+        .filter((item) => item.product_id && item.offering_id && (item.quantity > 0 || item.bonus_quantity > 0))
+        .map((item) => ({
+          ...item,
+          unit_price: item.unit_price === '' || item.unit_price === undefined ? undefined : Number(item.unit_price || 0),
+        })),
     },
     profile,
   }
@@ -102,12 +108,14 @@ function buildFormFromInvoiceDetail(invoiceDetail, customers) {
       offering_id: item.offering_id || '',
       quantity: 0,
       bonus_quantity: 0,
+      unit_price: item.unit_price || '',
     }
 
     if (Number(item.unit_price || 0) === 0) {
       current.bonus_quantity += Number(item.quantity || 0)
     } else {
       current.quantity += Number(item.quantity || 0)
+      current.unit_price = Number(item.unit_price || 0)
     }
     grouped.set(key, current)
   }
