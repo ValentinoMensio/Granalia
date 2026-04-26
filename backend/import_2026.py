@@ -4,6 +4,7 @@ import argparse
 import os
 import re
 import unicodedata
+from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -16,6 +17,7 @@ from openpyxl import load_workbook
 BASE_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_SOURCE_DIR = BASE_DIR / "2026"
 DEFAULT_POSTGRES_URL = "postgresql+psycopg://granalia:granalia@127.0.0.1:5432/granalia"
+ALLOWED_OFFERINGS = {"16x300 gr", "12x350 gr", "12x400 gr", "10x500 gr", "10x1 kg", "x 4 kg", "x 5 kg", "x 25 kg", "x 30 kg"}
 
 
 def normalize_text(value: Any) -> str:
@@ -302,19 +304,111 @@ def parse_invoice(path: Path) -> ParsedInvoice:
 
 
 OFFERING_RE = re.compile(
-    r"\s+(?P<label>(?:\d+\s*x\s*)?\d+(?:[\.,]\d+)?\s*(?:kg|gr|g)|x\s*\d+(?:[\.,]\d+)?\s*(?:kg|gr|g))\s*$",
+    r"\s*(?P<label>(?:[1-9]\d*\s*x\s*)?\d+(?:[\.,]\d+)?\s*(?:kg|gr|g)|x\s*\d+(?:[\.,]\d+)?\s*(?:kg|gr|g)|[1-9]\d*\s*x\s*\d+)\s*$",
     flags=re.IGNORECASE,
 )
 
 
-def split_product_label(label: str) -> tuple[str, str]:
+PRODUCT_NAME_CORRECTIONS = {
+    "aevna arrollada": "Avena Arrollada",
+    "avea arrollada": "Avena Arrollada",
+    "avena arrolada": "Avena Arrollada",
+    "avena arrrollada": "Avena Arrollada",
+    "avena instantane": "Avena Instantánea",
+    "avena instantane a": "Avena Instantánea",
+    "cebada pwrlada": "Cebada Perlada",
+    "garnbanzos": "Garbanzos",
+    "h. maiz blanca": "Harina de Maíz Blanca",
+    "harina abati": "Harina de Maíz Abatí",
+    "arroz 5/0": "Arroz 5/0 Largo Fino",
+    "maiz parido blanco": "Maíz Partido Blanco",
+    "maiz partdo blanco": "Maíz Partido Blanco",
+    "maiz partido balnco": "Maíz Partido Blanco",
+    "maiz patido blanco": "Maíz Partido Blanco",
+    "maiz pisingalo": "Maíz Pisingallo",
+    "mezcla para pajaros": "Mezcla para Pájaros",
+    "porotos alubia": "Porotos Alubia",
+    "semola de trigo": "Sémola de Trigo",
+}
+
+
+def normalize_product_name(name: str) -> str:
+    cleaned = clean_cell_text(name)
+    key = normalize_text(cleaned)
+    if key in PRODUCT_NAME_CORRECTIONS:
+        return PRODUCT_NAME_CORRECTIONS[key]
+    if key == "arroz largo fino 5/0":
+        return "Arroz 5/0 Largo Fino"
+    if key == "arroz 5/0 largo fino":
+        return "Arroz 5/0 Largo Fino"
+    return cleaned
+
+
+def normalize_offering_label(label: str) -> str:
+    cleaned = clean_cell_text(label)
+    normalized = normalize_text(cleaned).replace(",", ".")
+    normalized = re.sub(r"\s*x\s*", "x", normalized)
+    normalized = re.sub(r"\s+", " ", normalized)
+
+    replacements = {
+        "10x 1 kg": "10x1 kg",
+        "10x1 kg": "10x1 kg",
+        "10x5000 gr": "10x500 gr",
+        "12x300 gr": "16x300 gr",
+        "12x400 g": "12x400 gr",
+        "12x400gr": "12x400 gr",
+        "x25kg": "x 25 kg",
+        "x30kg": "x 30 kg",
+        "x1 kg": "10x1 kg",
+        "x 1 kg": "10x1 kg",
+        "x400 gr": "12x400 gr",
+        "x4000 gr": "x 4 kg",
+        "x500 gr": "10x500 gr",
+        "x 500 gr": "10x500 gr",
+        "x5 g": "x 5 kg",
+        "x 5 g": "x 5 kg",
+        "x5 kg": "x 5 kg",
+        "x 5 kg": "x 5 kg",
+    }
+    if normalized in replacements:
+        return replacements[normalized]
+
+    pack_match = re.fullmatch(r"(\d+)x(\d+(?:\.\d+)?)\s*(kg|gr|g)", normalized)
+    if pack_match:
+        count, amount, unit = pack_match.groups()
+        unit = "gr" if unit == "g" else unit
+        amount = amount.rstrip("0").rstrip(".") if "." in amount else amount
+        return f"{count}x{amount} {unit}"
+
+    pack_without_unit = re.fullmatch(r"(\d+)x(\d+)", normalized)
+    if pack_without_unit:
+        count, amount = pack_without_unit.groups()
+        return f"{count}x{amount} gr"
+
+    bag_match = re.fullmatch(r"x(\d+(?:\.\d+)?)\s*(kg|gr|g)", normalized)
+    if bag_match:
+        amount, unit = bag_match.groups()
+        unit = "gr" if unit == "g" else unit
+        amount = amount.rstrip("0").rstrip(".") if "." in amount else amount
+        label = f"x {amount} {unit}"
+        return replacements.get(label, label)
+
+    return cleaned
+
+
+def split_raw_product_label(label: str) -> tuple[str, str]:
     cleaned = clean_cell_text(label)
     match = OFFERING_RE.search(cleaned)
     if not match:
         return cleaned, "Unidad"
     product_name = cleaned[: match.start()].strip()
-    offering = cleaned[match.start() :].strip()
+    offering = match.group("label").strip()
     return product_name or cleaned, offering
+
+
+def split_product_label(label: str) -> tuple[str, str]:
+    product_name, offering = split_raw_product_label(label)
+    return normalize_product_name(product_name), normalize_offering_label(offering)
 
 
 def collect_source_files(source_dir: Path) -> list[Path]:
@@ -435,10 +529,19 @@ def import_invoices(source_dir: Path, dry_run: bool = False, reset_db: bool = Fa
     inserted = 0
     updated = 0
 
+    all_products: set[str] = set()
     latest_price: dict[tuple[str, str], tuple[date, int]] = {}
+    aliases_by_product: dict[str, set[str]] = defaultdict(set)
     for invoice in parsed:
         for item in invoice.items:
             product_name, offering_label = split_product_label(item.label)
+            raw_product_name, _raw_offering_label = split_raw_product_label(item.label)
+            raw_product_name = clean_cell_text(raw_product_name)
+            if raw_product_name and raw_product_name != product_name:
+                aliases_by_product[product_name].add(raw_product_name)
+            all_products.add(product_name)
+            if offering_label not in ALLOWED_OFFERINGS:
+                continue
             key = (product_name, offering_label)
             current = latest_price.get(key)
             if current is None or invoice.order_date >= current[0]:
@@ -448,10 +551,11 @@ def import_invoices(source_dir: Path, dry_run: bool = False, reset_db: bool = Fa
         product_ids: dict[str, int] = {}
         offering_ids: dict[tuple[str, str], int] = {}
 
-        for product_name in sorted({key[0] for key in latest_price}):
+        for product_name in sorted(all_products):
+            aliases = sorted(aliases_by_product.get(product_name, set()))
             stmt = insert(repo.products).values(
                 name=product_name,
-                aliases=[],
+                aliases=aliases,
                 active=True,
                 created_at=now,
                 updated_at=now,
@@ -459,7 +563,7 @@ def import_invoices(source_dir: Path, dry_run: bool = False, reset_db: bool = Fa
             existing = connection.execute(select(repo.products).where(repo.products.c.name == product_name)).mappings().first()
             if existing:
                 product_id = int(existing["id"])
-                connection.execute(update(repo.products).where(repo.products.c.id == product_id).values(active=True, updated_at=now))
+                connection.execute(update(repo.products).where(repo.products.c.id == product_id).values(aliases=aliases, active=True, updated_at=now))
             else:
                 product_id = int(connection.execute(stmt.returning(repo.products.c.id)).scalar_one())
             product_ids[product_name] = product_id
@@ -506,7 +610,7 @@ def import_invoices(source_dir: Path, dry_run: bool = False, reset_db: bool = Fa
                 for (name, label), (_latest_date, price) in sorted(latest_price.items())
                 if name == product_name
             ]
-            catalog.append({"id": product_id, "name": product_name, "aliases": [], "offerings": offerings})
+            catalog.append({"id": product_id, "name": product_name, "aliases": sorted(aliases_by_product.get(product_name, set())), "offerings": offerings})
         connection.execute(update(repo.catalogs).where(repo.catalogs.c.active.is_(True)).values(active=False, updated_at=now))
         connection.execute(
             repo.catalogs.insert().values(
