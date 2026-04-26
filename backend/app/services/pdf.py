@@ -42,7 +42,7 @@ def _draw_logo(pdf: canvas.Canvas, *, margin: int, y: float, logo_path: Path) ->
         image.save(image_buffer, format="PNG")
         image_buffer.seek(0)
 
-    logo_width = 235
+    logo_width = 175
     logo_height = logo_width * image.height / image.width
     pdf.drawImage(ImageReader(image_buffer), margin, y - logo_height, width=logo_width, height=logo_height, preserveAspectRatio=False, mask='auto')
     return y
@@ -60,7 +60,7 @@ def build_invoice_pdf(invoice: dict) -> bytes:
 
     _draw_logo(pdf, margin=margin, y=y, logo_path=logo_path)
     pdf.setFont("Helvetica-Bold", 14)
-    pdf.drawRightString(width - margin, y, f"Factura #{invoice['id']}")
+    pdf.drawRightString(width - margin, y - 8, f"Factura #{invoice['id']}")
     y -= 118
 
     pdf.setFont("Helvetica", 10)
