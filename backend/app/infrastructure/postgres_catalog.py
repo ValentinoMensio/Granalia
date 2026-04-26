@@ -94,6 +94,37 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
                 offering_label = offering["label"]
                 offering_id = offering.get("id") if isinstance(offering.get("id"), int) else None
                 if offering_id:
+                    duplicate = connection.execute(
+                        select(self.product_offerings)
+                        .where(
+                            self.product_offerings.c.product_id == product_db_id,
+                            self.product_offerings.c.label == offering_label,
+                            self.product_offerings.c.id != offering_id,
+                        )
+                        .order_by(self.product_offerings.c.id)
+                        .limit(1)
+                    ).mappings().first()
+                    if duplicate:
+                        target_id = int(duplicate["id"])
+                        connection.execute(
+                            update(self.invoice_items)
+                            .where(self.invoice_items.c.offering_id == offering_id)
+                            .values(offering_id=target_id)
+                        )
+                        connection.execute(
+                            update(self.product_offerings)
+                            .where(self.product_offerings.c.id == target_id)
+                            .values(
+                                price=int(offering["price"]),
+                                position=position,
+                                active=True,
+                                updated_at=now,
+                            )
+                        )
+                        connection.execute(self.product_offerings.delete().where(self.product_offerings.c.id == offering_id))
+                        active_offering_db_ids.add(target_id)
+                        continue
+
                     connection.execute(
                         update(self.product_offerings)
                         .where(self.product_offerings.c.id == offering_id)
@@ -108,25 +139,43 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
                     )
                     active_offering_db_ids.add(int(offering_id))
                 else:
-                    offering_stmt = insert(self.product_offerings).values(
-                        product_id=product_db_id,
-                        label=offering_label,
-                        price=int(offering["price"]),
-                        position=position,
-                        active=True,
-                        created_at=now,
-                        updated_at=now,
-                    )
-                    offering_stmt = offering_stmt.on_conflict_do_update(
-                        index_elements=[self.product_offerings.c.product_id, self.product_offerings.c.label],
-                        set_={
-                            "price": int(offering["price"]),
-                            "position": position,
-                            "active": True,
-                            "updated_at": now,
-                        },
-                    ).returning(self.product_offerings.c.id)
-                    active_offering_db_ids.add(int(connection.execute(offering_stmt).scalar_one()))
+                    existing_offering = connection.execute(
+                        select(self.product_offerings)
+                        .where(
+                            self.product_offerings.c.product_id == product_db_id,
+                            self.product_offerings.c.label == offering_label,
+                        )
+                        .order_by(self.product_offerings.c.id)
+                        .limit(1)
+                    ).mappings().first()
+                    if existing_offering:
+                        existing_offering_id = int(existing_offering["id"])
+                        connection.execute(
+                            update(self.product_offerings)
+                            .where(self.product_offerings.c.id == existing_offering_id)
+                            .values(
+                                price=int(offering["price"]),
+                                position=position,
+                                active=True,
+                                updated_at=now,
+                            )
+                        )
+                        active_offering_db_ids.add(existing_offering_id)
+                    else:
+                        inserted_id = connection.execute(
+                            insert(self.product_offerings)
+                            .values(
+                                product_id=product_db_id,
+                                label=offering_label,
+                                price=int(offering["price"]),
+                                position=position,
+                                active=True,
+                                created_at=now,
+                                updated_at=now,
+                            )
+                            .returning(self.product_offerings.c.id)
+                        ).scalar_one()
+                        active_offering_db_ids.add(int(inserted_id))
 
         if active_product_db_ids:
             connection.execute(update(self.products).where(self.products.c.id.in_(active_product_db_ids)).values(active=True, updated_at=now))
