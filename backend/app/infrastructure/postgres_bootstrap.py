@@ -37,8 +37,12 @@ class PostgresBootstrapMixin(PostgresRepositoryProtocol):
         self.ensure_seeded()
         profiles = self.get_profiles_map()
         clients = sorted(profile["name"] for profile in profiles.values())
+        try:
+            catalog = self.get_active_catalog()
+        except RuntimeError:
+            catalog = []
         return {
-            "catalog": self.get_active_catalog(),
+            "catalog": catalog,
             "profiles": profiles,
             "clients": clients,
             "transports": self.get_transports(),

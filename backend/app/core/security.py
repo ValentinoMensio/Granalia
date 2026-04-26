@@ -56,7 +56,7 @@ class AuthManager:
     session_ttl_seconds = 60 * 60 * 8
     login_window_seconds = 60 * 10
     login_attempt_limit = 5
-    lockout_seconds = 60 * 15
+    lockout_seconds = 30
 
     def __init__(self, base_dir: Path) -> None:
         self.base_dir = base_dir

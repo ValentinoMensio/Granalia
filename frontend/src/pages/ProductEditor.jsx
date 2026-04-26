@@ -5,6 +5,18 @@ import { request } from '../lib/api'
 import Button from '../components/ui/Button'
 import PageSectionHeader from '../components/ui/PageSectionHeader'
 
+const BASE_OFFERING_LABELS = [
+  'x 25 kg',
+  'x 30 kg',
+  '12x400 gr',
+  '16x300 gr',
+  '12x350 gr',
+  '10x500 gr',
+  '10x1 kg',
+  'x 4 kg',
+  'x 5 kg',
+]
+
 export default function ProductEditor() {
   const { id } = useParams()
   const productId = Number(id)
@@ -16,7 +28,10 @@ export default function ProductEditor() {
   const product = catalog.find((p) => p.id === productId)
   const [formData, setFormData] = useState(null)
   const [offerings, setOfferings] = useState([])
-  const availableOfferingLabels = Array.from(new Set(catalog.flatMap((entry) => (entry.offerings || []).map((offering) => offering.label)))).sort()
+  const availableOfferingLabels = Array.from(new Set([
+    ...BASE_OFFERING_LABELS,
+    ...catalog.flatMap((entry) => (entry.offerings || []).map((offering) => offering.label)),
+  ])).sort()
 
   useEffect(() => {
     if (isNewProduct) {
@@ -100,7 +115,7 @@ export default function ProductEditor() {
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
+              className="input"
             />
           </div>
         </div>
@@ -126,7 +141,7 @@ export default function ProductEditor() {
                       <select
                         value={off.label}
                         onChange={(e) => updateOffering(i, 'label', e.target.value)}
-                        className="w-full rounded border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:border-brand-red"
+                        className="input py-1.5 text-xs"
                       >
                         <option value="">Seleccionar etiqueta</option>
                         {availableOfferingLabels.map((label) => (
@@ -142,7 +157,7 @@ export default function ProductEditor() {
                         type="number"
                         value={off.price}
                         onChange={(e) => updateOffering(i, 'price', e.target.value)}
-                        className="w-full rounded border border-slate-300 px-2 py-1 text-xs text-right focus:outline-none focus:border-brand-red"
+                        className="input py-1.5 text-right text-xs"
                       />
                     </td>
                     <td className="table-cell text-right">

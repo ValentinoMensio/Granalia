@@ -62,6 +62,8 @@ PRODUCT_DISPLAY_NAMES = {
     "Semola de Trigo": "Sémola de Trigo",
     "Trigo Machacado Burgol": "Trigo Burgol",
     "Arroz Largo Fino 5/0": "Arroz 5/0 Largo Fino",
+    "Avena Arrollada x 300 gr": "Avena Arrollada",
+    "Avena Instantánea x 350 gr": "Avena Instantánea",
 }
 
 
@@ -178,5 +180,13 @@ def build_catalog_from_pdf(pdf_bytes: bytes, current_catalog: list[CatalogProduc
         if not offerings:
             continue
         display_name = PRODUCT_DISPLAY_NAMES.get(product_name, product_name)
-        catalog.append(CatalogProduct(id=spec["id"], name=display_name, aliases=[] if display_name == product_name else [product_name], offerings=offerings))
+        aliases = [] if display_name == product_name else [product_name]
+        catalog.append(CatalogProduct(id=spec["id"], name=display_name, aliases=aliases, offerings=offerings))
+
+    for idx, product in enumerate(catalog):
+        if product.id in used_spec_ids:
+            product_display = PRODUCT_DISPLAY_NAMES.get(product.name, product.name)
+            if product_display != product.name:
+                catalog[idx] = CatalogProduct(id=product.id, name=product_display, aliases=product.aliases, offerings=product.offerings)
+
     return catalog

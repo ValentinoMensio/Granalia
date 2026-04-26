@@ -134,9 +134,9 @@ function ProductRowsCard({
                         className="input w-full min-w-0"
                         type="number"
                         min="0"
-                        value={item.quantity}
+                        value={item.quantity || ''}
                         onChange={(event) =>
-                          onUpdateItem(index, 'quantity', Number(event.target.value))
+                          onUpdateItem(index, 'quantity', event.target.value === '' ? 0 : Number(event.target.value))
                         }
                       />
                     </td>
@@ -146,9 +146,9 @@ function ProductRowsCard({
                         className="input w-full min-w-0"
                         type="number"
                         min="0"
-                        value={item.bonus_quantity}
+                        value={item.bonus_quantity || ''}
                         onChange={(event) =>
-                          onUpdateItem(index, 'bonus_quantity', Number(event.target.value))
+                          onUpdateItem(index, 'bonus_quantity', event.target.value === '' ? 0 : Number(event.target.value))
                         }
                       />
                     </td>
@@ -255,9 +255,9 @@ function ProductRowsCard({
                         className="input w-full min-w-0"
                         type="number"
                         min="0"
-                        value={item.quantity}
+                        value={item.quantity || ''}
                         onChange={(event) =>
-                          onUpdateItem(index, 'quantity', Number(event.target.value))
+                          onUpdateItem(index, 'quantity', event.target.value === '' ? 0 : Number(event.target.value))
                         }
                       />
                     </div>
@@ -270,9 +270,9 @@ function ProductRowsCard({
                         className="input w-full min-w-0"
                         type="number"
                         min="0"
-                        value={item.bonus_quantity}
+                        value={item.bonus_quantity || ''}
                         onChange={(event) =>
-                          onUpdateItem(index, 'bonus_quantity', Number(event.target.value))
+                          onUpdateItem(index, 'bonus_quantity', event.target.value === '' ? 0 : Number(event.target.value))
                         }
                       />
                     </div>

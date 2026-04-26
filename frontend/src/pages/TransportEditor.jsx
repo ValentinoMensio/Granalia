@@ -60,7 +60,7 @@ export default function TransportEditor() {
             type="text"
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
+            className="input"
           />
         </div>
 
@@ -70,7 +70,7 @@ export default function TransportEditor() {
             rows={4}
             value={formData.notes?.join('\\n') || ''}
             onChange={(e) => setFormData({ ...formData, notes: e.target.value.split('\\n').filter(Boolean) })}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
+            className="input"
           />
         </div>
 

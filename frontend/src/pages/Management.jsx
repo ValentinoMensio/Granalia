@@ -92,7 +92,7 @@ export default function Management() {
                   value={searchTerm}
                   onChange={(event) => setSearchTerm(event.target.value)}
                   placeholder="Buscar clientes por nombre..."
-                  className="mt-3 w-full min-w-[280px] rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red md:w-96"
+                  className="input mt-3 md:w-96"
                 />
               </div>
               <Button variant="primary" onClick={() => navigate('/customers/new')}>
@@ -151,7 +151,7 @@ export default function Management() {
                   value={searchTerm}
                   onChange={(event) => setSearchTerm(event.target.value)}
                   placeholder="Buscar transportes por nombre..."
-                  className="mt-3 w-full min-w-[280px] rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red md:w-96"
+                  className="input mt-3 md:w-96"
                 />
               </div>
               <Button variant="primary" onClick={() => navigate('/transports/new')}>
@@ -204,7 +204,7 @@ export default function Management() {
                   value={searchTerm}
                   onChange={(event) => setSearchTerm(event.target.value)}
                   placeholder="Buscar productos por nombre..."
-                  className="mt-3 w-full min-w-[280px] rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red md:w-96"
+                  className="input mt-3 md:w-96"
                 />
               </div>
               <Button variant="primary" onClick={() => navigate('/products/new')}>

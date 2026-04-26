@@ -103,7 +103,7 @@ export default function CustomerEditor() {
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
+              className="input"
             />
           </div>
           <div className="space-y-2">
@@ -112,7 +112,7 @@ export default function CustomerEditor() {
               type="text"
               value={formData.secondary_line}
               onChange={(e) => setFormData({ ...formData, secondary_line: e.target.value })}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
+              className="input"
             />
           </div>
         </div>
@@ -122,7 +122,7 @@ export default function CustomerEditor() {
           <select
             value={formData.transport}
             onChange={(e) => setFormData({ ...formData, transport: e.target.value })}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
+            className="input"
           >
             <option value="">Sin transporte</option>
             {bootstrap?.transports.map((t) => (
@@ -137,7 +137,7 @@ export default function CustomerEditor() {
             rows={3}
             value={formData.notes.join('\\n')}
             onChange={(e) => setFormData({ ...formData, notes: e.target.value.split('\\n').filter(Boolean) })}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
+            className="input"
           />
         </div>
 
@@ -161,14 +161,14 @@ export default function CustomerEditor() {
                       value={disc.label}
                       onChange={(e) => updateFooterDiscount(i, 'label', e.target.value)}
                       placeholder="Ej: Mayorista"
-                      className="flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-xs focus:outline-none focus:border-brand-red"
+                      className="input flex-1 py-1.5 text-xs"
                     />
                     <div className="flex items-center gap-1">
                       <input
                         type="number"
                         value={disc.rate * 100}
                         onChange={(e) => updateFooterDiscount(i, 'rate', e.target.value)}
-                        className="w-16 rounded-lg border border-slate-300 px-2 py-1.5 text-xs text-right focus:outline-none focus:border-brand-red"
+                        className="input w-16 py-1.5 text-right text-xs"
                       />
                       <span className="text-xs text-slate-400">%</span>
                     </div>
@@ -200,7 +200,7 @@ export default function CustomerEditor() {
                         type="number"
                         value={(formData.line_discounts_by_format?.[group] || 0) * 100}
                         onChange={(e) => updateLineDiscount(group, e.target.value)}
-                        className="w-14 rounded border border-slate-300 px-1 py-0.5 text-xs text-right focus:outline-none focus:border-brand-red"
+                        className="input w-14 px-1 py-0.5 text-right text-xs"
                       />
                       <span className="text-xs text-slate-400">%</span>
                     </div>

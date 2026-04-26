@@ -4,14 +4,14 @@ export default {
     extend: {
       colors: {
         brand: {
-          red: '#84261a',
-          sand: '#e2d3bc',
-          ink: '#1e1915',
-          gold: '#af7f2d',
+          red: '#1e407c',
+          sand: '#ebedf3',
+          ink: '#0f172a',
+          gold: '#1e407c',
         },
       },
       boxShadow: {
-        card: '0 18px 42px rgba(44, 31, 22, 0.13)',
+        card: '0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04)'
       },
     },
   },

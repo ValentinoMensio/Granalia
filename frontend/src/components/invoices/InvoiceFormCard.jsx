@@ -82,14 +82,14 @@ function InvoiceFormCard({
                     value={discount.label}
                     onChange={(event) => onFooterDiscountChange(index, 'label', event.target.value)}
                     placeholder="Ej: Mayorista"
-                    className="flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-xs focus:outline-none focus:border-brand-red"
+                    className="input flex-1 py-1.5 text-xs"
                   />
                   <div className="flex items-center gap-1">
                     <input
                       type="number"
                       value={Number(discount.rate || 0) * 100}
                       onChange={(event) => onFooterDiscountChange(index, 'rate', event.target.value)}
-                      className="w-16 rounded-lg border border-slate-300 px-2 py-1.5 text-xs text-right focus:outline-none focus:border-brand-red"
+                      className="input w-16 py-1.5 text-right text-xs"
                     />
                     <span className="text-xs text-slate-400">%</span>
                   </div>
@@ -117,7 +117,7 @@ function InvoiceFormCard({
                       type="number"
                       value={(form.lineDiscountsByGroup?.[group] || 0) * 100}
                       onChange={(event) => onLineDiscountChange(group, event.target.value)}
-                      className="w-14 rounded border border-slate-300 px-1 py-0.5 text-xs text-right focus:outline-none focus:border-brand-red"
+                      className="input w-14 px-1 py-0.5 text-right text-xs"
                     />
                     <span className="text-xs text-slate-400">%</span>
                   </div>

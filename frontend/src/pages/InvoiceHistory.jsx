@@ -109,7 +109,7 @@ export default function InvoiceHistory() {
           <select
             value={filters.customerId}
             onChange={(event) => updateFilter('customerId', event.target.value)}
-            className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-brand-red focus:outline-none"
+            className="input"
           >
             <option value="">Todos los clientes</option>
             {customers.map((customer) => (
@@ -120,18 +120,18 @@ export default function InvoiceHistory() {
             type="date"
             value={filters.dateFrom}
             onChange={(event) => updateFilter('dateFrom', event.target.value)}
-            className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-brand-red focus:outline-none"
+            className="input"
           />
           <input
             type="date"
             value={filters.dateTo}
             onChange={(event) => updateFilter('dateTo', event.target.value)}
-            className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-brand-red focus:outline-none"
+            className="input"
           />
           <select
             value={filters.transport}
             onChange={(event) => updateFilter('transport', event.target.value)}
-            className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-brand-red focus:outline-none"
+            className="input"
           >
             <option value="">Todos los transportes</option>
             {(bootstrap?.transports || []).map((transport) => (
@@ -144,7 +144,7 @@ export default function InvoiceHistory() {
             value={filters.minTotal}
             onChange={(event) => updateFilter('minTotal', event.target.value)}
             placeholder="Total minimo"
-            className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-brand-red focus:outline-none"
+            className="input"
           />
           <input
             type="number"
@@ -152,7 +152,7 @@ export default function InvoiceHistory() {
             value={filters.maxTotal}
             onChange={(event) => updateFilter('maxTotal', event.target.value)}
             placeholder="Total maximo"
-            className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-brand-red focus:outline-none"
+            className="input"
           />
         </div>
 
@@ -171,15 +171,15 @@ export default function InvoiceHistory() {
           <div className="badge self-start md:mt-1">{filteredInvoices.length} resultados</div>
         </div>
 
-        <div className="table-shell mt-6 overflow-x-auto">
-          <table className="table-base min-w-[860px] table-fixed">
+        <div className="table-shell mt-6 overflow-hidden">
+          <table className="table-base table-fixed">
             <colgroup>
-              <col className="w-[11%]" />
-              <col className="w-[24%]" />
-              <col className="w-[13%]" />
+              <col className="w-[9%]" />
               <col className="w-[22%]" />
               <col className="w-[12%]" />
               <col className="w-[18%]" />
+              <col className="w-[11%]" />
+              <col className="w-[30%]" />
             </colgroup>
             <thead className="table-head">
               <tr>
@@ -188,7 +188,7 @@ export default function InvoiceHistory() {
                 <th>Fecha</th>
                 <th>Transporte</th>
                 <th className="text-right">Total</th>
-                <th className="text-right">Acciones</th>
+                <th className="text-right w-[30%]">Acciones</th>
               </tr>
             </thead>
             <tbody className="bg-white">
@@ -202,19 +202,19 @@ export default function InvoiceHistory() {
                     <td className={`table-cell truncate ${isUpcoming ? 'text-slate-800' : 'text-slate-600'}`}>{invoice.order_date}</td>
                     <td className={`table-cell truncate ${isUpcoming ? 'text-slate-800' : 'text-slate-600'}`} title={invoice.transport || 'Sin transporte'}>{invoice.transport || 'Sin transporte'}</td>
                     <td className="table-cell truncate text-right font-medium">${money(invoice.final_total)}</td>
-                    <td className="table-cell whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-3 overflow-hidden">
-                        <Button variant="ghost" className="px-0 py-0 text-sm text-brand-red" onClick={() => handleSelectInvoice(invoice.invoice_id)}>
+                    <td className="table-cell">
+                      <div className="flex items-center justify-end gap-x-2 text-xs">
+                        <Button variant="ghost" className="px-0 py-0 text-brand-red" onClick={() => handleSelectInvoice(invoice.invoice_id)}>
                           Ver detalle
                         </Button>
-                        <Button variant="ghost" className="px-0 py-0 text-sm text-brand-ink" onClick={() => handleEditInvoice(invoice.invoice_id)}>
+                        <Button variant="ghost" className="px-0 py-0 text-brand-ink" onClick={() => handleEditInvoice(invoice.invoice_id)}>
                           Editar
                         </Button>
                         <a
                           href={invoiceDownloadUrl(invoice.invoice_id)}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-sm font-semibold text-brand-ink hover:text-brand-red"
+                          className="font-semibold text-brand-ink hover:text-brand-red"
                         >
                           XLSX
                         </a>
