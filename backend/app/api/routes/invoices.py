@@ -56,7 +56,10 @@ def create_invoice(payload: InvoiceRequest) -> InvoiceCreateOut:
     order = payload.order.model_dump()
     profile = payload.profile.model_dump()
     catalog = repository.get_active_catalog()
-    filename, xlsx_bytes, snapshot = generate_invoice_document(order, profile, catalog)
+    try:
+        filename, xlsx_bytes, snapshot = generate_invoice_document(order, profile, catalog)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
     invoice_id = repository.save_invoice(order, profile, snapshot, filename, xlsx_bytes)
     return InvoiceCreateOut.model_validate({
         "invoice_id": invoice_id,
@@ -74,8 +77,11 @@ def update_invoice(invoice_id: int, payload: InvoiceRequest) -> InvoiceCreateOut
     order = payload.order.model_dump()
     profile = payload.profile.model_dump()
     catalog = repository.get_active_catalog()
-    filename, xlsx_bytes, snapshot = generate_invoice_document(order, profile, catalog)
-    repository.update_invoice(invoice_id, order, profile, snapshot, filename, xlsx_bytes)
+    try:
+        filename, xlsx_bytes, snapshot = generate_invoice_document(order, profile, catalog)
+        repository.update_invoice(invoice_id, order, profile, snapshot, filename, xlsx_bytes)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
     return InvoiceCreateOut.model_validate({
         "invoice_id": invoice_id,
         "filename": filename,

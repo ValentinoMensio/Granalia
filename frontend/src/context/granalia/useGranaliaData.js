@@ -274,6 +274,12 @@ function useGranaliaData() {
       return
     }
 
+    const validItems = form.items.filter((item) => item.product_id && item.offering_id && (item.quantity > 0 || item.bonus_quantity > 0))
+    if (!validItems.length) {
+      setStatus('Completá al menos un producto con presentación y cantidad.')
+      return
+    }
+
     setGenerating(true)
     try {
       const isEditing = editingInvoiceId !== null
@@ -292,6 +298,8 @@ function useGranaliaData() {
       setForm(createInitialForm())
       setStatus(`Factura ${data.invoice_id} ${isEditing ? 'actualizada' : 'guardada'}${shouldDownload ? ' y descargada en PDF' : ''}.`)
       return { invoiceId: data.invoice_id, updated: isEditing }
+    } catch (error) {
+      setStatus(`Error al ${editingInvoiceId !== null ? 'actualizar' : 'guardar'} la factura: ${error.message}`)
     } finally {
       setGenerating(false)
     }
