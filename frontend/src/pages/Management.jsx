@@ -12,10 +12,22 @@ export default function Management() {
   const [searchParams, setSearchParams] = useSearchParams()
   const requestedTab = searchParams.get('tab')
   const [tab, setTab] = useState(['customers', 'transports', 'products'].includes(requestedTab) ? requestedTab : 'customers')
+  const [searchTerm, setSearchTerm] = useState('')
   const [loading, setLoading] = useState(false)
+  const normalizedSearch = searchTerm.trim().toLowerCase()
+  const filteredCustomers = normalizedSearch
+    ? customers.filter((customer) => customer.name.toLowerCase().includes(normalizedSearch))
+    : customers
+  const filteredTransports = normalizedSearch
+    ? (bootstrap?.transports || []).filter((transport) => transport.name.toLowerCase().includes(normalizedSearch))
+    : (bootstrap?.transports || [])
+  const filteredProducts = normalizedSearch
+    ? catalog.filter((product) => product.name.toLowerCase().includes(normalizedSearch))
+    : catalog
 
   function selectTab(nextTab) {
     setTab(nextTab)
+    setSearchTerm('')
     setSearchParams({ tab: nextTab })
   }
 
@@ -70,6 +82,16 @@ export default function Management() {
       </div>
 
       <div className="surface p-6">
+        <div className="mb-5">
+          <input
+            type="search"
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            placeholder={`Buscar ${tab === 'customers' ? 'clientes' : tab === 'transports' ? 'transportes' : 'productos'} por nombre...`}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
+          />
+        </div>
+
         {tab === 'customers' && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -93,7 +115,7 @@ export default function Management() {
                   </tr>
                 </thead>
                 <tbody>
-                  {customers.map((c) => (
+                  {filteredCustomers.map((c) => (
                     <tr key={c.id} className="table-row">
                       <td className="table-cell font-mono text-xs">{c.id}</td>
                       <td className="table-cell font-medium">{c.name}</td>
@@ -111,6 +133,11 @@ export default function Management() {
                       </td>
                     </tr>
                   ))}
+                  {filteredCustomers.length === 0 && (
+                    <tr>
+                      <td colSpan="5" className="table-cell py-8 text-center text-slate-400 italic">No hay clientes que coincidan con la búsqueda.</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -138,7 +165,7 @@ export default function Management() {
                   </tr>
                 </thead>
                 <tbody>
-                  {bootstrap?.transports.map((t) => (
+                  {filteredTransports.map((t) => (
                     <tr key={t.transport_id} className="table-row">
                       <td className="table-cell font-mono text-xs">{t.transport_id}</td>
                       <td className="table-cell font-medium">{t.name}</td>
@@ -152,6 +179,11 @@ export default function Management() {
                       </td>
                     </tr>
                   ))}
+                  {filteredTransports.length === 0 && (
+                    <tr>
+                      <td colSpan="3" className="table-cell py-8 text-center text-slate-400 italic">No hay transportes que coincidan con la búsqueda.</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -180,7 +212,7 @@ export default function Management() {
                   </tr>
                 </thead>
                 <tbody>
-                  {catalog.map((p) => (
+                  {filteredProducts.map((p) => (
                     <tr key={p.id} className="table-row">
                       <td className="table-cell font-mono text-xs">{p.id}</td>
                       <td className="table-cell font-medium">{p.name}</td>
@@ -199,6 +231,11 @@ export default function Management() {
                       </td>
                     </tr>
                   ))}
+                  {filteredProducts.length === 0 && (
+                    <tr>
+                      <td colSpan="4" className="table-cell py-8 text-center text-slate-400 italic">No hay productos que coincidan con la búsqueda.</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
