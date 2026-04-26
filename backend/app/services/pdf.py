@@ -30,9 +30,9 @@ def _draw_logo(pdf: canvas.Canvas, *, margin: int, y: float, logo_path: Path) ->
     if not logo_path.exists():
         return y
     image = ImageReader(str(logo_path))
-    logo_width = 210
-    logo_height = 54
-    pdf.drawImage(image, margin, y - logo_height, width=logo_width, height=logo_height, preserveAspectRatio=True, mask='auto')
+    logo_width = 260
+    logo_height = 68
+    pdf.drawImage(image, margin - 4, y - logo_height, width=logo_width, height=logo_height, preserveAspectRatio=True, mask='auto')
     return y
 
 
@@ -49,7 +49,7 @@ def build_invoice_pdf(invoice: dict) -> bytes:
     _draw_logo(pdf, margin=margin, y=y, logo_path=logo_path)
     pdf.setFont("Helvetica-Bold", 14)
     pdf.drawRightString(width - margin, y, f"Factura #{invoice['id']}")
-    y -= 72
+    y -= 84
 
     pdf.setFont("Helvetica", 10)
     pdf.drawString(margin, y, f"Fecha: {invoice['order_date']}")
@@ -61,8 +61,6 @@ def build_invoice_pdf(invoice: dict) -> bytes:
         y -= 18
         pdf.drawString(margin, y, secondary_line)
     discount_summary = _discount_summary(invoice)
-    y -= 18
-    pdf.drawString(margin, y, f"Descuentos: {discount_summary}")
     y -= 24
 
     headers = [
@@ -88,7 +86,7 @@ def build_invoice_pdf(invoice: dict) -> bytes:
             y = height - margin
             _draw_logo(pdf, margin=margin, y=y, logo_path=logo_path)
             pdf.setFont("Helvetica", 10)
-            y -= 72
+            y -= 84
         label = str(item.get("label") or "")
         if stringWidth(label, "Helvetica", 10) > 260:
             label = f"{label[:45]}..."
@@ -100,16 +98,17 @@ def build_invoice_pdf(invoice: dict) -> bytes:
 
     y -= 10
     pdf.line(margin, y, width - margin, y)
-    y -= 18
-    pdf.setFont("Helvetica-Bold", 10)
+    y -= 22
+    pdf.setFont("Helvetica-Bold", 13)
     pdf.drawString(width - 200, y, "Bruto")
     pdf.drawRightString(width - margin, y, _money(invoice.get("gross_total") or 0))
-    y -= 16
-    discount_label = f"Descuento ({discount_summary})" if discount_summary != "Sin descuentos" else "Descuento"
-    pdf.drawString(width - 200, y, clean_cell_text(discount_label))
-    pdf.drawRightString(width - margin, y, _money(invoice.get("discount_total") or 0))
-    y -= 16
-    pdf.setFont("Helvetica-Bold", 11)
+    y -= 22
+    if int(invoice.get("discount_total") or 0) > 0:
+        discount_label = f"Descuento ({discount_summary})" if discount_summary != "Sin descuentos" else "Descuento"
+        pdf.drawString(width - 200, y, clean_cell_text(discount_label))
+        pdf.drawRightString(width - margin, y, _money(invoice.get("discount_total") or 0))
+        y -= 24
+    pdf.setFont("Helvetica-Bold", 14)
     pdf.drawString(width - 200, y, "Total")
     pdf.drawRightString(width - margin, y, _money(invoice.get("final_total") or 0))
 
