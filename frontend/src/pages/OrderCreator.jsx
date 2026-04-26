@@ -47,8 +47,15 @@ export default function OrderCreator() {
   }
 
   return (
-    <main className="relative mt-8 xl:pr-[330px]">
+    <main className="mt-8">
       <section className="space-y-6">
+        <PriceListPanel
+          bootstrap={bootstrap}
+          uploading={uploading}
+          onFileChange={setPdfFile}
+          onUpload={uploadPriceList}
+        />
+
         <InvoiceFormCard
           bootstrap={bootstrap}
           customers={customers}
@@ -82,15 +89,6 @@ export default function OrderCreator() {
           onUpdateItem={updateItem}
         />
       </section>
-
-      <aside className="mt-6 space-y-6 xl:absolute xl:right-0 xl:top-0 xl:mt-0 xl:w-[290px]">
-        <PriceListPanel
-          bootstrap={bootstrap}
-          uploading={uploading}
-          onFileChange={setPdfFile}
-          onUpload={uploadPriceList}
-        />
-      </aside>
     </main>
   )
 }

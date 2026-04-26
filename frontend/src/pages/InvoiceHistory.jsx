@@ -15,6 +15,7 @@ export default function InvoiceHistory() {
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [deletingInvoiceId, setDeletingInvoiceId] = useState(null)
   const [page, setPage] = useState(1)
+  const todayKey = new Date().toLocaleDateString('en-CA')
 
   const filteredInvoices = useMemo(() => {
     const minTotal = filters.minTotal === '' ? null : Number(filters.minTotal)
@@ -170,8 +171,16 @@ export default function InvoiceHistory() {
           <div className="badge self-start md:mt-1">{filteredInvoices.length} resultados</div>
         </div>
 
-        <div className="table-shell mt-6">
-          <table className="table-base">
+        <div className="table-shell mt-6 overflow-x-auto">
+          <table className="table-base min-w-[860px] table-fixed">
+            <colgroup>
+              <col className="w-[11%]" />
+              <col className="w-[24%]" />
+              <col className="w-[13%]" />
+              <col className="w-[22%]" />
+              <col className="w-[12%]" />
+              <col className="w-[18%]" />
+            </colgroup>
             <thead className="table-head">
               <tr>
                 <th>Factura</th>
@@ -183,49 +192,53 @@ export default function InvoiceHistory() {
               </tr>
             </thead>
             <tbody className="bg-white">
-              {paginatedInvoices.map((invoice) => (
-                <tr key={invoice.invoice_id} className="table-row">
-                  <td className="table-cell font-mono text-xs">#{invoice.invoice_id}</td>
-                  <td className="table-cell font-medium">{invoice.client_name}</td>
-                  <td className="table-cell text-slate-600">{invoice.order_date}</td>
-                  <td className="table-cell text-slate-600">{invoice.transport || 'Sin transporte'}</td>
-                  <td className="table-cell text-right font-medium">${money(invoice.final_total)}</td>
-                  <td className="table-cell">
-                    <div className="flex items-center justify-end gap-3">
-                      <Button variant="ghost" className="px-0 py-0 text-sm text-brand-red" onClick={() => handleSelectInvoice(invoice.invoice_id)}>
-                        Ver detalle
-                      </Button>
-                      <Button variant="ghost" className="px-0 py-0 text-sm text-brand-ink" onClick={() => handleEditInvoice(invoice.invoice_id)}>
-                        Editar
-                      </Button>
-                      <a
-                        href={invoiceDownloadUrl(invoice.invoice_id)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-sm font-semibold text-brand-ink hover:text-brand-red"
-                      >
-                        XLSX
-                      </a>
-                      <a
-                        href={invoicePdfUrl(invoice.invoice_id)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-sm font-semibold text-brand-ink hover:text-brand-red"
-                      >
-                        PDF
-                      </a>
-                      <Button
-                        variant="ghost"
-                        className="px-0 py-0 text-sm text-red-600"
-                        onClick={() => handleDeleteInvoice(invoice.invoice_id)}
-                        disabled={deletingInvoiceId === invoice.invoice_id}
-                      >
-                        {deletingInvoiceId === invoice.invoice_id ? 'Eliminando...' : 'Eliminar'}
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {paginatedInvoices.map((invoice) => {
+                const isUpcoming = invoice.order_date >= todayKey
+
+                return (
+                  <tr key={invoice.invoice_id} className={`table-row ${isUpcoming ? 'bg-stone-100 text-brand-ink' : ''}`}>
+                    <td className="table-cell truncate font-mono text-xs">#{invoice.invoice_id}</td>
+                    <td className="table-cell truncate font-medium" title={invoice.client_name}>{invoice.client_name}</td>
+                    <td className={`table-cell truncate ${isUpcoming ? 'text-slate-800' : 'text-slate-600'}`}>{invoice.order_date}</td>
+                    <td className={`table-cell truncate ${isUpcoming ? 'text-slate-800' : 'text-slate-600'}`} title={invoice.transport || 'Sin transporte'}>{invoice.transport || 'Sin transporte'}</td>
+                    <td className="table-cell truncate text-right font-medium">${money(invoice.final_total)}</td>
+                    <td className="table-cell whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-3 overflow-hidden">
+                        <Button variant="ghost" className="px-0 py-0 text-sm text-brand-red" onClick={() => handleSelectInvoice(invoice.invoice_id)}>
+                          Ver detalle
+                        </Button>
+                        <Button variant="ghost" className="px-0 py-0 text-sm text-brand-ink" onClick={() => handleEditInvoice(invoice.invoice_id)}>
+                          Editar
+                        </Button>
+                        <a
+                          href={invoiceDownloadUrl(invoice.invoice_id)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-sm font-semibold text-brand-ink hover:text-brand-red"
+                        >
+                          XLSX
+                        </a>
+                        <a
+                          href={invoicePdfUrl(invoice.invoice_id)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-sm font-semibold text-brand-ink hover:text-brand-red"
+                        >
+                          PDF
+                        </a>
+                        <Button
+                          variant="ghost"
+                          className="px-0 py-0 text-sm text-red-600"
+                          onClick={() => handleDeleteInvoice(invoice.invoice_id)}
+                          disabled={deletingInvoiceId === invoice.invoice_id}
+                        >
+                          {deletingInvoiceId === invoice.invoice_id ? 'Eliminando...' : 'Eliminar'}
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
               {filteredInvoices.length === 0 && (
                 <tr>
                   <td colSpan="6" className="table-cell py-10 text-center text-slate-400">No hay facturas que coincidan con los filtros.</td>
