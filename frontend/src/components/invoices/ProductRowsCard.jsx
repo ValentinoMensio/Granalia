@@ -28,11 +28,11 @@ function ProductRowsCard({
         <div className="hidden md:block">
           <table className="table-base w-full table-fixed border-collapse">
             <colgroup>
-              <col className="w-[28%]" />
-              <col className="w-[23%]" />
+              <col className="w-[27%]" />
+              <col className="w-[18%]" />
               <col className="w-[12%]" />
               <col className="w-[12%]" />
-              <col className="w-[9%]" />
+              <col className="w-[15%]" />
               <col className="w-[9%]" />
               <col className="w-[7%]" />
             </colgroup>
