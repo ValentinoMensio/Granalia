@@ -28,8 +28,8 @@ PRODUCT_SPECS: dict[str, ProductSpec] = {
     "Maíz Pisado Blanco": {"id": "maiz_pisado_blanco", "formats": ["12x400", "10x500", "x5kg", "bulk"]},
     "Porotos Alubia": {"id": "porotos_alubia", "formats": ["12x400", "10x500", "x5kg", "bulk"]},
     "Maíz Partido Colorado": {"id": "maiz_partido_colorado", "formats": ["10x500", "x5kg", "bulk"]},
-    "Porotos Negros": {"id": "porotos_negros", "formats": ["10x500", "x5kg", "bulk"]},
-    "Porotos Colorados": {"id": "porotos_colorados", "formats": ["10x500", "x5kg", "bulk"]},
+    "Porotos Negros": {"id": "porotos_negros", "formats": ["12x400", "x5kg", "bulk"]},
+    "Porotos Colorados": {"id": "porotos_colorados", "formats": ["12x400", "x5kg", "bulk"]},
     "Porotos Soja": {"id": "porotos_soja", "formats": ["10x500", "x5kg", "bulk_single"]},
     "Semola de Trigo": {"id": "semola_trigo", "formats": ["12x400", "10x500", "x5kg", "bulk"]},
     "Trigo Machacado Burgol": {"id": "trigo_burgol", "formats": ["12x400", "10x500", "x5kg", "bulk"]},
@@ -47,11 +47,21 @@ PRODUCT_SPECS: dict[str, ProductSpec] = {
 }
 
 PRODUCT_NAME_ALIASES = {
+    "Avena Arrollada": "Avena Arrollada x 300 gr",
+    "Avena Instantánea": "Avena Instantánea x 350 gr",
+    "H. Maíz Cocc. Rápida": "Harina de Maíz Cocción Rápida",
     "Maíz Partido Blanco": "Maíz Pisado Blanco",
     "Semola de Trigo": "Semola de Trigo",
     "Sémola de Trigo": "Semola de Trigo",
     "Trigo Burgol": "Trigo Machacado Burgol",
     "Arroz 5/0 Largo Fino": "Arroz Largo Fino 5/0",
+}
+
+PRODUCT_DISPLAY_NAMES = {
+    "Maíz Pisado Blanco": "Maíz Partido Blanco",
+    "Semola de Trigo": "Sémola de Trigo",
+    "Trigo Machacado Burgol": "Trigo Burgol",
+    "Arroz Largo Fino 5/0": "Arroz 5/0 Largo Fino",
 }
 
 
@@ -67,20 +77,25 @@ def _extract_numbers(line: str) -> list[int]:
 def _build_offerings(formats: list[str], numbers: list[int]) -> list[CatalogOffering]:
     offerings: list[CatalogOffering] = []
     idx = 0
+
+    def append_offering(id: str, label: str, price: int) -> None:
+        if price > 0:
+            offerings.append(CatalogOffering(id=id, label=label, price=price))
+
     for fmt in formats:
         if fmt == "bulk":
             if idx >= len(numbers):
                 continue
             price = numbers[idx]
-            offerings.append(CatalogOffering(id="x25kg", label="x 25 kg", price=price * 25))
-            offerings.append(CatalogOffering(id="x30kg", label="x 30 kg", price=price * 30))
+            append_offering("x25kg", "x 25 kg", price * 25)
+            append_offering("x30kg", "x 30 kg", price * 30)
             idx += 1
             continue
         if fmt == "bulk_single":
             if idx >= len(numbers):
                 continue
             price = numbers[idx]
-            offerings.append(CatalogOffering(id="x25kg", label="x 25 kg", price=price * 25))
+            append_offering("x25kg", "x 25 kg", price * 25)
             idx += 1
             continue
         if idx >= len(numbers):
@@ -88,19 +103,19 @@ def _build_offerings(formats: list[str], numbers: list[int]) -> list[CatalogOffe
         price = numbers[idx]
         idx += 1
         if fmt == "12x400":
-            offerings.append(CatalogOffering(id="12x400", label="12x400 gr", price=price * 12))
+            append_offering("12x400", "12x400 gr", price * 12)
         elif fmt == "16x300":
-            offerings.append(CatalogOffering(id="16x300", label="16x300 gr", price=price * 16))
+            append_offering("16x300", "16x300 gr", price * 16)
         elif fmt == "12x350":
-            offerings.append(CatalogOffering(id="12x350", label="12x350 gr", price=price * 12))
+            append_offering("12x350", "12x350 gr", price * 12)
         elif fmt == "10x500":
-            offerings.append(CatalogOffering(id="10x500", label="10x500 gr", price=price * 10))
+            append_offering("10x500", "10x500 gr", price * 10)
         elif fmt == "10x1000":
-            offerings.append(CatalogOffering(id="10x1000", label="10x1 kg", price=price * 10))
+            append_offering("10x1000", "10x1 kg", price * 10)
         elif fmt == "x4kg":
-            offerings.append(CatalogOffering(id="x4kg", label="x 4 kg", price=price * 4))
+            append_offering("x4kg", "x 4 kg", price * 4)
         elif fmt == "x5kg":
-            offerings.append(CatalogOffering(id="x5kg", label="x 5 kg", price=price * 5))
+            append_offering("x5kg", "x 5 kg", price * 5)
     return offerings
 
 
@@ -119,6 +134,7 @@ def build_catalog_from_pdf(pdf_bytes: bytes, current_catalog: list[CatalogProduc
             break
 
     catalog: list[CatalogProduct] = []
+    used_spec_ids: set[str] = set()
     for product in current_catalog:
         spec: ProductSpec | None = None
         normalized_product_names = {
@@ -141,6 +157,7 @@ def build_catalog_from_pdf(pdf_bytes: bytes, current_catalog: list[CatalogProduc
         if not numbers:
             catalog.append(product)
             continue
+        used_spec_ids.add(spec["id"])
         existing_by_label = {offering.label: offering for offering in product.offerings}
         next_offerings: list[CatalogOffering] = []
         for offering in _build_offerings(spec["formats"], numbers):
@@ -153,4 +170,13 @@ def build_catalog_from_pdf(pdf_bytes: bytes, current_catalog: list[CatalogProduc
                 )
             )
         catalog.append(CatalogProduct(id=product.id, name=product.name, aliases=list(product.aliases), offerings=next_offerings))
+
+    for product_name, spec in PRODUCT_SPECS.items():
+        if spec["id"] in used_spec_ids or spec["id"] not in line_map:
+            continue
+        offerings = _build_offerings(spec["formats"], line_map[spec["id"]])
+        if not offerings:
+            continue
+        display_name = PRODUCT_DISPLAY_NAMES.get(product_name, product_name)
+        catalog.append(CatalogProduct(id=spec["id"], name=display_name, aliases=[] if display_name == product_name else [product_name], offerings=offerings))
     return catalog
