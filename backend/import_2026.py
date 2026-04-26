@@ -6,7 +6,7 @@ import re
 import unicodedata
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -172,7 +172,28 @@ def parse_client_name(value: Any, fallback: Path) -> str:
     return re.sub(r"\d{1,2}[- ]\d{1,2}.*$", "", fallback.stem).strip() or fallback.stem
 
 
-def parse_order_date(value: Any, fallback: Path) -> date:
+MONTHS_BY_FOLDER = {
+    "enero": 1,
+    "febrero": 2,
+    "marzo": 3,
+    "abril": 4,
+}
+
+
+def parse_date_from_filename(path: Path) -> tuple[date, bool] | None:
+    match = re.search(r"(?<!\d)(\d{1,2})[- ](\d{1,2})(?:[- ](20\d{2}))?", path.stem)
+    if match:
+        day, month, year = match.groups()
+        has_explicit_year = year is not None
+        parsed_year = int(year) if year else 2026
+        try:
+            return date(parsed_year, int(month), int(day)), has_explicit_year
+        except ValueError:
+            return None
+    return None
+
+
+def parse_cell_date(value: Any) -> date | None:
     if isinstance(value, datetime):
         return value.date()
     if isinstance(value, date):
@@ -183,13 +204,23 @@ def parse_order_date(value: Any, fallback: Path) -> date:
             return datetime.strptime(text, fmt).date()
         except ValueError:
             pass
-    match = re.search(r"(\d{1,2})[- ](\d{1,2})(?:[- ](\d{2,4}))?", fallback.stem)
-    if match:
-        day, month, year = match.groups()
-        parsed_year = int(year) if year else 2026
-        if parsed_year < 100:
-            parsed_year += 2000
-        return date(parsed_year, int(month), int(day))
+    return None
+
+
+def parse_order_date(value: Any, fallback: Path) -> date:
+    filename_match = parse_date_from_filename(fallback)
+    cell_date = parse_cell_date(value)
+    if filename_match:
+        filename_date, has_explicit_year = filename_match
+        folder_month = MONTHS_BY_FOLDER.get(normalize_text(fallback.parent.name))
+        filename_matches_folder = folder_month is None or filename_date.month == folder_month
+        if filename_matches_folder and (not has_explicit_year or filename_date.year == 2026):
+            return filename_date
+        if cell_date:
+            return cell_date
+        return filename_date
+    if cell_date:
+        return cell_date
     raise ValueError(f"No se pudo detectar la fecha en {fallback}")
 
 
@@ -508,8 +539,11 @@ def import_invoices(source_dir: Path, dry_run: bool = False, reset_db: bool = Fa
             print(f"SKIP {path}: sin items")
             continue
         parsed.append(invoice)
+    parsed.sort(key=lambda invoice: (invoice.order_date, invoice.client_name, invoice.path.as_posix()))
 
     print(f"Facturas parseadas: {len(parsed)}; omitidas: {skipped}")
+    if parsed:
+        print(f"Rango de fechas: {parsed[0].order_date.isoformat()} a {parsed[-1].order_date.isoformat()}")
     if dry_run:
         customers = {invoice.client_name for invoice in parsed}
         transports = {invoice.transport for invoice in parsed if invoice.transport}
@@ -652,12 +686,13 @@ def import_invoices(source_dir: Path, dry_run: bool = False, reset_db: bool = Fa
                 customer_id = int(connection.execute(repo.customers.insert().values(**payload, created_at=now).returning(repo.customers.c.id)).scalar_one())
             customer_ids[client_name] = customer_id
 
-        for invoice in parsed:
+        for invoice_index, invoice in enumerate(parsed):
+            invoice_created_at = datetime.combine(invoice.order_date, time.min, tzinfo=timezone.utc) + timedelta(seconds=invoice_index)
             transport_id = None
             if invoice.transport:
                 transport_id = transport_ids.get(invoice.transport)
                 if transport_id is None:
-                    transport_id = resolve_transport_id(repo, connection=connection, transport_name=invoice.transport, now=now)
+                    transport_id = resolve_transport_id(repo, connection=connection, transport_name=invoice.transport, now=invoice_created_at)
             item_payloads = []
             gross_total = 0
             final_total = 0
@@ -714,7 +749,7 @@ def import_invoices(source_dir: Path, dry_run: bool = False, reset_db: bool = Fa
                 connection.execute(repo.invoice_items.delete().where(repo.invoice_items.c.invoice_id == invoice_id))
                 updated += 1
             else:
-                invoice_id = int(connection.execute(repo.invoices.insert().values(**payload, created_at=now).returning(repo.invoices.c.id)).scalar_one())
+                invoice_id = int(connection.execute(repo.invoices.insert().values(**payload, created_at=invoice_created_at).returning(repo.invoices.c.id)).scalar_one())
                 inserted += 1
 
             for item_payload in item_payloads:
