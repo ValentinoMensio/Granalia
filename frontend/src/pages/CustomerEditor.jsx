@@ -146,8 +146,8 @@ export default function CustomerEditor() {
           
           <div className="grid gap-8 md:grid-cols-2">
             {/* Footer Discounts */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="space-y-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <label className="text-sm font-medium text-slate-700">Descuentos Globales (al pie)</label>
                 <Button variant="ghost" className="px-0 py-0 text-xs text-brand-red" onClick={addFooterDiscount}>
                   + Agregar
@@ -155,7 +155,7 @@ export default function CustomerEditor() {
               </div>
               <div className="space-y-2">
                 {(formData.footer_discounts || []).map((disc, i) => (
-                  <div key={i} className="flex gap-2 items-center">
+                  <div key={i} className="grid grid-cols-[minmax(0,1fr)_5rem_auto] items-center gap-2">
                     <input
                       type="text"
                       value={disc.label}
@@ -211,11 +211,11 @@ export default function CustomerEditor() {
           </div>
         </div>
 
-        <div className="flex justify-end gap-3 pt-6 border-t">
-          <Button variant="secondary" onClick={() => navigate(managementPath)}>
+        <div className="flex flex-col gap-3 pt-6 border-t sm:flex-row sm:justify-end">
+          <Button variant="secondary" className="w-full sm:w-auto" onClick={() => navigate(managementPath)}>
             Cancelar
           </Button>
-          <Button variant="primary" onClick={handleSave} disabled={saving}>
+          <Button variant="primary" className="w-full sm:w-auto" onClick={handleSave} disabled={saving}>
             {saving ? 'Guardando...' : 'Guardar Cambios'}
           </Button>
         </div>

@@ -74,11 +74,11 @@ export default function TransportEditor() {
           />
         </div>
 
-        <div className="flex justify-end gap-3 pt-6 border-t">
-          <Button variant="secondary" onClick={() => navigate(managementPath)}>
+        <div className="flex flex-col gap-3 pt-6 border-t sm:flex-row sm:justify-end">
+          <Button variant="secondary" className="w-full sm:w-auto" onClick={() => navigate(managementPath)}>
             Cancelar
           </Button>
-          <Button variant="primary" onClick={handleSave} disabled={saving}>
+          <Button variant="primary" className="w-full sm:w-auto" onClick={handleSave} disabled={saving}>
             {saving ? 'Guardando...' : 'Guardar Cambios'}
           </Button>
         </div>

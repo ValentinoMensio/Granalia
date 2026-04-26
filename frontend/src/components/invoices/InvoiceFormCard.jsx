@@ -20,10 +20,10 @@ function InvoiceFormCard({
   onCancelEdit,
 }) {
   return (
-    <div className="surface p-6 lg:p-7">
-      <div className="mb-6 flex items-center justify-between gap-4 border-b border-stone-200 pb-5">
+    <div className="surface p-4 sm:p-6 lg:p-7">
+      <div className="mb-5 flex items-center justify-between gap-4 border-b border-stone-200 pb-5 sm:mb-6">
         <div>
-          <h2 className="subsection-title text-2xl">{editingInvoiceId ? `Editar factura #${editingInvoiceId}` : 'Nueva factura'}</h2>
+          <h2 className="subsection-title text-xl sm:text-2xl">{editingInvoiceId ? `Editar factura #${editingInvoiceId}` : 'Nueva factura'}</h2>
         </div>
       </div>
 
@@ -68,7 +68,7 @@ function InvoiceFormCard({
 
         <div className="grid gap-8 md:grid-cols-2">
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <label className="text-sm font-medium text-slate-700">Descuentos Globales (al pie)</label>
               <Button variant="ghost" className="px-0 py-0 text-xs text-brand-red" onClick={onAddFooterDiscount}>
                 + Agregar
@@ -76,7 +76,7 @@ function InvoiceFormCard({
             </div>
             <div className="space-y-2">
               {(form.footerDiscounts || []).map((discount, index) => (
-                <div key={index} className="flex items-center gap-2">
+                <div key={index} className="grid grid-cols-[minmax(0,1fr)_5rem_auto] items-center gap-2">
                   <input
                     type="text"
                     value={discount.label}
@@ -129,7 +129,7 @@ function InvoiceFormCard({
       </div>
 
       <div className="mt-6 flex flex-wrap gap-3 border-t border-stone-200 pt-5">
-        <Button variant="primary" className="min-w-[180px]" onClick={onSave} disabled={saving}>
+        <Button variant="primary" className="w-full sm:min-w-[180px] sm:w-auto" onClick={onSave} disabled={saving}>
           {saving ? 'Guardando...' : 'Guardar cambios'}
         </Button>
       </div>

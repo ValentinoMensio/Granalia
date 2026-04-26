@@ -30,11 +30,11 @@ function ProductRowsCard({
   onUpdateItem,
 }) {
   return (
-    <div className="surface p-6 lg:p-7">
+    <div className="surface p-4 sm:p-6 lg:p-7">
       <div className="mb-5">
         <div>
           <div className="eyebrow">Detalle</div>
-          <h2 className="subsection-title mt-2 text-2xl">Productos y cantidades</h2>
+          <h2 className="subsection-title mt-2 text-xl sm:text-2xl">Productos y cantidades</h2>
         </div>
       </div>
 
@@ -319,7 +319,7 @@ function ProductRowsCard({
       </div>
 
       <div className="mt-4">
-        <Button variant="secondary" onClick={onAddItem}>
+        <Button variant="secondary" className="w-full sm:w-auto" onClick={onAddItem}>
           Agregar fila
         </Button>
       </div>
@@ -330,17 +330,17 @@ function ProductRowsCard({
         <Metric label="Total estimado" value={money(totals.total)} />
       </div>
 
-      <div className="mt-6 flex flex-wrap justify-start gap-3 border-t border-stone-200 pt-5">
+      <div className="mt-6 flex flex-col gap-3 border-t border-stone-200 pt-5 sm:flex-row sm:flex-wrap sm:justify-start">
         <Button
           variant="primary"
-          className="min-w-[180px]"
+          className="w-full sm:min-w-[180px] sm:w-auto"
           onClick={onGenerate}
           disabled={generating}
         >
           {generating ? 'Guardando...' : editingInvoiceId ? 'Actualizar factura' : 'Generar factura'}
         </Button>
         {editingInvoiceId && (
-          <Button variant="secondary" className="min-w-[180px]" onClick={onCancelEdit}>
+          <Button variant="secondary" className="w-full sm:min-w-[180px] sm:w-auto" onClick={onCancelEdit}>
             Cancelar edición
           </Button>
         )}

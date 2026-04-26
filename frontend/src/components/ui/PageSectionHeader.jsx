@@ -6,7 +6,7 @@ function PageSectionHeader({ eyebrow, title, description, aside }) {
         <h1 className="section-title">{title}</h1>
         {description ? <p className="section-subtitle mt-2 max-w-2xl">{description}</p> : null}
       </div>
-      {aside ? <div>{aside}</div> : null}
+      {aside ? <div className="w-full sm:w-auto">{aside}</div> : null}
     </div>
   )
 }

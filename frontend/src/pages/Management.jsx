@@ -81,7 +81,7 @@ export default function Management() {
         </nav>
       </div>
 
-      <div className="surface p-6">
+      <div className="surface p-4 sm:p-6">
         {tab === 'customers' && (
           <div className="space-y-6">
             <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -95,7 +95,7 @@ export default function Management() {
                   className="input mt-3 md:w-96"
                 />
               </div>
-              <Button variant="primary" onClick={() => navigate('/customers/new')}>
+              <Button variant="primary" className="w-full sm:w-auto" onClick={() => navigate('/customers/new')}>
                 Nuevo Cliente
               </Button>
             </div>
@@ -154,7 +154,7 @@ export default function Management() {
                   className="input mt-3 md:w-96"
                 />
               </div>
-              <Button variant="primary" onClick={() => navigate('/transports/new')}>
+              <Button variant="primary" className="w-full sm:w-auto" onClick={() => navigate('/transports/new')}>
                 Nuevo Transporte
               </Button>
             </div>
@@ -207,7 +207,7 @@ export default function Management() {
                   className="input mt-3 md:w-96"
                 />
               </div>
-              <Button variant="primary" onClick={() => navigate('/products/new')}>
+              <Button variant="primary" className="w-full sm:w-auto" onClick={() => navigate('/products/new')}>
                 Nuevo Producto
               </Button>
             </div>

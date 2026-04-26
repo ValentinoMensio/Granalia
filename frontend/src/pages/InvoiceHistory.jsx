@@ -97,11 +97,11 @@ export default function InvoiceHistory() {
     <div className="mt-8 space-y-6">
       <PageSectionHeader title="Facturas emitidas" />
 
-      <div className="grid w-full items-start gap-6 xl:grid-cols-[220px_minmax(0,1fr)]">
-      <aside className="surface w-full self-start p-6">
-        <div className="flex min-h-[4.5rem] items-start justify-between gap-4 border-b border-stone-200 pb-4 pt-1">
+      <div className="grid w-full items-start gap-4 sm:gap-6 xl:grid-cols-[220px_minmax(0,1fr)]">
+      <aside className="surface w-full self-start p-4 sm:p-6">
+        <div className="flex min-h-0 items-start justify-between gap-4 border-b border-stone-200 pb-4 pt-1 sm:min-h-[4.5rem]">
           <div>
-            <h2 className="subsection-title text-2xl">Filtros</h2>
+            <h2 className="subsection-title text-xl sm:text-2xl">Filtros</h2>
           </div>
         </div>
 
@@ -163,15 +163,80 @@ export default function InvoiceHistory() {
         </div>
       </aside>
 
-      <section className="surface w-full self-start p-6">
-        <div className="flex min-h-[4.5rem] flex-col gap-4 border-b border-stone-200 pb-4 pt-1 md:flex-row md:items-start md:justify-between">
+      <section className="surface w-full self-start p-4 sm:p-6">
+        <div className="flex min-h-0 flex-col gap-4 border-b border-stone-200 pb-4 pt-1 md:min-h-[4.5rem] md:flex-row md:items-start md:justify-between">
           <div>
-            <h2 className="subsection-title text-2xl">Facturas</h2>
+            <h2 className="subsection-title text-xl sm:text-2xl">Facturas</h2>
           </div>
           <div className="badge self-start md:mt-1">{filteredInvoices.length} resultados</div>
         </div>
 
-        <div className="table-shell mt-6 overflow-hidden">
+        <div className="mt-6 grid gap-3 md:hidden">
+          {paginatedInvoices.map((invoice) => {
+            const isUpcoming = invoice.order_date >= todayKey
+
+            return (
+              <article key={invoice.invoice_id} className={`rounded-2xl border p-4 ${isUpcoming ? 'border-slate-300 bg-stone-100' : 'border-slate-200 bg-white'}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="font-mono text-xs text-slate-500">#{invoice.invoice_id}</div>
+                    <h3 className="mt-1 truncate font-semibold text-brand-ink">{invoice.client_name}</h3>
+                  </div>
+                  <div className="text-right text-sm font-semibold text-brand-red">${money(invoice.final_total)}</div>
+                </div>
+                <div className="mt-3 grid gap-2 text-sm text-slate-600">
+                  <div className="flex justify-between gap-3">
+                    <span>Fecha</span>
+                    <span className="font-medium text-slate-800">{invoice.order_date}</span>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <span>Transporte</span>
+                    <span className="min-w-0 truncate text-right font-medium text-slate-800">{invoice.transport || 'Sin transporte'}</span>
+                  </div>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+                  <Button variant="secondary" className="w-full" onClick={() => handleSelectInvoice(invoice.invoice_id)}>
+                    Detalle
+                  </Button>
+                  <Button variant="secondary" className="w-full" onClick={() => handleEditInvoice(invoice.invoice_id)}>
+                    Editar
+                  </Button>
+                  <a
+                    href={invoiceDownloadUrl(invoice.invoice_id)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn-secondary w-full"
+                  >
+                    XLSX
+                  </a>
+                  <a
+                    href={invoicePdfUrl(invoice.invoice_id)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn-secondary w-full"
+                  >
+                    PDF
+                  </a>
+                  <Button
+                    variant="danger"
+                    className="col-span-2"
+                    onClick={() => handleDeleteInvoice(invoice.invoice_id)}
+                    disabled={deletingInvoiceId === invoice.invoice_id}
+                  >
+                    {deletingInvoiceId === invoice.invoice_id ? 'Eliminando...' : 'Eliminar'}
+                  </Button>
+                </div>
+              </article>
+            )
+          })}
+          {filteredInvoices.length === 0 && (
+            <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-400">
+              No hay facturas que coincidan con los filtros.
+            </div>
+          )}
+        </div>
+
+        <div className="table-shell mt-6 hidden md:block">
           <table className="table-base table-fixed">
             <colgroup>
               <col className="w-[9%]" />
@@ -248,23 +313,23 @@ export default function InvoiceHistory() {
           </table>
         </div>
 
-        <div className="mt-4 flex items-center justify-between text-sm text-slate-500">
+        <div className="mt-4 flex flex-col gap-3 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
           <div>Pagina {page} de {totalPages}</div>
-          <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page === 1}>
+          <div className="grid grid-cols-2 gap-2 sm:flex">
+            <Button variant="secondary" className="w-full sm:w-auto" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page === 1}>
               Anterior
             </Button>
-            <Button variant="secondary" onClick={() => setPage((current) => Math.min(totalPages, current + 1))} disabled={page === totalPages}>
+            <Button variant="secondary" className="w-full sm:w-auto" onClick={() => setPage((current) => Math.min(totalPages, current + 1))} disabled={page === totalPages}>
               Siguiente
             </Button>
           </div>
         </div>
       </section>
 
-      <aside className="surface w-full self-start p-6 xl:col-span-2">
-        <div className="flex min-h-[4.5rem] items-start justify-between gap-4 border-b border-stone-200 pb-4 pt-1">
+      <aside className="surface w-full self-start p-4 sm:p-6 xl:col-span-2">
+        <div className="flex min-h-0 items-start justify-between gap-4 border-b border-stone-200 pb-4 pt-1 sm:min-h-[4.5rem]">
           <div>
-            <h2 className="subsection-title text-2xl">Detalle</h2>
+            <h2 className="subsection-title text-xl sm:text-2xl">Detalle</h2>
           </div>
           {invoiceDetail && (
             <Button variant="ghost" onClick={clearInvoiceDetail}>
@@ -362,15 +427,15 @@ export default function InvoiceHistory() {
               </div>
             </div>
 
-            <div className="flex flex-wrap justify-end gap-3 border-t border-stone-200 pt-4">
-              <Button variant="secondary" onClick={() => handleEditInvoice(invoiceDetail.id)}>
+            <div className="flex flex-col gap-3 border-t border-stone-200 pt-4 sm:flex-row sm:flex-wrap sm:justify-end">
+              <Button variant="secondary" className="w-full sm:w-auto" onClick={() => handleEditInvoice(invoiceDetail.id)}>
                 Editar factura
               </Button>
               <a
                 href={invoiceDownloadUrl(invoiceDetail.id)}
                 target="_blank"
                 rel="noreferrer"
-                className="btn-secondary"
+                className="btn-secondary w-full sm:w-auto"
               >
                 Descargar XLSX
               </a>
@@ -378,12 +443,13 @@ export default function InvoiceHistory() {
                 href={invoicePdfUrl(invoiceDetail.id)}
                 target="_blank"
                 rel="noreferrer"
-                className="btn-secondary"
+                className="btn-secondary w-full sm:w-auto"
               >
                 Descargar PDF
               </a>
               <Button
                 variant="danger"
+                className="w-full sm:w-auto"
                 onClick={() => handleDeleteInvoice(invoiceDetail.id)}
                 disabled={deletingInvoiceId === invoiceDetail.id}
               >

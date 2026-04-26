@@ -24,7 +24,7 @@ export default function Login() {
   }
 
   return (
-    <div className="app-shell flex min-h-screen items-center justify-center py-16">
+    <div className="app-shell flex min-h-screen items-center justify-center py-6 sm:py-16">
       <div className="grid w-full max-w-5xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-card lg:grid-cols-[1fr_420px]">
         <div className="hidden bg-slate-950 p-10 text-white lg:flex lg:flex-col lg:justify-between">
           <div>
@@ -39,7 +39,8 @@ export default function Login() {
           </div>
         </div>
 
-        <div className="p-8 lg:p-10">
+        <div className="p-5 sm:p-8 lg:p-10">
+          <img src={logoImage} alt="Granalia" className="mb-6 h-16 w-auto object-contain lg:hidden" />
           <div className="mb-8">
             <div className="eyebrow">Acceso protegido</div>
             <h1 className="section-title mt-2 text-3xl">Ingresar</h1>
