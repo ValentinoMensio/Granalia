@@ -450,6 +450,20 @@ def collect_source_files(source_dir: Path) -> list[Path]:
     )
 
 
+def pdfs_without_xlsx(source_dir: Path) -> list[Path]:
+    xlsx_stems = {
+        path.stem.lower()
+        for path in collect_source_files(source_dir)
+    }
+    missing: list[Path] = []
+    for pdf_path in sorted(source_dir.rglob("*.pdf")):
+        pdf_stem = pdf_path.stem.lower()
+        has_match = any(pdf_stem in xlsx_stem or xlsx_stem in pdf_stem for xlsx_stem in xlsx_stems)
+        if not has_match:
+            missing.append(pdf_path)
+    return missing
+
+
 def connect_database():
     from sqlalchemy import MetaData, create_engine
 
@@ -527,6 +541,9 @@ def reset_database(repo) -> None:
 def import_invoices(source_dir: Path, dry_run: bool = False, reset_db: bool = False) -> dict[str, int]:
     parsed: list[ParsedInvoice] = []
     skipped = 0
+    if not source_dir.exists():
+        raise SystemExit(f"No existe la carpeta de origen: {source_dir}")
+
     for path in collect_source_files(source_dir):
         try:
             invoice = parse_invoice(path)
@@ -551,7 +568,15 @@ def import_invoices(source_dir: Path, dry_run: bool = False, reset_db: bool = Fa
         transports = {invoice.transport for invoice in parsed if invoice.transport}
         products = {split_product_label(item.label)[0] for invoice in parsed for item in invoice.items}
         print(f"Clientes: {len(customers)}; transportes: {len(transports)}; productos: {len(products)}")
+        missing_pdf_invoices = pdfs_without_xlsx(source_dir)
+        if missing_pdf_invoices:
+            print("PDFs sin XLSX equivalente; no se importan automaticamente:")
+            for path in missing_pdf_invoices:
+                print(f"  - {path}")
         return {"parsed": len(parsed), "skipped": skipped, "inserted": 0, "updated": 0}
+
+    if reset_db and not parsed:
+        raise SystemExit("Cancelado: --reset-db no puede ejecutarse si no se parseo ninguna factura.")
 
     from sqlalchemy import select, update
     from sqlalchemy.dialects.postgresql import insert
