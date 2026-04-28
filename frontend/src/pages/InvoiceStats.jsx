@@ -8,6 +8,7 @@ import Metric from '../components/ui/Metric'
 import PageSectionHeader from '../components/ui/PageSectionHeader'
 
 const EMPTY_FILTERS = { customerId: '', dateFrom: '', dateTo: '', transport: '' }
+const EMPTY_PRODUCT_FILTERS = { productId: '', offeringId: '' }
 
 function monthLabel(value) {
   if (!value) return 'Sin fecha'
@@ -91,6 +92,7 @@ export default function InvoiceStats() {
   const navigate = useNavigate()
   const { bootstrap, customers, invoices } = useGranalia()
   const [filters, setFilters] = useState(EMPTY_FILTERS)
+  const [productFilters, setProductFilters] = useState(EMPTY_PRODUCT_FILTERS)
   const [statsInvoices, setStatsInvoices] = useState(invoices)
   const [invoiceItems, setInvoiceItems] = useState([])
   const [loadingItems, setLoadingItems] = useState(false)
@@ -127,14 +129,49 @@ export default function InvoiceStats() {
   const byCustomer = useMemo(() => buildRanking(filteredInvoices, (invoice) => invoice.client_name || 'Sin cliente'), [filteredInvoices])
   const byMonth = useMemo(() => buildRanking(filteredInvoices, (invoice) => monthLabel(invoice.order_date)), [filteredInvoices])
   const filteredInvoiceIds = useMemo(() => new Set(filteredInvoices.map((invoice) => String(invoice.invoice_id))), [filteredInvoices])
+  const productOptions = useMemo(() => {
+    const grouped = new Map()
+    for (const item of invoiceItems) {
+      const id = String(item.product_id || '')
+      const label = item.product_name || 'Sin producto'
+      const key = id || label
+      if (!grouped.has(key)) grouped.set(key, { id, label })
+    }
+    return Array.from(grouped.values()).sort((a, b) => a.label.localeCompare(b.label, 'es'))
+  }, [invoiceItems])
+  const offeringOptions = useMemo(() => {
+    const grouped = new Map()
+    for (const item of invoiceItems) {
+      const matchesProduct = !productFilters.productId || String(item.product_id || '') === String(productFilters.productId)
+      if (!matchesProduct) continue
+      const id = String(item.offering_id || '')
+      const label = item.offering_label || 'Sin formato'
+      const key = id || label
+      if (!grouped.has(key)) grouped.set(key, { id, label })
+    }
+    return Array.from(grouped.values()).sort((a, b) => a.label.localeCompare(b.label, 'es'))
+  }, [invoiceItems, productFilters.productId])
   const filteredItems = useMemo(
-    () => invoiceItems.filter((item) => filteredInvoiceIds.has(String(item.invoice_id))),
-    [filteredInvoiceIds, invoiceItems]
+    () => invoiceItems.filter((item) => {
+      const matchesInvoice = filteredInvoiceIds.has(String(item.invoice_id))
+      const matchesProduct = !productFilters.productId || String(item.product_id || '') === String(productFilters.productId)
+      const matchesOffering = !productFilters.offeringId || String(item.offering_id || '') === String(productFilters.offeringId)
+      return matchesInvoice && matchesProduct && matchesOffering
+    }),
+    [filteredInvoiceIds, invoiceItems, productFilters]
   )
   const byProduct = useMemo(() => buildProductRanking(filteredItems), [filteredItems])
 
   function updateFilter(field, value) {
     setFilters((current) => ({ ...current, [field]: value }))
+  }
+
+  function updateProductFilter(field, value) {
+    setProductFilters((current) => ({
+      ...current,
+      [field]: value,
+      ...(field === 'productId' ? { offeringId: '' } : {}),
+    }))
   }
 
   return (
@@ -147,6 +184,9 @@ export default function InvoiceStats() {
       />
 
       <section className="surface p-4 sm:p-6">
+        <div className="mb-4 border-b border-stone-200 pb-3">
+          <h2 className="subsection-title text-xl">Filtros generales</h2>
+        </div>
         <div className="grid gap-3 md:grid-cols-5">
           <select className="input" value={filters.customerId} onChange={(event) => updateFilter('customerId', event.target.value)}>
             <option value="">Todos los clientes</option>
@@ -163,6 +203,27 @@ export default function InvoiceStats() {
             ))}
           </select>
           <Button variant="secondary" onClick={() => setFilters(EMPTY_FILTERS)}>Limpiar</Button>
+        </div>
+      </section>
+
+      <section className="surface p-4 sm:p-6">
+        <div className="mb-4 border-b border-stone-200 pb-3">
+          <h2 className="subsection-title text-xl">Filtros de producto</h2>
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          <select className="input" value={productFilters.productId} onChange={(event) => updateProductFilter('productId', event.target.value)}>
+            <option value="">Todos los productos</option>
+            {productOptions.map((product) => (
+              <option key={product.id || product.label} value={product.id}>{product.label}</option>
+            ))}
+          </select>
+          <select className="input" value={productFilters.offeringId} onChange={(event) => updateProductFilter('offeringId', event.target.value)}>
+            <option value="">Todos los formatos</option>
+            {offeringOptions.map((offering) => (
+              <option key={offering.id || offering.label} value={offering.id}>{offering.label}</option>
+            ))}
+          </select>
+          <Button variant="secondary" onClick={() => setProductFilters(EMPTY_PRODUCT_FILTERS)}>Limpiar productos</Button>
         </div>
       </section>
 
