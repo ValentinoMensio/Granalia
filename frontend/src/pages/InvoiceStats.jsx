@@ -99,7 +99,7 @@ function buildProductRanking(items) {
     const product = itemProductLabel(item)
     const offering = itemOfferingLabel(item)
     const key = `${product} / ${offering}`
-    const current = grouped.get(key) || { label: key, count: 0, bultos: 0, gross: 0, discount: 0, total: 0 }
+    const current = grouped.get(key) || { label: key, count: 0, bultos: 0, weight: 0, gross: 0, discount: 0, total: 0 }
     current.count += 1
     current.bultos += Number(item.quantity || 0)
     current.gross += Number(item.gross || 0)
@@ -196,16 +196,17 @@ function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false
 }
 
 function MonthlyBarChart({ rows }) {
-  const maxTotal = Math.max(...rows.map((row) => Number(row.total || 0)), 0)
+  const safeRows = Array.isArray(rows) ? rows : []
+  const maxTotal = safeRows.reduce((max, row) => Math.max(max, Number(row?.total || 0)), 0)
 
   return (
     <section className="surface p-4 sm:p-6">
       <div className="mb-4 flex items-start justify-between gap-3 border-b border-stone-200 pb-3">
         <h2 className="subsection-title text-xl">Evolución mensual</h2>
-        <div className="badge">{rows.length} meses</div>
+        <div className="badge">{safeRows.length} meses</div>
       </div>
       <div className="space-y-3">
-        {rows.map((row) => {
+        {safeRows.map((row) => {
           const percentage = maxTotal ? Math.max(4, Math.round((Number(row.total || 0) / maxTotal) * 100)) : 0
           return (
             <div key={row.monthKey || row.label} className="grid gap-2 sm:grid-cols-[5.5rem_minmax(0,1fr)_7rem] sm:items-center">
@@ -217,7 +218,7 @@ function MonthlyBarChart({ rows }) {
             </div>
           )
         })}
-        {rows.length === 0 && (
+        {safeRows.length === 0 && (
           <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-400">
             No hay datos para graficar.
           </div>

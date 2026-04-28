@@ -1,3 +1,4 @@
+import { Component } from 'react'
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import Login from './pages/Login'
 import { AuthProvider, useAuth } from './context/AuthContext'
@@ -11,6 +12,29 @@ import Management from './pages/Management'
 import CustomerEditor from './pages/CustomerEditor'
 import ProductEditor from './pages/ProductEditor'
 import TransportEditor from './pages/TransportEditor'
+
+class AppErrorBoundary extends Component {
+  state = { error: null }
+
+  static getDerivedStateFromError(error) {
+    return { error }
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="app-shell py-16">
+          <div className="surface mx-auto max-w-2xl p-6 text-center">
+            <h1 className="subsection-title text-xl">No se pudo cargar la pantalla</h1>
+            <p className="mt-3 text-sm text-slate-500">{this.state.error.message}</p>
+          </div>
+        </div>
+      )
+    }
+
+    return this.props.children
+  }
+}
 
 function AppLayout() {
   const location = useLocation()
@@ -77,11 +101,13 @@ function ProtectedApp() {
 
 function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <ProtectedApp />
-      </BrowserRouter>
-    </AuthProvider>
+    <AppErrorBoundary>
+      <AuthProvider>
+        <BrowserRouter>
+          <ProtectedApp />
+        </BrowserRouter>
+      </AuthProvider>
+    </AppErrorBoundary>
   )
 }
 
