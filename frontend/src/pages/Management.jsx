@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { request } from '../lib/api'
-import { summarizeDiscounts } from '../lib/format'
+import { summarizeAutomaticBonuses, summarizeDiscounts } from '../lib/format'
 import { useGranalia } from '../context/GranaliaContext'
 import Button from '../components/ui/Button'
 import PageSectionHeader from '../components/ui/PageSectionHeader'
@@ -118,6 +118,10 @@ export default function Management() {
                       <span className="mobile-field-label">Descuentos</span>
                       <span className="mobile-field-value break-words">{summarizeDiscounts(c)}</span>
                     </div>
+                    <div className="mobile-field">
+                      <span className="mobile-field-label">Bonificación</span>
+                      <span className="mobile-field-value break-words">{summarizeAutomaticBonuses(c)}</span>
+                    </div>
                   </div>
                   <div className="mobile-actions">
                     <Button variant="secondary" className="w-full" onClick={() => navigate(`/customers/${c.id}`)}>
@@ -144,6 +148,7 @@ export default function Management() {
                     <th>Nombre</th>
                     <th>Transporte</th>
                     <th>Descuentos</th>
+                    <th>Bonificación</th>
                     <th className="text-right">Acciones</th>
                   </tr>
                 </thead>
@@ -154,6 +159,7 @@ export default function Management() {
                       <td className="table-cell font-medium">{c.name}</td>
                       <td className="table-cell text-slate-600">{c.transport || '—'}</td>
                       <td className="table-cell text-slate-600">{summarizeDiscounts(c)}</td>
+                      <td className="table-cell text-slate-600">{summarizeAutomaticBonuses(c)}</td>
                       <td className="table-cell">
                         <div className="flex items-center justify-end gap-2">
                           <Button variant="ghost" onClick={() => navigate(`/customers/${c.id}`)}>
@@ -168,7 +174,7 @@ export default function Management() {
                   ))}
                   {filteredCustomers.length === 0 && (
                     <tr>
-                      <td colSpan="5" className="table-cell py-8 text-center text-slate-400 italic">No hay clientes que coincidan con la búsqueda.</td>
+                      <td colSpan="6" className="table-cell py-8 text-center text-slate-400 italic">No hay clientes que coincidan con la búsqueda.</td>
                     </tr>
                   )}
                 </tbody>

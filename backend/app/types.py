@@ -9,6 +9,13 @@ class FooterDiscountData(TypedDict):
     rate: float
 
 
+class AutomaticBonusRuleData(TypedDict):
+    product_id: int | None
+    offering_id: int | None
+    buy_quantity: int
+    bonus_quantity: int
+
+
 class CatalogOfferingData(TypedDict):
     id: int | str
     label: str
@@ -41,6 +48,7 @@ class CustomerProfileData(TypedDict):
     notes: list[str]
     footer_discounts: list[FooterDiscountData]
     line_discounts_by_format: dict[str, float]
+    automatic_bonus_rules: list[AutomaticBonusRuleData]
     source_count: int
     id: NotRequired[int]
     transport_id: NotRequired[int | None]

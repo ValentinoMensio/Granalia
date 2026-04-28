@@ -7,6 +7,7 @@ from ..types import (
     CatalogProductData,
     CustomerProfileData,
     FooterDiscountData,
+    AutomaticBonusRuleData,
     InvoiceRowData,
     InvoiceSnapshotData,
     InvoiceSummaryData,
@@ -26,6 +27,28 @@ class FooterDiscount:
 
     def to_data(self) -> FooterDiscountData:
         return {"label": self.label, "rate": self.rate}
+
+
+@dataclass(slots=True)
+class AutomaticBonusRule:
+    product_id: int | None = None
+    offering_id: int | None = None
+    buy_quantity: int = 10
+    bonus_quantity: int = 1
+
+    @classmethod
+    def from_data(cls, data: AutomaticBonusRuleData) -> "AutomaticBonusRule":
+        product_id = data.get("product_id")
+        offering_id = data.get("offering_id")
+        return cls(
+            product_id=int(product_id) if product_id is not None else None,
+            offering_id=int(offering_id) if offering_id is not None else None,
+            buy_quantity=int(data.get("buy_quantity") or 10),
+            bonus_quantity=int(data.get("bonus_quantity") or 1),
+        )
+
+    def to_data(self) -> AutomaticBonusRuleData:
+        return asdict(self)
 
 
 @dataclass(slots=True)
@@ -97,6 +120,7 @@ class CustomerProfile:
     notes: list[str] = field(default_factory=list)
     footer_discounts: list[FooterDiscount] = field(default_factory=list)
     line_discounts_by_format: dict[str, float] = field(default_factory=dict)
+    automatic_bonus_rules: list[AutomaticBonusRule] = field(default_factory=list)
     source_count: int = 0
 
     @classmethod
@@ -108,6 +132,7 @@ class CustomerProfile:
             notes=[str(item) for item in data.get("notes", [])],
             footer_discounts=[FooterDiscount.from_data(item) for item in data.get("footer_discounts", [])],
             line_discounts_by_format={str(key): float(value) for key, value in data.get("line_discounts_by_format", {}).items()},
+            automatic_bonus_rules=[AutomaticBonusRule.from_data(item) for item in data.get("automatic_bonus_rules", [])],
             source_count=int(data.get("source_count", 0)),
         )
 
@@ -119,6 +144,7 @@ class CustomerProfile:
             "notes": list(self.notes),
             "footer_discounts": [item.to_data() for item in self.footer_discounts],
             "line_discounts_by_format": dict(self.line_discounts_by_format),
+            "automatic_bonus_rules": [item.to_data() for item in self.automatic_bonus_rules],
             "source_count": self.source_count,
         }
 

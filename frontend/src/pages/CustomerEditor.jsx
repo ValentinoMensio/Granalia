@@ -5,6 +5,7 @@ import { request } from '../lib/api'
 import { discountKeyForLabel } from '../lib/format'
 import Button from '../components/ui/Button'
 import PageSectionHeader from '../components/ui/PageSectionHeader'
+import AutomaticBonusRules from '../components/invoices/AutomaticBonusRules'
 
 export default function CustomerEditor() {
   const { id } = useParams()
@@ -26,6 +27,7 @@ export default function CustomerEditor() {
         notes: [],
         footer_discounts: [],
         line_discounts_by_format: {},
+        automatic_bonus_rules: [],
         source_count: 0,
       })
     } else if (customer) {
@@ -84,6 +86,33 @@ export default function CustomerEditor() {
     const next = { ...formData.line_discounts_by_format }
     next[group] = Number(rate) / 100
     setFormData({ ...formData, line_discounts_by_format: next })
+  }
+
+  const addAutomaticBonusRule = () => {
+    setFormData({
+      ...formData,
+      automatic_bonus_rules: [
+        ...(formData.automatic_bonus_rules || []),
+        { product_id: null, offering_id: null, buy_quantity: 10, bonus_quantity: 1 },
+      ],
+    })
+  }
+
+  const updateAutomaticBonusRule = (index, field, value) => {
+    const next = [...(formData.automatic_bonus_rules || [])]
+    const nextValue = ['product_id', 'offering_id'].includes(field)
+      ? (value === '' ? null : Number(value))
+      : Number(value || 0)
+    next[index] = { ...next[index], [field]: nextValue }
+    if (field === 'product_id') next[index].offering_id = null
+    setFormData({ ...formData, automatic_bonus_rules: next })
+  }
+
+  const removeAutomaticBonusRule = (index) => {
+    setFormData({
+      ...formData,
+      automatic_bonus_rules: (formData.automatic_bonus_rules || []).filter((_, i) => i !== index),
+    })
   }
 
   return (
@@ -208,6 +237,16 @@ export default function CustomerEditor() {
                 ))}
               </div>
             </div>
+          </div>
+
+          <div className="border-t pt-6">
+            <AutomaticBonusRules
+              rules={formData.automatic_bonus_rules}
+              catalog={catalog}
+              onAdd={addAutomaticBonusRule}
+              onChange={updateAutomaticBonusRule}
+              onRemove={removeAutomaticBonusRule}
+            />
           </div>
         </div>
 

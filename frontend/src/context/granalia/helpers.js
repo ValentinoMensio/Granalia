@@ -44,8 +44,50 @@ function buildAvailableDiscountGroups(catalog) {
   ).sort()
 }
 
+function normalizeAutomaticBonusRules(rules) {
+  return (rules || [])
+    .map((rule) => ({
+      product_id: rule.product_id === '' || rule.product_id === undefined ? null : rule.product_id,
+      offering_id: rule.offering_id === '' || rule.offering_id === undefined ? null : rule.offering_id,
+      buy_quantity: Number(rule.buy_quantity || 0),
+      bonus_quantity: Number(rule.bonus_quantity || 0),
+    }))
+    .filter((rule) => rule.buy_quantity > 0 && rule.bonus_quantity > 0)
+}
+
+function matchingAutomaticBonusRule(item, rules) {
+  let best = null
+  let bestScore = -1
+
+  for (const rule of normalizeAutomaticBonusRules(rules)) {
+    const productMatches = rule.product_id === null || String(rule.product_id) === String(item.product_id || '')
+    const offeringMatches = rule.offering_id === null || String(rule.offering_id) === String(item.offering_id || '')
+    if (!productMatches || !offeringMatches) continue
+
+    const score = (rule.product_id === null ? 0 : 1) + (rule.offering_id === null ? 0 : 1)
+    if (score > bestScore) {
+      best = rule
+      bestScore = score
+    }
+  }
+
+  return best
+}
+
+function applyAutomaticBonusRulesToItems(items, rules) {
+  const normalizedRules = normalizeAutomaticBonusRules(rules)
+  if (!normalizedRules.length) return items
+
+  return items.map((item) => {
+    const rule = matchingAutomaticBonusRule(item, normalizedRules)
+    const quantity = Number(item.quantity || 0)
+    const bonusQuantity = rule ? Math.floor(quantity / rule.buy_quantity) * rule.bonus_quantity : 0
+    return { ...item, bonus_quantity: bonusQuantity }
+  })
+}
+
 function applyCustomerToForm(current, profile) {
-  return {
+  const next = {
     ...current,
     customerId: profile ? String(profile.id) : '',
     clientName: profile?.name || current.clientName,
@@ -54,13 +96,16 @@ function applyCustomerToForm(current, profile) {
     notes: (profile?.notes || []).join('\n'),
     footerDiscounts: [...(profile?.footer_discounts || [])],
     lineDiscountsByGroup: { ...(profile?.line_discounts_by_format || {}) },
+    automaticBonusRules: [...(profile?.automatic_bonus_rules || [])],
   }
+  return { ...next, items: applyAutomaticBonusRulesToItems(next.items || [], next.automaticBonusRules) }
 }
 
 function buildProfilePayload(currentCustomer, form) {
   const base = currentCustomer || {
     footer_discounts: [],
     line_discounts_by_format: {},
+    automatic_bonus_rules: [],
     source_count: 0,
   }
 
@@ -74,6 +119,7 @@ function buildProfilePayload(currentCustomer, form) {
     line_discounts_by_format: Object.fromEntries(
       Object.entries(form.lineDiscountsByGroup || {}).filter(([, value]) => Number(value) > 0)
     ),
+    automatic_bonus_rules: normalizeAutomaticBonusRules(form.automaticBonusRules),
   }
 }
 
@@ -135,12 +181,14 @@ function buildFormFromInvoiceDetail(invoiceDetail, customers) {
     notes: (invoiceDetail.notes || []).join('\n'),
     footerDiscounts: [...(invoiceDetail.footer_discounts || [])],
     lineDiscountsByGroup: { ...(invoiceDetail.line_discounts_by_format || {}) },
+    automaticBonusRules: matchingCustomer?.automatic_bonus_rules || [],
     items: Array.from(grouped.values()),
   }
 }
 
 export {
   applyCustomerToForm,
+  applyAutomaticBonusRulesToItems,
   buildAvailableDiscountGroups,
   buildFormFromInvoiceDetail,
   buildInvoicePayload,

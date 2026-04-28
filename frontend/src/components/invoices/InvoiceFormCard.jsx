@@ -1,5 +1,6 @@
 import Field from '../ui/Field'
 import Button from '../ui/Button'
+import AutomaticBonusRules from './AutomaticBonusRules'
 
 function InvoiceFormCard({
   bootstrap,
@@ -10,12 +11,15 @@ function InvoiceFormCard({
   saving,
   generating,
   onAddFooterDiscount,
+  onAddAutomaticBonusRule,
   onApplyCustomer,
+  onAutomaticBonusRuleChange,
   onFooterDiscountChange,
   onLineDiscountChange,
   onFieldChange,
   onGenerate,
   onRemoveFooterDiscount,
+  onRemoveAutomaticBonusRule,
   onSave,
   onCancelEdit,
 }) {
@@ -126,6 +130,16 @@ function InvoiceFormCard({
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="mt-6 border-t border-stone-200 pt-6">
+        <AutomaticBonusRules
+          rules={form.automaticBonusRules}
+          catalog={bootstrap?.catalog || []}
+          onAdd={onAddAutomaticBonusRule}
+          onChange={onAutomaticBonusRuleChange}
+          onRemove={onRemoveAutomaticBonusRule}
+        />
       </div>
 
       <div className="mt-6 flex flex-wrap gap-3 border-t border-stone-200 pt-5">

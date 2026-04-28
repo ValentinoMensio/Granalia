@@ -12,6 +12,7 @@ MAX_NOTES = 30
 MAX_INVOICE_ITEMS = 500
 MAX_DISCOUNTS = 30
 MAX_LINE_DISCOUNT_GROUPS = 100
+MAX_AUTOMATIC_BONUS_RULES = 100
 MAX_ALIASES = 50
 MAX_PRODUCT_OFFERINGS = 100
 
@@ -58,6 +59,21 @@ class InvoiceItemInput(BaseModel):
     unit_price: NonNegativeInt | None = None
 
 
+class AutomaticBonusRule(BaseModel):
+    product_id: int | None = None
+    offering_id: int | None = None
+    buy_quantity: int = Field(default=10, ge=1, le=10000)
+    bonus_quantity: int = Field(default=1, ge=1, le=10000)
+
+    @field_validator("offering_id")
+    @classmethod
+    def validate_scope(cls, value: int | None, info) -> int | None:
+        product_id = info.data.get("product_id")
+        if value is not None and product_id is None:
+            raise ValueError("offering_id requires product_id")
+        return value
+
+
 class InvoiceCreate(BaseModel):
     client_name: NonEmptyStr
     date: str = Field(min_length=10, max_length=10)
@@ -83,6 +99,7 @@ class CustomerUpsert(BaseModel):
     notes: list[str] = Field(default_factory=list, max_length=MAX_NOTES)
     footer_discounts: list[FooterDiscount] = Field(default_factory=list, max_length=MAX_DISCOUNTS)
     line_discounts_by_format: dict[str, float] = Field(default_factory=dict, max_length=MAX_LINE_DISCOUNT_GROUPS)
+    automatic_bonus_rules: list[AutomaticBonusRule] = Field(default_factory=list, max_length=MAX_AUTOMATIC_BONUS_RULES)
     source_count: NonNegativeInt = 0
 
     _normalize_name = field_validator("name")(_strip_required)
@@ -194,6 +211,7 @@ class CustomerOut(BaseModel):
     notes: list[str] = Field(default_factory=list)
     footer_discounts: list[FooterDiscount] = Field(default_factory=list)
     line_discounts_by_format: dict[str, float] = Field(default_factory=dict)
+    automatic_bonus_rules: list[AutomaticBonusRule] = Field(default_factory=list)
     source_count: int = 0
     transport_id: int | None = None
     created_at: str

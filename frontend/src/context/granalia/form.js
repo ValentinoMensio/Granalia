@@ -10,6 +10,7 @@ function createInitialForm() {
     notes: '',
     footerDiscounts: [],
     lineDiscountsByGroup: {},
+    automaticBonusRules: [],
     items: [emptyItem()],
   }
 }

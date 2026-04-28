@@ -129,6 +129,24 @@ def choose_rate(profile: CustomerProfile, discount_key: str) -> float:
     return 0.0
 
 
+def choose_automatic_bonus_quantity(profile: CustomerProfile, product_id: int, offering_id: int, quantity: int) -> int:
+    best_rule = None
+    best_score = -1
+    for rule in profile.automatic_bonus_rules or []:
+        product_matches = rule.product_id is None or int(rule.product_id) == int(product_id)
+        offering_matches = rule.offering_id is None or int(rule.offering_id) == int(offering_id)
+        if not product_matches or not offering_matches:
+            continue
+        score = (0 if rule.product_id is None else 1) + (0 if rule.offering_id is None else 1)
+        if score > best_score:
+            best_rule = rule
+            best_score = score
+
+    if best_rule is None or quantity <= 0:
+        return 0
+    return (quantity // int(best_rule.buy_quantity)) * int(best_rule.bonus_quantity)
+
+
 def expand_rows(order: Order, profile: CustomerProfile, catalog: list[CatalogProduct]) -> list[InvoiceRow]:
     products_by_id, offerings_by_key, _aliases = catalog_indexes(catalog)
     rows: list[InvoiceRow] = []
@@ -138,6 +156,8 @@ def expand_rows(order: Order, profile: CustomerProfile, catalog: list[CatalogPro
             continue
         qty = int(item.quantity or 0)
         bonus_qty = int(item.bonus_quantity or 0)
+        if bonus_qty <= 0:
+            bonus_qty = choose_automatic_bonus_quantity(profile, item.product_id, item.offering_id, qty)
         if qty <= 0 and bonus_qty <= 0:
             continue
         product_key = str(item.product_id)

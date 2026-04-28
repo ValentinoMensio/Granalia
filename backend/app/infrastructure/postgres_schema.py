@@ -60,6 +60,7 @@ def build_metadata() -> tuple[MetaData, dict[str, Table]]:
             Column("notes", JSONB, nullable=False),
             Column("footer_discounts", JSONB, nullable=False),
             Column("line_discounts_by_format", JSONB, nullable=False),
+            Column("automatic_bonus_rules", JSONB, nullable=False, server_default="[]"),
             Column("source_count", Integer, nullable=False, server_default="0"),
             Column("transport_id", BigInteger, ForeignKey("transports.transport_id", ondelete="SET NULL")),
             Column("created_at", DateTime(timezone=True), nullable=False),
@@ -71,6 +72,8 @@ def build_metadata() -> tuple[MetaData, dict[str, Table]]:
             CheckConstraint("jsonb_typeof(footer_discounts) = 'array'", name="ck_customers_footer_discounts_array"),
             CheckConstraint("CASE WHEN jsonb_typeof(footer_discounts) = 'array' THEN jsonb_array_length(footer_discounts) <= 30 ELSE false END", name="ck_customers_footer_discounts_max_items"),
             CheckConstraint("jsonb_typeof(line_discounts_by_format) = 'object'", name="ck_customers_line_discounts_object"),
+            CheckConstraint("jsonb_typeof(automatic_bonus_rules) = 'array'", name="ck_customers_automatic_bonus_rules_array"),
+            CheckConstraint("CASE WHEN jsonb_typeof(automatic_bonus_rules) = 'array' THEN jsonb_array_length(automatic_bonus_rules) <= 100 ELSE false END", name="ck_customers_automatic_bonus_rules_max_items"),
             CheckConstraint("source_count >= 0", name="ck_customers_source_count_nonnegative"),
         ),
         "products": Table(

@@ -53,6 +53,7 @@ class PostgresCustomerMixin(PostgresRepositoryProtocol):
         for row in rows:
             payload = cast(CustomerProfileData, {key: serialize_value(value) for key, value in row.items()})
             payload["transport"] = payload.get("transport") or ""
+            payload["automatic_bonus_rules"] = payload.get("automatic_bonus_rules") or []
             _mode, payload["footer_discounts"], payload["line_discounts_by_format"] = canonicalize_discount_config(
                 payload.get("footer_discounts"),
                 payload.get("line_discounts_by_format"),
@@ -80,6 +81,7 @@ class PostgresCustomerMixin(PostgresRepositoryProtocol):
             return None
         payload = cast(CustomerProfileData, {key: serialize_value(value) for key, value in row.items()})
         payload["transport"] = payload.get("transport") or ""
+        payload["automatic_bonus_rules"] = payload.get("automatic_bonus_rules") or []
         _mode, payload["footer_discounts"], payload["line_discounts_by_format"] = canonicalize_discount_config(
             payload.get("footer_discounts"),
             payload.get("line_discounts_by_format"),
@@ -103,6 +105,7 @@ class PostgresCustomerMixin(PostgresRepositoryProtocol):
         merged["secondary_line"] = merged.get("secondary_line", "")
         merged["transport"] = merged.get("transport") or ""
         merged["notes"] = merged.get("notes", [])
+        merged["automatic_bonus_rules"] = merged.get("automatic_bonus_rules") or []
         _mode, merged["footer_discounts"], merged["line_discounts_by_format"] = canonicalize_discount_config(
             merged.get("footer_discounts", []),
             merged.get("line_discounts_by_format", {}),
@@ -122,6 +125,7 @@ class PostgresCustomerMixin(PostgresRepositoryProtocol):
                     "notes": merged["notes"],
                     "footer_discounts": merged["footer_discounts"],
                     "line_discounts_by_format": merged["line_discounts_by_format"],
+                    "automatic_bonus_rules": merged["automatic_bonus_rules"],
                     "source_count": merged["source_count"],
                     "transport_id": transport_id,
                     "created_at": created_at,

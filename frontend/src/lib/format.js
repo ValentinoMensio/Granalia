@@ -78,4 +78,18 @@ const summarizeDiscounts = (customer) => {
   return 'Sin descuentos'
 }
 
-export { discountKeyForLabel, emptyItem, money, normalize, percent, summarizeDiscounts }
+const summarizeAutomaticBonuses = (customer) => {
+  const rules = (customer?.automatic_bonus_rules || []).filter(
+    (rule) => Number(rule.buy_quantity) > 0 && Number(rule.bonus_quantity) > 0
+  )
+  if (!rules.length) return 'Sin bonificación automática'
+
+  return rules
+    .map((rule) => {
+      const scope = rule.product_id ? (rule.offering_id ? 'Producto/formato' : 'Producto') : 'Todos'
+      return `${scope}: ${rule.bonus_quantity} cada ${rule.buy_quantity}`
+    })
+    .join(', ')
+}
+
+export { discountKeyForLabel, emptyItem, money, normalize, percent, summarizeAutomaticBonuses, summarizeDiscounts }

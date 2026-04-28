@@ -4,6 +4,7 @@ import { emptyItem } from '../../lib/format'
 import { createInitialForm } from './form'
 import {
   applyCustomerToForm,
+  applyAutomaticBonusRulesToItems,
   buildAvailableDiscountGroups,
   buildFormFromInvoiceDetail,
   buildInvoicePayload,
@@ -153,6 +154,47 @@ function useGranaliaData() {
     }))
   }
 
+  function addAutomaticBonusRule() {
+    setForm((current) => {
+      const automaticBonusRules = [
+        ...(current.automaticBonusRules || []),
+        { product_id: null, offering_id: null, buy_quantity: 10, bonus_quantity: 1 },
+      ]
+      return {
+        ...current,
+        automaticBonusRules,
+        items: applyAutomaticBonusRulesToItems(current.items, automaticBonusRules),
+      }
+    })
+  }
+
+  function updateAutomaticBonusRule(index, field, value) {
+    setForm((current) => {
+      const automaticBonusRules = [...(current.automaticBonusRules || [])]
+      const nextValue = ['product_id', 'offering_id'].includes(field)
+        ? (value === '' ? null : Number(value))
+        : Number(value || 0)
+      automaticBonusRules[index] = { ...automaticBonusRules[index], [field]: nextValue }
+      if (field === 'product_id') automaticBonusRules[index].offering_id = null
+      return {
+        ...current,
+        automaticBonusRules,
+        items: applyAutomaticBonusRulesToItems(current.items, automaticBonusRules),
+      }
+    })
+  }
+
+  function removeAutomaticBonusRule(index) {
+    setForm((current) => {
+      const automaticBonusRules = (current.automaticBonusRules || []).filter((_, currentIndex) => currentIndex !== index)
+      return {
+        ...current,
+        automaticBonusRules,
+        items: applyAutomaticBonusRulesToItems(current.items, automaticBonusRules),
+      }
+    })
+  }
+
   function updateItem(index, field, value) {
     setForm((current) => {
       const items = [...current.items]
@@ -166,7 +208,7 @@ function useGranaliaData() {
         const offering = product?.offerings.find((entry) => entry.id === value)
         items[index].unit_price = offering ? Number(offering.price || 0) : ''
       }
-      return { ...current, items }
+      return { ...current, items: applyAutomaticBonusRulesToItems(items, current.automaticBonusRules) }
     })
   }
 
@@ -338,6 +380,9 @@ function useGranaliaData() {
     updateFooterDiscountRow,
     removeFooterDiscountRow,
     updateLineDiscountGroup,
+    addAutomaticBonusRule,
+    updateAutomaticBonusRule,
+    removeAutomaticBonusRule,
     updateItem,
     addItemRow,
     removeItemRow,

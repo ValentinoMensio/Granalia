@@ -19,14 +19,17 @@ export default function OrderCreator() {
     productsById,
     totals,
     setPdfFile,
+    addAutomaticBonusRule,
     addFooterDiscountRow,
     applyCustomer,
+    updateAutomaticBonusRule,
     updateFooterDiscountRow,
     updateLineDiscountGroup,
     updateFormField,
     updateItem,
     addItemRow,
     removeItemRow,
+    removeAutomaticBonusRule,
     removeFooterDiscountRow,
     saveCustomer,
     uploadPriceList,
@@ -65,12 +68,15 @@ export default function OrderCreator() {
           saving={saving}
           generating={generating}
           onAddFooterDiscount={addFooterDiscountRow}
+          onAddAutomaticBonusRule={addAutomaticBonusRule}
           onApplyCustomer={applyCustomer}
+          onAutomaticBonusRuleChange={updateAutomaticBonusRule}
           onFooterDiscountChange={updateFooterDiscountRow}
           onFieldChange={updateFormField}
           onLineDiscountChange={updateLineDiscountGroup}
           onGenerate={handleGenerateInvoice}
           onRemoveFooterDiscount={removeFooterDiscountRow}
+          onRemoveAutomaticBonusRule={removeAutomaticBonusRule}
           onSave={saveCustomer}
           onCancelEdit={handleCancelInvoiceEdit}
         />
