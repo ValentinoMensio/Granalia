@@ -54,6 +54,7 @@ class PostgresCustomerMixin(PostgresRepositoryProtocol):
             payload = cast(CustomerProfileData, {key: serialize_value(value) for key, value in row.items()})
             payload["transport"] = payload.get("transport") or ""
             payload["automatic_bonus_rules"] = payload.get("automatic_bonus_rules") or []
+            payload["automatic_bonus_disables_line_discount"] = bool(payload.get("automatic_bonus_disables_line_discount", False))
             _mode, payload["footer_discounts"], payload["line_discounts_by_format"] = canonicalize_discount_config(
                 payload.get("footer_discounts"),
                 payload.get("line_discounts_by_format"),
@@ -82,6 +83,7 @@ class PostgresCustomerMixin(PostgresRepositoryProtocol):
         payload = cast(CustomerProfileData, {key: serialize_value(value) for key, value in row.items()})
         payload["transport"] = payload.get("transport") or ""
         payload["automatic_bonus_rules"] = payload.get("automatic_bonus_rules") or []
+        payload["automatic_bonus_disables_line_discount"] = bool(payload.get("automatic_bonus_disables_line_discount", False))
         _mode, payload["footer_discounts"], payload["line_discounts_by_format"] = canonicalize_discount_config(
             payload.get("footer_discounts"),
             payload.get("line_discounts_by_format"),
@@ -106,6 +108,7 @@ class PostgresCustomerMixin(PostgresRepositoryProtocol):
         merged["transport"] = merged.get("transport") or ""
         merged["notes"] = merged.get("notes", [])
         merged["automatic_bonus_rules"] = merged.get("automatic_bonus_rules") or []
+        merged["automatic_bonus_disables_line_discount"] = bool(merged.get("automatic_bonus_disables_line_discount", False))
         _mode, merged["footer_discounts"], merged["line_discounts_by_format"] = canonicalize_discount_config(
             merged.get("footer_discounts", []),
             merged.get("line_discounts_by_format", {}),
@@ -126,6 +129,7 @@ class PostgresCustomerMixin(PostgresRepositoryProtocol):
                     "footer_discounts": merged["footer_discounts"],
                     "line_discounts_by_format": merged["line_discounts_by_format"],
                     "automatic_bonus_rules": merged["automatic_bonus_rules"],
+                    "automatic_bonus_disables_line_discount": merged["automatic_bonus_disables_line_discount"],
                     "source_count": merged["source_count"],
                     "transport_id": transport_id,
                     "created_at": created_at,

@@ -15,7 +15,6 @@ class AutomaticBonusRuleData(TypedDict):
     offering_label: NotRequired[str]
     buy_quantity: int
     bonus_quantity: int
-    disables_line_discount_when_bonus: NotRequired[bool]
 
 
 class CatalogOfferingData(TypedDict):
@@ -51,6 +50,7 @@ class CustomerProfileData(TypedDict):
     footer_discounts: list[FooterDiscountData]
     line_discounts_by_format: dict[str, float]
     automatic_bonus_rules: list[AutomaticBonusRuleData]
+    automatic_bonus_disables_line_discount: bool
     source_count: int
     id: NotRequired[int]
     transport_id: NotRequired[int | None]

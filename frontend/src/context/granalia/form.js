@@ -11,6 +11,7 @@ function createInitialForm() {
     footerDiscounts: [],
     lineDiscountsByGroup: {},
     automaticBonusRules: [],
+    automaticBonusDisablesLineDiscount: false,
     items: [emptyItem()],
   }
 }

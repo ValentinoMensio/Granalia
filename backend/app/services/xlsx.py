@@ -210,7 +210,7 @@ def expand_rows(order: Order, profile: CustomerProfile, catalog: list[CatalogPro
                 bonus_qty = (qty // int(bonus_rule.buy_quantity)) * int(bonus_rule.bonus_quantity)
         label = f"{product['name']} {offering['label']}"
         rate = choose_rate(profile, discount_key_for_label(offering["label"]))
-        if bonus_qty > 0 and bonus_rule is not None and bonus_rule.disables_line_discount_when_bonus:
+        if bonus_qty > 0 and profile.automatic_bonus_disables_line_discount:
             rate = 0.0
 
         def append_row(quantity: int, unit_price: int) -> None:

@@ -84,7 +84,6 @@ export default function OrderCreator() {
           onRemoveFooterDiscount={removeFooterDiscountRow}
           onRemoveAutomaticBonusRule={removeAutomaticBonusRule}
           onSave={saveCustomer}
-          onClearInvoice={handleClearInvoice}
           onCancelEdit={handleCancelInvoiceEdit}
         />
 
@@ -97,6 +96,7 @@ export default function OrderCreator() {
           generating={generating}
           onAddItem={addItemRow}
           onCancelEdit={handleCancelInvoiceEdit}
+          onClearInvoice={handleClearInvoice}
           onGenerate={handleGenerateInvoice}
           onRemoveItem={removeItemRow}
           onUpdateItem={updateItem}

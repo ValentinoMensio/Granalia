@@ -61,6 +61,7 @@ def build_metadata() -> tuple[MetaData, dict[str, Table]]:
             Column("footer_discounts", JSONB, nullable=False),
             Column("line_discounts_by_format", JSONB, nullable=False),
             Column("automatic_bonus_rules", JSONB, nullable=False, server_default="[]"),
+            Column("automatic_bonus_disables_line_discount", Boolean, nullable=False, server_default="false"),
             Column("source_count", Integer, nullable=False, server_default="0"),
             Column("transport_id", BigInteger, ForeignKey("transports.transport_id", ondelete="SET NULL")),
             Column("created_at", DateTime(timezone=True), nullable=False),

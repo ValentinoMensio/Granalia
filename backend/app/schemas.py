@@ -65,7 +65,6 @@ class AutomaticBonusRule(BaseModel):
     offering_label: str = Field(default="", max_length=120)
     buy_quantity: int = Field(default=10, ge=1, le=10000)
     bonus_quantity: int = Field(default=1, ge=1, le=10000)
-    disables_line_discount_when_bonus: bool = False
 
     _normalize_offering_label = field_validator("offering_label")(_strip_optional)
 
@@ -96,6 +95,7 @@ class CustomerUpsert(BaseModel):
     footer_discounts: list[FooterDiscount] = Field(default_factory=list, max_length=MAX_DISCOUNTS)
     line_discounts_by_format: dict[str, float] = Field(default_factory=dict, max_length=MAX_LINE_DISCOUNT_GROUPS)
     automatic_bonus_rules: list[AutomaticBonusRule] = Field(default_factory=list, max_length=MAX_AUTOMATIC_BONUS_RULES)
+    automatic_bonus_disables_line_discount: bool = False
     source_count: NonNegativeInt = 0
 
     _normalize_name = field_validator("name")(_strip_required)
@@ -208,6 +208,7 @@ class CustomerOut(BaseModel):
     footer_discounts: list[FooterDiscount] = Field(default_factory=list)
     line_discounts_by_format: dict[str, float] = Field(default_factory=dict)
     automatic_bonus_rules: list[AutomaticBonusRule] = Field(default_factory=list)
+    automatic_bonus_disables_line_discount: bool = False
     source_count: int = 0
     transport_id: int | None = None
     created_at: str

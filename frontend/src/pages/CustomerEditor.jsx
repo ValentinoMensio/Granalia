@@ -28,6 +28,7 @@ export default function CustomerEditor() {
         footer_discounts: [],
         line_discounts_by_format: {},
         automatic_bonus_rules: [],
+        automatic_bonus_disables_line_discount: false,
         source_count: 0,
       })
     } else if (customer) {
@@ -93,7 +94,7 @@ export default function CustomerEditor() {
       ...formData,
       automatic_bonus_rules: [
         ...(formData.automatic_bonus_rules || []),
-        { product_id: null, offering_id: null, offering_label: '', buy_quantity: 10, bonus_quantity: 1, disables_line_discount_when_bonus: false },
+        { product_id: null, offering_id: null, offering_label: '', buy_quantity: 10, bonus_quantity: 1 },
       ],
     })
   }
@@ -104,8 +105,6 @@ export default function CustomerEditor() {
       ? (value === '' ? null : Number(value))
       : field === 'offering_label'
       ? value
-      : field === 'disables_line_discount_when_bonus'
-      ? Boolean(value)
       : Number(value || 0)
     next[index] = { ...next[index], [field]: nextValue }
     if (field === 'product_id') {
@@ -249,10 +248,12 @@ export default function CustomerEditor() {
           <div className="border-t pt-6">
             <AutomaticBonusRules
               rules={formData.automatic_bonus_rules}
+              disablesLineDiscount={formData.automatic_bonus_disables_line_discount}
               catalog={catalog}
               onAdd={addAutomaticBonusRule}
               onChange={updateAutomaticBonusRule}
               onRemove={removeAutomaticBonusRule}
+              onDisablesLineDiscountChange={(value) => setFormData({ ...formData, automatic_bonus_disables_line_discount: value })}
             />
           </div>
         </div>

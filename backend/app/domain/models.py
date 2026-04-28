@@ -36,7 +36,6 @@ class AutomaticBonusRule:
     offering_label: str = ""
     buy_quantity: int = 10
     bonus_quantity: int = 1
-    disables_line_discount_when_bonus: bool = False
 
     @classmethod
     def from_data(cls, data: AutomaticBonusRuleData) -> "AutomaticBonusRule":
@@ -48,7 +47,6 @@ class AutomaticBonusRule:
             offering_label=str(data.get("offering_label") or ""),
             buy_quantity=int(data.get("buy_quantity") or 10),
             bonus_quantity=int(data.get("bonus_quantity") or 1),
-            disables_line_discount_when_bonus=bool(data.get("disables_line_discount_when_bonus", False)),
         )
 
     def to_data(self) -> AutomaticBonusRuleData:
@@ -125,6 +123,7 @@ class CustomerProfile:
     footer_discounts: list[FooterDiscount] = field(default_factory=list)
     line_discounts_by_format: dict[str, float] = field(default_factory=dict)
     automatic_bonus_rules: list[AutomaticBonusRule] = field(default_factory=list)
+    automatic_bonus_disables_line_discount: bool = False
     source_count: int = 0
 
     @classmethod
@@ -137,6 +136,7 @@ class CustomerProfile:
             footer_discounts=[FooterDiscount.from_data(item) for item in data.get("footer_discounts", [])],
             line_discounts_by_format={str(key): float(value) for key, value in data.get("line_discounts_by_format", {}).items()},
             automatic_bonus_rules=[AutomaticBonusRule.from_data(item) for item in data.get("automatic_bonus_rules", [])],
+            automatic_bonus_disables_line_discount=bool(data.get("automatic_bonus_disables_line_discount", False)),
             source_count=int(data.get("source_count", 0)),
         )
 
@@ -149,6 +149,7 @@ class CustomerProfile:
             "footer_discounts": [item.to_data() for item in self.footer_discounts],
             "line_discounts_by_format": dict(self.line_discounts_by_format),
             "automatic_bonus_rules": [item.to_data() for item in self.automatic_bonus_rules],
+            "automatic_bonus_disables_line_discount": self.automatic_bonus_disables_line_discount,
             "source_count": self.source_count,
         }
 

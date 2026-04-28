@@ -15,6 +15,7 @@ def default_profile(client_name: str) -> CustomerProfileData:
         "footer_discounts": [],
         "line_discounts_by_format": {},
         "automatic_bonus_rules": [],
+        "automatic_bonus_disables_line_discount": False,
         "source_count": 0,
     }
 

@@ -67,7 +67,6 @@ function normalizeAutomaticBonusRules(rules) {
       offering_label: String(rule.offering_label || '').trim(),
       buy_quantity: Number(rule.buy_quantity || 0),
       bonus_quantity: Number(rule.bonus_quantity || 0),
-      disables_line_discount_when_bonus: Boolean(rule.disables_line_discount_when_bonus),
     }))
     .filter((rule) => rule.buy_quantity > 0 && rule.bonus_quantity > 0)
 }
@@ -121,6 +120,7 @@ function applyCustomerToForm(current, profile) {
     footerDiscounts: [...(profile?.footer_discounts || [])],
     lineDiscountsByGroup: { ...(profile?.line_discounts_by_format || {}) },
     automaticBonusRules: [...(profile?.automatic_bonus_rules || [])],
+    automaticBonusDisablesLineDiscount: Boolean(profile?.automatic_bonus_disables_line_discount),
   }
   return { ...next, items: applyAutomaticBonusRulesToItems(next.items || [], next.automaticBonusRules) }
 }
@@ -130,6 +130,7 @@ function buildProfilePayload(currentCustomer, form) {
     footer_discounts: [],
     line_discounts_by_format: {},
     automatic_bonus_rules: [],
+    automatic_bonus_disables_line_discount: false,
     source_count: 0,
   }
 
@@ -144,6 +145,7 @@ function buildProfilePayload(currentCustomer, form) {
       Object.entries(form.lineDiscountsByGroup || {}).filter(([, value]) => Number(value) > 0)
     ),
     automatic_bonus_rules: normalizeAutomaticBonusRules(form.automaticBonusRules),
+    automatic_bonus_disables_line_discount: Boolean(form.automaticBonusDisablesLineDiscount),
   }
 }
 
@@ -208,6 +210,7 @@ function buildFormFromInvoiceDetail(invoiceDetail, customers) {
     footerDiscounts: [...(invoiceDetail.footer_discounts || [])],
     lineDiscountsByGroup: { ...(invoiceDetail.line_discounts_by_format || {}) },
     automaticBonusRules: matchingCustomer?.automatic_bonus_rules || [],
+    automaticBonusDisablesLineDiscount: Boolean(matchingCustomer?.automatic_bonus_disables_line_discount),
     items: Array.from(grouped.values()),
   }
 }
