@@ -22,6 +22,10 @@ export default function CustomerEditor() {
     if (isNewCustomer) {
       setFormData({
         name: '',
+        cuit: '',
+        address: '',
+        business_name: '',
+        email: '',
         secondary_line: '',
         transport: '',
         notes: [],
@@ -138,6 +142,42 @@ export default function CustomerEditor() {
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="input"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">Razón Social</label>
+            <input
+              type="text"
+              value={formData.business_name || ''}
+              onChange={(e) => setFormData({ ...formData, business_name: e.target.value })}
+              className="input"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">CUIT</label>
+            <input
+              type="text"
+              value={formData.cuit || ''}
+              onChange={(e) => setFormData({ ...formData, cuit: e.target.value })}
+              className="input"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">Email</label>
+            <input
+              type="email"
+              value={formData.email || ''}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              className="input"
+            />
+          </div>
+          <div className="space-y-2 md:col-span-2">
+            <label className="text-sm font-medium text-slate-700">Dirección</label>
+            <input
+              type="text"
+              value={formData.address || ''}
+              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
               className="input"
             />
           </div>

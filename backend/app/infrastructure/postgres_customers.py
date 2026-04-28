@@ -104,6 +104,10 @@ class PostgresCustomerMixin(PostgresRepositoryProtocol):
         merged: dict[str, object] = dict(existing)
         merged.update(profile)
         merged["name"] = profile.get("name") or existing.get("name") or ""
+        merged["cuit"] = merged.get("cuit", "")
+        merged["address"] = merged.get("address", "")
+        merged["business_name"] = merged.get("business_name", "")
+        merged["email"] = merged.get("email", "")
         merged["secondary_line"] = merged.get("secondary_line", "")
         merged["transport"] = merged.get("transport") or ""
         merged["notes"] = merged.get("notes", [])
@@ -124,6 +128,10 @@ class PostgresCustomerMixin(PostgresRepositoryProtocol):
                 {
                     "id": customer_id,
                     "name": merged["name"],
+                    "cuit": merged["cuit"],
+                    "address": merged["address"],
+                    "business_name": merged["business_name"],
+                    "email": merged["email"],
                     "secondary_line": merged["secondary_line"],
                     "notes": merged["notes"],
                     "footer_discounts": merged["footer_discounts"],

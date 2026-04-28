@@ -100,6 +100,9 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     self.invoices.c.xlsx_size,
                     self.invoices.c.created_at,
                     self.customers.c.name.label("customer_name"),
+                    self.customers.c.cuit.label("customer_cuit"),
+                    self.customers.c.address.label("customer_address"),
+                    self.customers.c.email.label("customer_email"),
                     self.transports.c.name.label("transport_name"),
                 )
                 .select_from(
@@ -188,6 +191,10 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                 {
                     "id": profile.get("id"),
                     "name": order["client_name"],
+                    "cuit": profile.get("cuit", ""),
+                    "address": profile.get("address", ""),
+                    "business_name": profile.get("business_name", ""),
+                    "email": profile.get("email", ""),
                     "secondary_line": order.get("secondary_line") or profile.get("secondary_line") or "",
                     "notes": order.get("notes") or profile.get("notes") or [],
                     "footer_discounts": invoice_payload["footer_discounts"],
@@ -241,6 +248,10 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                 {
                     "id": profile.get("id") or existing_invoice.get("customer_id"),
                     "name": order["client_name"],
+                    "cuit": profile.get("cuit", ""),
+                    "address": profile.get("address", ""),
+                    "business_name": profile.get("business_name", ""),
+                    "email": profile.get("email", ""),
                     "secondary_line": order.get("secondary_line") or profile.get("secondary_line") or "",
                     "notes": order.get("notes") or profile.get("notes") or [],
                     "footer_discounts": footer_discounts,

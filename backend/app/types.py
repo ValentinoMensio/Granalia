@@ -44,6 +44,10 @@ class TransportData(TypedDict):
 
 class CustomerProfileData(TypedDict):
     name: str
+    cuit: str
+    address: str
+    business_name: str
+    email: str
     secondary_line: str
     transport: str
     notes: list[str]
@@ -152,6 +156,9 @@ class InvoiceDetailData(TypedDict):
     xlsx_size: int
     created_at: str | datetime
     customer_name: str | None
+    customer_cuit: str | None
+    customer_address: str | None
+    customer_email: str | None
     transport_name: str | None
     items: list[InvoiceItemDetailData]
 

@@ -5,9 +5,10 @@ import { summarizeAutomaticBonuses, summarizeDiscounts } from '../lib/format'
 import { useGranalia } from '../context/GranaliaContext'
 import Button from '../components/ui/Button'
 import PageSectionHeader from '../components/ui/PageSectionHeader'
+import PriceListPanel from '../components/sidebar/PriceListPanel'
 
 export default function Management() {
-  const { setStatus, customers, bootstrap, catalog, refreshAll } = useGranalia()
+  const { setStatus, customers, bootstrap, catalog, uploading, setPdfFile, uploadPriceList, refreshAll } = useGranalia()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const requestedTab = searchParams.get('tab')
@@ -16,7 +17,8 @@ export default function Management() {
   const [loading, setLoading] = useState(false)
   const normalizedSearch = searchTerm.trim().toLowerCase()
   const filteredCustomers = normalizedSearch
-    ? customers.filter((customer) => customer.name.toLowerCase().includes(normalizedSearch))
+    ? customers.filter((customer) => [customer.name, customer.business_name, customer.cuit, customer.email]
+      .some((value) => String(value || '').toLowerCase().includes(normalizedSearch)))
     : customers
   const filteredTransports = normalizedSearch
     ? (bootstrap?.transports || []).filter((transport) => transport.name.toLowerCase().includes(normalizedSearch))
@@ -111,6 +113,22 @@ export default function Management() {
                   </div>
                   <div className="mobile-field-grid">
                     <div className="mobile-field">
+                      <span className="mobile-field-label">Razón Social</span>
+                      <span className="mobile-field-value break-words">{c.business_name || 'Sin razón social'}</span>
+                    </div>
+                    <div className="mobile-field">
+                      <span className="mobile-field-label">CUIT</span>
+                      <span className="mobile-field-value">{c.cuit || 'Sin CUIT'}</span>
+                    </div>
+                    <div className="mobile-field">
+                      <span className="mobile-field-label">Dirección</span>
+                      <span className="mobile-field-value break-words">{c.address || 'Sin dirección'}</span>
+                    </div>
+                    <div className="mobile-field">
+                      <span className="mobile-field-label">Email</span>
+                      <span className="mobile-field-value break-words">{c.email || 'Sin email'}</span>
+                    </div>
+                    <div className="mobile-field">
                       <span className="mobile-field-label">Transporte</span>
                       <span className="mobile-field-value">{c.transport || 'Sin transporte'}</span>
                     </div>
@@ -146,6 +164,10 @@ export default function Management() {
                   <tr>
                     <th>ID</th>
                     <th>Nombre</th>
+                    <th>Razón Social</th>
+                    <th>CUIT</th>
+                    <th>Dirección</th>
+                    <th>Email</th>
                     <th>Transporte</th>
                     <th>Descuentos</th>
                     <th>Bonificación</th>
@@ -157,6 +179,10 @@ export default function Management() {
                     <tr key={c.id} className="table-row">
                       <td className="table-cell font-mono text-xs">{c.id}</td>
                       <td className="table-cell font-medium">{c.name}</td>
+                      <td className="table-cell text-slate-600">{c.business_name || '—'}</td>
+                      <td className="table-cell text-slate-600">{c.cuit || '—'}</td>
+                      <td className="table-cell text-slate-600">{c.address || '—'}</td>
+                      <td className="table-cell text-slate-600">{c.email || '—'}</td>
                       <td className="table-cell text-slate-600">{c.transport || '—'}</td>
                       <td className="table-cell text-slate-600">{summarizeDiscounts(c)}</td>
                       <td className="table-cell text-slate-600">{summarizeAutomaticBonuses(c, catalog)}</td>
@@ -174,7 +200,7 @@ export default function Management() {
                   ))}
                   {filteredCustomers.length === 0 && (
                     <tr>
-                      <td colSpan="6" className="table-cell py-8 text-center text-slate-400 italic">No hay clientes que coincidan con la búsqueda.</td>
+                      <td colSpan="10" className="table-cell py-8 text-center text-slate-400 italic">No hay clientes que coincidan con la búsqueda.</td>
                     </tr>
                   )}
                 </tbody>
@@ -350,6 +376,13 @@ export default function Management() {
                 </tbody>
               </table>
             </div>
+
+            <PriceListPanel
+              bootstrap={bootstrap}
+              uploading={uploading}
+              onFileChange={setPdfFile}
+              onUpload={uploadPriceList}
+            />
           </div>
         )}
       </div>

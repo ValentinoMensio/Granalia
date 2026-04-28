@@ -89,6 +89,10 @@ class InvoiceCreate(BaseModel):
 class CustomerUpsert(BaseModel):
     id: int | None = None
     name: NonEmptyStr
+    cuit: str = Field(default="", max_length=32)
+    address: str = Field(default="", max_length=MAX_SHORT_TEXT_LENGTH)
+    business_name: str = Field(default="", max_length=MAX_NAME_LENGTH)
+    email: str = Field(default="", max_length=MAX_NAME_LENGTH)
     secondary_line: str = Field(default="", max_length=MAX_SHORT_TEXT_LENGTH)
     transport: str = Field(default="", max_length=MAX_SHORT_TEXT_LENGTH)
     notes: list[str] = Field(default_factory=list, max_length=MAX_NOTES)
@@ -99,7 +103,7 @@ class CustomerUpsert(BaseModel):
     source_count: NonNegativeInt = 0
 
     _normalize_name = field_validator("name")(_strip_required)
-    _normalize_secondary_line = field_validator("secondary_line", "transport")(_strip_optional)
+    _normalize_optional_text = field_validator("cuit", "address", "business_name", "email", "secondary_line", "transport")(_strip_optional)
 
     @field_validator("notes")
     @classmethod
@@ -202,6 +206,10 @@ class ProductOut(BaseModel):
 class CustomerOut(BaseModel):
     id: int
     name: str
+    cuit: str = ""
+    address: str = ""
+    business_name: str = ""
+    email: str = ""
     secondary_line: str = ""
     transport: str = ""
     notes: list[str] = Field(default_factory=list)
@@ -304,6 +312,9 @@ class InvoiceDetailOut(BaseModel):
     xlsx_size: int
     created_at: str
     customer_name: str | None = None
+    customer_cuit: str | None = None
+    customer_address: str | None = None
+    customer_email: str | None = None
     transport_name: str | None = None
     items: list[InvoiceItemOut] = Field(default_factory=list)
 

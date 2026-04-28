@@ -128,18 +128,31 @@ def _draw_header(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
 
 
 def _draw_invoice_info(pdf: canvas.Canvas, invoice: dict, y: float) -> float:
-    pdf.setFont(FONT_REGULAR, 10)
     _set_color(pdf, COLOR_TEXT)
 
+    pdf.setFont(FONT_BOLD, 15)
     pdf.drawString(MARGIN, y, f"Cliente: {invoice['client_name']}")
-    y -= 17
+    y -= 23
+
+    customer_fields = [
+        ("CUIT", invoice.get("customer_cuit")),
+        ("Dirección", invoice.get("customer_address")),
+    ]
+
+    pdf.setFont(FONT_REGULAR, 11)
+    for label, value in customer_fields:
+        text = str(value or "").strip()
+        if not text:
+            continue
+        pdf.drawString(MARGIN, y, f"{label}: {text}")
+        y -= 18
 
     transport = invoice.get("transport") or "Sin transporte"
     pdf.drawString(MARGIN, y, f"Transporte: {transport}")
 
     secondary_line = str(invoice.get("secondary_line") or "").strip()
     if secondary_line:
-        y -= 17
+        y -= 18
         _set_color(pdf, COLOR_MUTED)
         pdf.drawString(MARGIN, y, secondary_line)
         _set_color(pdf, COLOR_TEXT)

@@ -85,9 +85,13 @@ export default function InvoiceHistory() {
     const productName = String(item.product_name || '').trim()
     const offeringLabel = String(item.offering_label || '').trim()
     const fullLabel = String(item.label || '').trim().toLowerCase()
+    const normalizedOfferingLabel = offeringLabel.toLowerCase()
 
     if (!productName && !offeringLabel) return ''
     if (fullLabel && productName && offeringLabel && fullLabel === `${productName} ${offeringLabel}`.trim().toLowerCase()) {
+      return ''
+    }
+    if (normalizedOfferingLabel && fullLabel.endsWith(normalizedOfferingLabel)) {
       return ''
     }
     return [productName, offeringLabel].filter(Boolean).join(' · ')
@@ -164,20 +168,6 @@ export default function InvoiceHistory() {
           </div>
         </aside>
 
-        <aside className="surface w-full self-start p-4 sm:p-5">
-          <div className="space-y-3">
-            <div>
-              <div className="eyebrow">Análisis</div>
-              <h2 className="subsection-title mt-2 text-lg">Estadística</h2>
-              <p className="mt-2 text-sm leading-5 text-slate-500">
-                Totales, rankings y evolución mensual de facturas.
-              </p>
-            </div>
-            <Button variant="primary" onClick={() => navigate('/history/stats')} className="w-full">
-              Ver estadística
-            </Button>
-          </div>
-        </aside>
       </div>
 
       <section className="surface w-full self-start p-4 sm:p-6">

@@ -1,6 +1,5 @@
 import InvoiceFormCard from '../components/invoices/InvoiceFormCard'
 import ProductRowsCard from '../components/invoices/ProductRowsCard'
-import PriceListPanel from '../components/sidebar/PriceListPanel'
 import { useGranalia } from '../context/GranaliaContext'
 import { useNavigate } from 'react-router-dom'
 
@@ -12,13 +11,11 @@ export default function OrderCreator() {
     catalog,
     availableDiscountGroups,
     editingInvoiceId,
-    uploading,
     saving,
     generating,
     form,
     productsById,
     totals,
-    setPdfFile,
     addAutomaticBonusRule,
     addFooterDiscountRow,
     applyCustomer,
@@ -32,7 +29,6 @@ export default function OrderCreator() {
     removeAutomaticBonusRule,
     removeFooterDiscountRow,
     saveCustomer,
-    uploadPriceList,
     generateInvoice,
     clearCurrentInvoice,
     clearInvoiceEditing,
@@ -58,13 +54,6 @@ export default function OrderCreator() {
   return (
     <main className="mt-8">
       <section className="space-y-6">
-        <PriceListPanel
-          bootstrap={bootstrap}
-          uploading={uploading}
-          onFileChange={setPdfFile}
-          onUpload={uploadPriceList}
-        />
-
         <InvoiceFormCard
           bootstrap={bootstrap}
           customers={customers}

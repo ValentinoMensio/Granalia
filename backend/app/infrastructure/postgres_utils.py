@@ -9,6 +9,10 @@ from ..types import CustomerProfileData
 def default_profile(client_name: str) -> CustomerProfileData:
     return {
         "name": client_name,
+        "cuit": "",
+        "address": "",
+        "business_name": "",
+        "email": "",
         "secondary_line": "",
         "transport": "",
         "notes": [],

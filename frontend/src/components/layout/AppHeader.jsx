@@ -10,6 +10,7 @@ function AppHeader() {
     { to: '/', label: 'Creador' },
     { to: '/history', label: 'Facturas' },
     { to: '/management', label: 'Gestión' },
+    { to: '/history/stats', label: 'Estadística' },
   ]
 
   return (
