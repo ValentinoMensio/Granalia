@@ -78,15 +78,22 @@ const summarizeDiscounts = (customer) => {
   return 'Sin descuentos'
 }
 
-const summarizeAutomaticBonuses = (customer) => {
+const summarizeAutomaticBonuses = (customer, catalog = []) => {
   const rules = (customer?.automatic_bonus_rules || []).filter(
     (rule) => Number(rule.buy_quantity) > 0 && Number(rule.bonus_quantity) > 0
   )
   if (!rules.length) return 'Sin bonificación automática'
 
+  const productsById = Object.fromEntries(catalog.map((product) => [String(product.id), product]))
+
   return rules
     .map((rule) => {
-      const scope = rule.product_id ? (rule.offering_id ? 'Producto/formato' : 'Producto') : 'Todos'
+      const product = productsById[String(rule.product_id || '')]
+      const offering = product?.offerings?.find((entry) => String(entry.id) === String(rule.offering_id || ''))
+      const productName = product?.name || (rule.product_id ? `Producto #${rule.product_id}` : '')
+      const scope = rule.product_id
+        ? [productName, offering?.label].filter(Boolean).join('/')
+        : 'Todos los productos'
       return `${scope}: ${rule.bonus_quantity} cada ${rule.buy_quantity}`
     })
     .join(', ')

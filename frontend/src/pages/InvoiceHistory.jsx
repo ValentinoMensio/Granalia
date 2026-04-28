@@ -161,6 +161,11 @@ export default function InvoiceHistory() {
             Limpiar filtros
           </Button>
         </div>
+        <div className="mt-3 flex justify-end">
+          <Button variant="primary" onClick={() => navigate('/history/stats')} className="w-full">
+            Estadística
+          </Button>
+        </div>
       </aside>
 
       <section className="surface w-full self-start p-4 sm:p-6">

@@ -120,7 +120,7 @@ export default function Management() {
                     </div>
                     <div className="mobile-field">
                       <span className="mobile-field-label">Bonificación</span>
-                      <span className="mobile-field-value break-words">{summarizeAutomaticBonuses(c)}</span>
+                      <span className="mobile-field-value break-words">{summarizeAutomaticBonuses(c, catalog)}</span>
                     </div>
                   </div>
                   <div className="mobile-actions">
@@ -159,7 +159,7 @@ export default function Management() {
                       <td className="table-cell font-medium">{c.name}</td>
                       <td className="table-cell text-slate-600">{c.transport || '—'}</td>
                       <td className="table-cell text-slate-600">{summarizeDiscounts(c)}</td>
-                      <td className="table-cell text-slate-600">{summarizeAutomaticBonuses(c)}</td>
+                      <td className="table-cell text-slate-600">{summarizeAutomaticBonuses(c, catalog)}</td>
                       <td className="table-cell">
                         <div className="flex items-center justify-end gap-2">
                           <Button variant="ghost" onClick={() => navigate(`/customers/${c.id}`)}>

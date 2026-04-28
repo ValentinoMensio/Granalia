@@ -6,6 +6,7 @@ import AppHeader from './components/layout/AppHeader'
 import StatusBar from './components/layout/StatusBar'
 import OrderCreator from './pages/OrderCreator'
 import InvoiceHistory from './pages/InvoiceHistory'
+import InvoiceStats from './pages/InvoiceStats'
 import Management from './pages/Management'
 import CustomerEditor from './pages/CustomerEditor'
 import ProductEditor from './pages/ProductEditor'
@@ -23,6 +24,7 @@ function AppLayout() {
         <Routes>
           <Route path="/" element={<OrderCreator />} />
           <Route path="/history" element={<InvoiceHistory />} />
+          <Route path="/history/stats" element={<InvoiceStats />} />
           <Route path="/management" element={<Management />} />
           <Route path="/customers/new" element={<CustomerEditor />} />
           <Route path="/customers/:id" element={<CustomerEditor />} />
@@ -44,6 +46,7 @@ function AppLayout() {
       <Routes>
         <Route path="/" element={<OrderCreator />} />
         <Route path="/history" element={<InvoiceHistory />} />
+        <Route path="/history/stats" element={<InvoiceStats />} />
         <Route path="/management" element={<Management />} />
         <Route path="/customers/new" element={<CustomerEditor />} />
         <Route path="/customers/:id" element={<CustomerEditor />} />
