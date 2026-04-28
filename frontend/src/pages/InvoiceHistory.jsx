@@ -98,70 +98,87 @@ export default function InvoiceHistory() {
       <PageSectionHeader title="Facturas emitidas" />
 
       <div className="grid w-full items-start gap-4 sm:gap-6 xl:grid-cols-[220px_minmax(0,1fr)]">
-      <aside className="surface w-full self-start p-4 sm:p-6">
-        <div className="flex min-h-0 items-start justify-between gap-4 border-b border-stone-200 pb-4 pt-1 sm:min-h-[4.5rem]">
-          <div>
-            <h2 className="subsection-title text-xl sm:text-2xl">Filtros</h2>
+      <div className="space-y-4">
+        <aside className="surface w-full self-start p-4 sm:p-6">
+          <div className="flex min-h-0 items-start justify-between gap-4 border-b border-stone-200 pb-4 pt-1 sm:min-h-[4.5rem]">
+            <div>
+              <h2 className="subsection-title text-xl sm:text-2xl">Filtros</h2>
+            </div>
           </div>
-        </div>
 
-        <div className="mt-6 space-y-3">
-          <select
-            value={filters.customerId}
-            onChange={(event) => updateFilter('customerId', event.target.value)}
-            className="input"
-          >
-            <option value="">Todos los clientes</option>
-            {customers.map((customer) => (
-              <option key={customer.id} value={customer.id}>{customer.name}</option>
-            ))}
-          </select>
-          <input
-            type="date"
-            value={filters.dateFrom}
-            onChange={(event) => updateFilter('dateFrom', event.target.value)}
-            className="input"
-          />
-          <input
-            type="date"
-            value={filters.dateTo}
-            onChange={(event) => updateFilter('dateTo', event.target.value)}
-            className="input"
-          />
-          <select
-            value={filters.transport}
-            onChange={(event) => updateFilter('transport', event.target.value)}
-            className="input"
-          >
-            <option value="">Todos los transportes</option>
-            {(bootstrap?.transports || []).map((transport) => (
-              <option key={transport.transport_id} value={transport.transport_id}>{transport.name}</option>
-            ))}
-          </select>
-          <input
-            type="number"
-            min="0"
-            value={filters.minTotal}
-            onChange={(event) => updateFilter('minTotal', event.target.value)}
-            placeholder="Total minimo"
-            className="input"
-          />
-          <input
-            type="number"
-            min="0"
-            value={filters.maxTotal}
-            onChange={(event) => updateFilter('maxTotal', event.target.value)}
-            placeholder="Total maximo"
-            className="input"
-          />
-        </div>
+          <div className="mt-6 space-y-3">
+            <select
+              value={filters.customerId}
+              onChange={(event) => updateFilter('customerId', event.target.value)}
+              className="input"
+            >
+              <option value="">Todos los clientes</option>
+              {customers.map((customer) => (
+                <option key={customer.id} value={customer.id}>{customer.name}</option>
+              ))}
+            </select>
+            <input
+              type="date"
+              value={filters.dateFrom}
+              onChange={(event) => updateFilter('dateFrom', event.target.value)}
+              className="input"
+            />
+            <input
+              type="date"
+              value={filters.dateTo}
+              onChange={(event) => updateFilter('dateTo', event.target.value)}
+              className="input"
+            />
+            <select
+              value={filters.transport}
+              onChange={(event) => updateFilter('transport', event.target.value)}
+              className="input"
+            >
+              <option value="">Todos los transportes</option>
+              {(bootstrap?.transports || []).map((transport) => (
+                <option key={transport.transport_id} value={transport.transport_id}>{transport.name}</option>
+              ))}
+            </select>
+            <input
+              type="number"
+              min="0"
+              value={filters.minTotal}
+              onChange={(event) => updateFilter('minTotal', event.target.value)}
+              placeholder="Total minimo"
+              className="input"
+            />
+            <input
+              type="number"
+              min="0"
+              value={filters.maxTotal}
+              onChange={(event) => updateFilter('maxTotal', event.target.value)}
+              placeholder="Total maximo"
+              className="input"
+            />
+          </div>
 
-        <div className="mt-3 flex justify-end">
-          <Button variant="secondary" onClick={resetFilters} className="w-full">
-            Limpiar filtros
-          </Button>
-        </div>
-      </aside>
+          <div className="mt-3 flex justify-end">
+            <Button variant="secondary" onClick={resetFilters} className="w-full">
+              Limpiar filtros
+            </Button>
+          </div>
+        </aside>
+
+        <aside className="surface w-full self-start p-4 sm:p-5">
+          <div className="space-y-3">
+            <div>
+              <div className="eyebrow">Análisis</div>
+              <h2 className="subsection-title mt-2 text-lg">Estadística</h2>
+              <p className="mt-2 text-sm leading-5 text-slate-500">
+                Totales, rankings y evolución mensual de facturas.
+              </p>
+            </div>
+            <Button variant="primary" onClick={() => navigate('/history/stats')} className="w-full">
+              Ver estadística
+            </Button>
+          </div>
+        </aside>
+      </div>
 
       <section className="surface w-full self-start p-4 sm:p-6">
         <div className="flex min-h-0 flex-col gap-4 border-b border-stone-200 pb-4 pt-1 md:min-h-[4.5rem] md:flex-row md:items-start md:justify-between">
@@ -170,26 +187,6 @@ export default function InvoiceHistory() {
           </div>
           <div className="badge self-start md:mt-1">{filteredInvoices.length} resultados</div>
         </div>
-
-        <button
-          type="button"
-          onClick={() => navigate('/history/stats')}
-          className="mt-5 w-full overflow-hidden rounded-[28px] border border-brand-red/20 bg-gradient-to-br from-brand-red via-red-700 to-stone-950 p-4 text-left text-white shadow-lg shadow-red-950/10 transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-red-950/20 focus:outline-none focus:ring-2 focus:ring-brand-red focus:ring-offset-2 sm:p-5"
-        >
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-red-100/80">Inteligencia comercial</div>
-              <div className="mt-2 text-2xl font-semibold tracking-tight">Estadística de facturas</div>
-              <div className="mt-1 max-w-2xl text-sm leading-6 text-red-50/85">
-                Mirá rankings por cliente, transporte y mes, con totales de venta, bultos y descuentos.
-              </div>
-            </div>
-            <div className="flex items-center gap-3 rounded-2xl bg-white/10 px-4 py-3 text-sm font-semibold backdrop-blur">
-              <span>Ver tablero</span>
-              <span className="text-xl leading-none">→</span>
-            </div>
-          </div>
-        </button>
 
         <div className="mobile-list mt-6">
           {paginatedInvoices.map((invoice) => {
