@@ -29,7 +29,9 @@ export function AuthProvider({ children }) {
   }
 
   useEffect(() => {
-    refreshSession().finally(() => setLoading(false))
+    refreshSession()
+      .catch(() => setSession(null))
+      .finally(() => setLoading(false))
   }, [])
 
   useEffect(() => {
