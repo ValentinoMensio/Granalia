@@ -24,6 +24,8 @@ class PostgresBootstrapMixin(PostgresRepositoryProtocol):
     def ensure_seeded(self) -> None:
         now = utc_now()
         with self.engine.begin() as connection:
+            self._ensure_customer_billing_fields(connection=connection)
+
             active_catalog = connection.execute(
                 select(self.catalogs.c.catalog).where(self.catalogs.c.active.is_(True)).order_by(self.catalogs.c.id.desc()).limit(1)
             ).scalar_one_or_none()

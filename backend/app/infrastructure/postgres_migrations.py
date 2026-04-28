@@ -49,6 +49,21 @@ class PostgresMigrationMixin(PostgresRepositoryProtocol):
             ).scalar()
         )
 
+    def _ensure_customer_billing_fields(self, *, connection) -> None:
+        if not self._table_exists(connection, "customers"):
+            return
+
+        fields = [
+            ("cuit", "VARCHAR(32) NOT NULL DEFAULT ''"),
+            ("address", "TEXT NOT NULL DEFAULT ''"),
+            ("business_name", "VARCHAR(255) NOT NULL DEFAULT ''"),
+            ("email", "VARCHAR(255) NOT NULL DEFAULT ''"),
+        ]
+        for column_name, definition in fields:
+            if self._column_exists(connection, "customers", column_name):
+                continue
+            connection.execute(text(f"ALTER TABLE customers ADD COLUMN {column_name} {definition}"))
+
     def _migrate_catalog_snapshots(self, *, connection) -> None:
         rows = connection.execute(
             select(self.catalogs.c.id, self.catalogs.c.catalog).order_by(self.catalogs.c.id)
