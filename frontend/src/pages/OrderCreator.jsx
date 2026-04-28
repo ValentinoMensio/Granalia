@@ -34,6 +34,7 @@ export default function OrderCreator() {
     saveCustomer,
     uploadPriceList,
     generateInvoice,
+    clearCurrentInvoice,
     clearInvoiceEditing,
   } = useGranalia()
 
@@ -47,6 +48,11 @@ export default function OrderCreator() {
     if (result?.updated) {
       navigate('/history')
     }
+  }
+
+  function handleClearInvoice() {
+    if (!window.confirm('¿Limpiar la factura actual? Se borrarán productos, cantidades y cambios sin guardar.')) return
+    clearCurrentInvoice()
   }
 
   return (
@@ -78,6 +84,7 @@ export default function OrderCreator() {
           onRemoveFooterDiscount={removeFooterDiscountRow}
           onRemoveAutomaticBonusRule={removeAutomaticBonusRule}
           onSave={saveCustomer}
+          onClearInvoice={handleClearInvoice}
           onCancelEdit={handleCancelInvoiceEdit}
         />
 

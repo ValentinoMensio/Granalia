@@ -15,6 +15,7 @@ class AutomaticBonusRuleData(TypedDict):
     offering_label: NotRequired[str]
     buy_quantity: int
     bonus_quantity: int
+    disables_line_discount_when_bonus: NotRequired[bool]
 
 
 class CatalogOfferingData(TypedDict):

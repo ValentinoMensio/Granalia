@@ -46,6 +46,37 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
         payload: list[InvoiceListItemData] = cast(list[InvoiceListItemData], [{key: serialize_value(value) for key, value in row.items()} for row in rows])
         return payload
 
+    def list_invoice_item_stats(self) -> list[dict[str, object]]:
+        with self.engine.connect() as connection:
+            rows = connection.execute(
+                select(
+                    self.invoices.c.id.label("invoice_id"),
+                    self.invoices.c.customer_id,
+                    self.invoices.c.transport_id,
+                    self.invoices.c.client_name,
+                    self.invoices.c.transport,
+                    self.invoices.c.order_date,
+                    self.invoice_items.c.product_id,
+                    self.invoice_items.c.offering_id,
+                    self.invoice_items.c.label,
+                    self.invoice_items.c.quantity,
+                    self.invoice_items.c.unit_price,
+                    self.invoice_items.c.gross,
+                    self.invoice_items.c.discount,
+                    self.invoice_items.c.total,
+                    self.products.c.name.label("product_name"),
+                    self.product_offerings.c.label.label("offering_label"),
+                )
+                .select_from(
+                    self.invoice_items
+                    .join(self.invoices, self.invoice_items.c.invoice_id == self.invoices.c.id)
+                    .outerjoin(self.products, self.invoice_items.c.product_id == self.products.c.id)
+                    .outerjoin(self.product_offerings, self.invoice_items.c.offering_id == self.product_offerings.c.id)
+                )
+                .order_by(self.invoices.c.order_date.desc(), self.invoices.c.id.desc(), self.invoice_items.c.line_number)
+            ).mappings().all()
+        return [{key: serialize_value(value) for key, value in row.items()} for row in rows]
+
     def get_invoice_detail(self, invoice_id: int) -> InvoiceDetailData | None:
         with self.engine.connect() as connection:
             invoice_row = connection.execute(

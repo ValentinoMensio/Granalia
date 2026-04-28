@@ -1,8 +1,9 @@
 import Button from '../ui/Button'
+import { discountKeyForLabel } from '../../lib/format'
 
 function AutomaticBonusRules({ rules, catalog, onAdd, onChange, onRemove }) {
   const allOfferings = Array.from(
-    new Set(catalog.flatMap((product) => (product.offerings || []).map((offering) => offering.label)))
+    new Set(catalog.flatMap((product) => (product.offerings || []).map((offering) => discountKeyForLabel(offering.label))))
   ).sort((a, b) => a.localeCompare(b, 'es'))
 
   return (
@@ -24,7 +25,7 @@ function AutomaticBonusRules({ rules, catalog, onAdd, onChange, onRemove }) {
           const formatValue = rule.product_id ? (rule.offering_id || '') : (rule.offering_label || '')
 
           return (
-            <div key={index} className="grid gap-2 rounded-lg border border-slate-100 bg-slate-50 p-3 lg:grid-cols-[1fr_1fr_6rem_6rem_auto] lg:items-end">
+            <div key={index} className="grid gap-2 rounded-lg border border-slate-100 bg-slate-50 p-3 lg:grid-cols-[1fr_1fr_6rem_6rem_12rem_auto] lg:items-end">
               <div>
                 <div className="mb-1 text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500">Producto</div>
                 <select
@@ -78,6 +79,15 @@ function AutomaticBonusRules({ rules, catalog, onAdd, onChange, onRemove }) {
                   onChange={(event) => onChange(index, 'bonus_quantity', event.target.value)}
                 />
               </div>
+
+              <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 lg:mb-0.5">
+                <input
+                  type="checkbox"
+                  checked={Boolean(rule.disables_line_discount_when_bonus)}
+                  onChange={(event) => onChange(index, 'disables_line_discount_when_bonus', event.target.checked)}
+                />
+                Si bonifica, no descuenta
+              </label>
 
               <button onClick={() => onRemove(index)} className="text-left text-xs text-slate-400 hover:text-red-500 lg:pb-2 lg:text-center">
                 Quitar

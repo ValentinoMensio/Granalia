@@ -139,16 +139,15 @@ def is_automatic_bonus_excluded(product_name: str, offering_label: str) -> bool:
     return is_corn_flour and is_one_kg
 
 
-def choose_automatic_bonus_quantity(
+def matching_automatic_bonus_rule(
     profile: CustomerProfile,
     product_id: int,
     offering_id: int,
     product_name: str,
     offering_label: str,
-    quantity: int,
-) -> int:
+) -> object | None:
     if is_automatic_bonus_excluded(product_name, offering_label):
-        return 0
+        return None
 
     best_rule = None
     best_score = -1
@@ -157,7 +156,10 @@ def choose_automatic_bonus_quantity(
         if rule.offering_id is not None:
             offering_matches = int(rule.offering_id) == int(offering_id)
         elif rule.offering_label:
-            offering_matches = normalize_text(rule.offering_label) == normalize_text(offering_label)
+            offering_matches = normalize_text(rule.offering_label) in {
+                normalize_text(offering_label),
+                normalize_text(discount_key_for_label(offering_label)),
+            }
         else:
             offering_matches = True
         if not product_matches or not offering_matches:
@@ -166,6 +168,18 @@ def choose_automatic_bonus_quantity(
         if score > best_score:
             best_rule = rule
             best_score = score
+    return best_rule
+
+
+def choose_automatic_bonus_quantity(
+    profile: CustomerProfile,
+    product_id: int,
+    offering_id: int,
+    product_name: str,
+    offering_label: str,
+    quantity: int,
+) -> int:
+    best_rule = matching_automatic_bonus_rule(profile, product_id, offering_id, product_name, offering_label)
 
     if best_rule is None or quantity <= 0:
         return 0
@@ -189,10 +203,15 @@ def expand_rows(order: Order, profile: CustomerProfile, catalog: list[CatalogPro
         offering = offerings_by_key[offering_key]
         if is_automatic_bonus_excluded(product["name"], offering["label"]):
             bonus_qty = 0
-        elif bonus_qty <= 0:
-            bonus_qty = choose_automatic_bonus_quantity(profile, item.product_id, item.offering_id, product["name"], offering["label"], qty)
+            bonus_rule = None
+        else:
+            bonus_rule = matching_automatic_bonus_rule(profile, item.product_id, item.offering_id, product["name"], offering["label"])
+            if bonus_qty <= 0 and bonus_rule is not None:
+                bonus_qty = (qty // int(bonus_rule.buy_quantity)) * int(bonus_rule.bonus_quantity)
         label = f"{product['name']} {offering['label']}"
         rate = choose_rate(profile, discount_key_for_label(offering["label"]))
+        if bonus_qty > 0 and bonus_rule is not None and bonus_rule.disables_line_discount_when_bonus:
+            rate = 0.0
 
         def append_row(quantity: int, unit_price: int) -> None:
             gross = quantity * unit_price

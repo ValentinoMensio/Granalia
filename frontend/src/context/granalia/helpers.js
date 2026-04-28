@@ -67,6 +67,7 @@ function normalizeAutomaticBonusRules(rules) {
       offering_label: String(rule.offering_label || '').trim(),
       buy_quantity: Number(rule.buy_quantity || 0),
       bonus_quantity: Number(rule.bonus_quantity || 0),
+      disables_line_discount_when_bonus: Boolean(rule.disables_line_discount_when_bonus),
     }))
     .filter((rule) => rule.buy_quantity > 0 && rule.bonus_quantity > 0)
 }
@@ -81,7 +82,7 @@ function matchingAutomaticBonusRule(item, rules) {
     const productMatches = rule.product_id === null || String(rule.product_id) === String(item.product_id || '')
     const offeringMatches = rule.offering_id !== null
       ? String(rule.offering_id) === String(item.offering_id || '')
-      : !rule.offering_label || normalizeBonusText(rule.offering_label) === normalizeBonusText(item.offering_label)
+      : !rule.offering_label || normalizeBonusText(rule.offering_label) === normalizeBonusText(item.offering_label) || normalizeBonusText(rule.offering_label) === normalizeBonusText(discountKeyForLabel(item.offering_label))
     if (!productMatches || !offeringMatches) continue
 
     const score = (rule.product_id === null ? 0 : 1) + (rule.offering_id === null && !rule.offering_label ? 0 : 1)

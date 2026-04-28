@@ -21,6 +21,7 @@ function InvoiceFormCard({
   onRemoveFooterDiscount,
   onRemoveAutomaticBonusRule,
   onSave,
+  onClearInvoice,
   onCancelEdit,
 }) {
   return (
@@ -145,6 +146,9 @@ function InvoiceFormCard({
       <div className="mt-6 flex flex-wrap gap-3 border-t border-stone-200 pt-5">
         <Button variant="primary" className="w-full sm:min-w-[180px] sm:w-auto" onClick={onSave} disabled={saving}>
           {saving ? 'Guardando...' : 'Guardar cambios'}
+        </Button>
+        <Button variant="secondary" className="w-full sm:min-w-[180px] sm:w-auto" onClick={onClearInvoice} disabled={saving}>
+          Limpiar factura
         </Button>
       </div>
     </div>

@@ -85,6 +85,18 @@ function useGranaliaData() {
     setStatus('Edición cancelada.')
   }
 
+  function clearCurrentInvoice() {
+    const sourceCustomers = customers
+    setEditingInvoiceId(null)
+    if (!sourceCustomers.length) {
+      setForm(createInitialForm())
+      setStatus('Factura limpiada.')
+      return
+    }
+    setForm(applyCustomerToForm(createInitialForm(), sourceCustomers[0]))
+    setStatus('Factura limpiada.')
+  }
+
   function invoiceDownloadUrl(invoiceId) {
     return `${API_BASE}/api/invoices/${invoiceId}/xlsx`
   }
@@ -158,7 +170,7 @@ function useGranaliaData() {
     setForm((current) => {
       const automaticBonusRules = [
         ...(current.automaticBonusRules || []),
-        { product_id: null, offering_id: null, offering_label: '', buy_quantity: 10, bonus_quantity: 1 },
+        { product_id: null, offering_id: null, offering_label: '', buy_quantity: 10, bonus_quantity: 1, disables_line_discount_when_bonus: false },
       ]
       return {
         ...current,
@@ -175,6 +187,8 @@ function useGranaliaData() {
         ? (value === '' ? null : Number(value))
         : field === 'offering_label'
         ? value
+        : field === 'disables_line_discount_when_bonus'
+        ? Boolean(value)
         : Number(value || 0)
       automaticBonusRules[index] = { ...automaticBonusRules[index], [field]: nextValue }
       if (field === 'product_id') {
@@ -384,6 +398,7 @@ function useGranaliaData() {
     loadInvoiceDetail,
     clearInvoiceDetail,
     clearInvoiceEditing,
+    clearCurrentInvoice,
     startInvoiceEdit,
     deleteInvoice,
     invoiceDownloadUrl,

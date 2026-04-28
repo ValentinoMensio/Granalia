@@ -65,6 +65,7 @@ class AutomaticBonusRule(BaseModel):
     offering_label: str = Field(default="", max_length=120)
     buy_quantity: int = Field(default=10, ge=1, le=10000)
     bonus_quantity: int = Field(default=1, ge=1, le=10000)
+    disables_line_discount_when_bonus: bool = False
 
     _normalize_offering_label = field_validator("offering_label")(_strip_optional)
 

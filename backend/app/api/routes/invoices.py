@@ -52,6 +52,11 @@ def invoices(limit: int = 500) -> list[InvoiceListItemOut]:
     return [InvoiceListItemOut.model_validate(item) for item in get_repository().list_invoices(limit=limit)]
 
 
+@router.get("/stats/items")
+def invoice_item_stats() -> list[dict[str, object]]:
+    return get_repository().list_invoice_item_stats()
+
+
 @router.get("/{invoice_id}", response_model=InvoiceDetailOut)
 def invoice_detail(invoice_id: int) -> InvoiceDetailOut:
     invoice = get_repository().get_invoice_detail(invoice_id)

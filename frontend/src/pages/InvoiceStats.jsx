@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useGranalia } from '../context/GranaliaContext'
+import { request } from '../lib/api'
 import { money } from '../lib/format'
 import Button from '../components/ui/Button'
 import Metric from '../components/ui/Metric'
@@ -29,25 +30,43 @@ function buildRanking(invoices, keyFn) {
   return Array.from(grouped.values()).sort((a, b) => b.total - a.total)
 }
 
-function RankingTable({ title, rows }) {
+function buildProductRanking(items) {
+  const grouped = new Map()
+  for (const item of items) {
+    const product = item.product_name || String(item.label || '').trim() || 'Sin producto'
+    const offering = item.offering_label || 'Sin formato'
+    const key = `${product} / ${offering}`
+    const current = grouped.get(key) || { label: key, count: 0, bultos: 0, gross: 0, discount: 0, total: 0 }
+    current.count += 1
+    current.bultos += Number(item.quantity || 0)
+    current.gross += Number(item.gross || 0)
+    current.discount += Number(item.discount || 0)
+    current.total += Number(item.total || 0)
+    grouped.set(key, current)
+  }
+  return Array.from(grouped.values()).sort((a, b) => b.total - a.total)
+}
+
+function RankingTable({ title, rows, countLabel = 'Facturas' }) {
   return (
     <section className="surface p-4 sm:p-6">
-      <div className="mb-4 border-b border-stone-200 pb-3">
+      <div className="mb-4 flex items-start justify-between gap-3 border-b border-stone-200 pb-3">
         <h2 className="subsection-title text-xl">{title}</h2>
+        <div className="badge">{rows.length} filas</div>
       </div>
-      <div className="table-shell">
+      <div className="table-shell max-h-[30rem] overflow-y-auto">
         <table className="table-base">
           <thead className="table-head">
             <tr>
               <th>Grupo</th>
-              <th className="text-right">Facturas</th>
+              <th className="text-right">{countLabel}</th>
               <th className="text-right">Bultos</th>
               <th className="text-right">Descuento</th>
               <th className="text-right">Total</th>
             </tr>
           </thead>
           <tbody>
-            {rows.slice(0, 12).map((row) => (
+            {rows.map((row) => (
               <tr key={row.label} className="table-row">
                 <td className="table-cell font-medium">{row.label}</td>
                 <td className="table-cell text-right">{row.count}</td>
@@ -72,16 +91,29 @@ export default function InvoiceStats() {
   const navigate = useNavigate()
   const { bootstrap, customers, invoices } = useGranalia()
   const [filters, setFilters] = useState(EMPTY_FILTERS)
+  const [statsInvoices, setStatsInvoices] = useState(invoices)
+  const [invoiceItems, setInvoiceItems] = useState([])
+  const [loadingItems, setLoadingItems] = useState(false)
+
+  useEffect(() => {
+    setLoadingItems(true)
+    Promise.all([request('/api/invoices?limit=10000'), request('/api/invoices/stats/items')])
+      .then(([nextInvoices, nextItems]) => {
+        setStatsInvoices(nextInvoices)
+        setInvoiceItems(nextItems)
+      })
+      .finally(() => setLoadingItems(false))
+  }, [])
 
   const filteredInvoices = useMemo(() => {
-    return invoices.filter((invoice) => {
+    return statsInvoices.filter((invoice) => {
       const matchesCustomer = !filters.customerId || String(invoice.customer_id || '') === String(filters.customerId)
       const matchesDateFrom = !filters.dateFrom || invoice.order_date >= filters.dateFrom
       const matchesDateTo = !filters.dateTo || invoice.order_date <= filters.dateTo
       const matchesTransport = !filters.transport || String(invoice.transport_id || '') === String(filters.transport)
       return matchesCustomer && matchesDateFrom && matchesDateTo && matchesTransport
     })
-  }, [filters, invoices])
+  }, [filters, statsInvoices])
 
   const summary = useMemo(() => {
     const gross = filteredInvoices.reduce((sum, invoice) => sum + Number(invoice.gross_total || 0), 0)
@@ -93,8 +125,13 @@ export default function InvoiceStats() {
   }, [filteredInvoices])
 
   const byCustomer = useMemo(() => buildRanking(filteredInvoices, (invoice) => invoice.client_name || 'Sin cliente'), [filteredInvoices])
-  const byTransport = useMemo(() => buildRanking(filteredInvoices, (invoice) => invoice.transport || 'Sin transporte'), [filteredInvoices])
   const byMonth = useMemo(() => buildRanking(filteredInvoices, (invoice) => monthLabel(invoice.order_date)), [filteredInvoices])
+  const filteredInvoiceIds = useMemo(() => new Set(filteredInvoices.map((invoice) => String(invoice.invoice_id))), [filteredInvoices])
+  const filteredItems = useMemo(
+    () => invoiceItems.filter((item) => filteredInvoiceIds.has(String(item.invoice_id))),
+    [filteredInvoiceIds, invoiceItems]
+  )
+  const byProduct = useMemo(() => buildProductRanking(filteredItems), [filteredItems])
 
   function updateFilter(field, value) {
     setFilters((current) => ({ ...current, [field]: value }))
@@ -144,7 +181,7 @@ export default function InvoiceStats() {
 
       <div className="grid gap-6 xl:grid-cols-2">
         <RankingTable title="Ranking por cliente" rows={byCustomer} />
-        <RankingTable title="Ranking por transporte" rows={byTransport} />
+        <RankingTable title={loadingItems ? 'Ranking por producto/formato (cargando...)' : 'Ranking por producto/formato'} rows={byProduct} countLabel="Líneas" />
         <div className="xl:col-span-2">
           <RankingTable title="Totales por mes" rows={byMonth} />
         </div>

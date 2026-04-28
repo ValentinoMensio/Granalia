@@ -93,7 +93,7 @@ export default function CustomerEditor() {
       ...formData,
       automatic_bonus_rules: [
         ...(formData.automatic_bonus_rules || []),
-        { product_id: null, offering_id: null, offering_label: '', buy_quantity: 10, bonus_quantity: 1 },
+        { product_id: null, offering_id: null, offering_label: '', buy_quantity: 10, bonus_quantity: 1, disables_line_discount_when_bonus: false },
       ],
     })
   }
@@ -104,6 +104,8 @@ export default function CustomerEditor() {
       ? (value === '' ? null : Number(value))
       : field === 'offering_label'
       ? value
+      : field === 'disables_line_discount_when_bonus'
+      ? Boolean(value)
       : Number(value || 0)
     next[index] = { ...next[index], [field]: nextValue }
     if (field === 'product_id') {

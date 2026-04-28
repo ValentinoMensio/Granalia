@@ -36,6 +36,7 @@ class AutomaticBonusRule:
     offering_label: str = ""
     buy_quantity: int = 10
     bonus_quantity: int = 1
+    disables_line_discount_when_bonus: bool = False
 
     @classmethod
     def from_data(cls, data: AutomaticBonusRuleData) -> "AutomaticBonusRule":
@@ -47,6 +48,7 @@ class AutomaticBonusRule:
             offering_label=str(data.get("offering_label") or ""),
             buy_quantity=int(data.get("buy_quantity") or 10),
             bonus_quantity=int(data.get("bonus_quantity") or 1),
+            disables_line_discount_when_bonus=bool(data.get("disables_line_discount_when_bonus", False)),
         )
 
     def to_data(self) -> AutomaticBonusRuleData:
