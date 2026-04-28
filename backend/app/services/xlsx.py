@@ -10,7 +10,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
 from ..domain.catalog import catalog_indexes
 from ..domain.models import CatalogProduct, CustomerProfile, InvoiceRow, InvoiceSnapshot, InvoiceSummary, Order
-from ..core.utils import clean_cell_text, derive_discount_mode, discount_key_for_label, safe_filename
+from ..core.utils import clean_cell_text, derive_discount_mode, discount_key_for_label, normalize_text, safe_filename
 
 
 LINE = Side(style="thin", color="767676")
@@ -129,15 +129,40 @@ def choose_rate(profile: CustomerProfile, discount_key: str) -> float:
     return 0.0
 
 
-def choose_automatic_bonus_quantity(profile: CustomerProfile, product_id: int, offering_id: int, quantity: int) -> int:
+def is_automatic_bonus_excluded(product_name: str, offering_label: str) -> bool:
+    normalized_product = normalize_text(product_name)
+    normalized_offering = normalize_text(offering_label)
+    is_corn_flour = "maiz" in normalized_product and (
+        "harina" in normalized_product or "h. maiz" in normalized_product or "h maiz" in normalized_product
+    )
+    is_one_kg = "1 kg" in normalized_offering or "1000" in normalized_offering
+    return is_corn_flour and is_one_kg
+
+
+def choose_automatic_bonus_quantity(
+    profile: CustomerProfile,
+    product_id: int,
+    offering_id: int,
+    product_name: str,
+    offering_label: str,
+    quantity: int,
+) -> int:
+    if is_automatic_bonus_excluded(product_name, offering_label):
+        return 0
+
     best_rule = None
     best_score = -1
     for rule in profile.automatic_bonus_rules or []:
         product_matches = rule.product_id is None or int(rule.product_id) == int(product_id)
-        offering_matches = rule.offering_id is None or int(rule.offering_id) == int(offering_id)
+        if rule.offering_id is not None:
+            offering_matches = int(rule.offering_id) == int(offering_id)
+        elif rule.offering_label:
+            offering_matches = normalize_text(rule.offering_label) == normalize_text(offering_label)
+        else:
+            offering_matches = True
         if not product_matches or not offering_matches:
             continue
-        score = (0 if rule.product_id is None else 1) + (0 if rule.offering_id is None else 1)
+        score = (0 if rule.product_id is None else 1) + (0 if rule.offering_id is None and not rule.offering_label else 1)
         if score > best_score:
             best_rule = rule
             best_score = score
@@ -156,14 +181,16 @@ def expand_rows(order: Order, profile: CustomerProfile, catalog: list[CatalogPro
             continue
         qty = int(item.quantity or 0)
         bonus_qty = int(item.bonus_quantity or 0)
-        if bonus_qty <= 0:
-            bonus_qty = choose_automatic_bonus_quantity(profile, item.product_id, item.offering_id, qty)
         if qty <= 0 and bonus_qty <= 0:
             continue
         product_key = str(item.product_id)
         offering_key = (product_key, str(item.offering_id))
         product = products_by_id[product_key]
         offering = offerings_by_key[offering_key]
+        if is_automatic_bonus_excluded(product["name"], offering["label"]):
+            bonus_qty = 0
+        elif bonus_qty <= 0:
+            bonus_qty = choose_automatic_bonus_quantity(profile, item.product_id, item.offering_id, product["name"], offering["label"], qty)
         label = f"{product['name']} {offering['label']}"
         rate = choose_rate(profile, discount_key_for_label(offering["label"]))
 

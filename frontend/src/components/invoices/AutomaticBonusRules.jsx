@@ -1,6 +1,10 @@
 import Button from '../ui/Button'
 
 function AutomaticBonusRules({ rules, catalog, onAdd, onChange, onRemove }) {
+  const allOfferings = Array.from(
+    new Set(catalog.flatMap((product) => (product.offerings || []).map((offering) => offering.label)))
+  ).sort((a, b) => a.localeCompare(b, 'es'))
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -17,6 +21,7 @@ function AutomaticBonusRules({ rules, catalog, onAdd, onChange, onRemove }) {
         {(rules || []).map((rule, index) => {
           const product = catalog.find((entry) => String(entry.id) === String(rule.product_id || ''))
           const offerings = product?.offerings || []
+          const formatValue = rule.product_id ? (rule.offering_id || '') : (rule.offering_label || '')
 
           return (
             <div key={index} className="grid gap-2 rounded-lg border border-slate-100 bg-slate-50 p-3 lg:grid-cols-[1fr_1fr_6rem_6rem_auto] lg:items-end">
@@ -38,14 +43,17 @@ function AutomaticBonusRules({ rules, catalog, onAdd, onChange, onRemove }) {
                 <div className="mb-1 text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500">Formato</div>
                 <select
                   className="input w-full py-1.5 text-xs"
-                  value={rule.offering_id || ''}
-                  onChange={(event) => onChange(index, 'offering_id', event.target.value)}
-                  disabled={!rule.product_id}
+                  value={formatValue}
+                  onChange={(event) => onChange(index, rule.product_id ? 'offering_id' : 'offering_label', event.target.value)}
                 >
                   <option value="">Todos</option>
-                  {offerings.map((offering) => (
-                    <option key={offering.id} value={offering.id}>{offering.label}</option>
-                  ))}
+                  {rule.product_id
+                    ? offerings.map((offering) => (
+                        <option key={offering.id} value={offering.id}>{offering.label}</option>
+                      ))
+                    : allOfferings.map((label) => (
+                        <option key={label} value={label}>{label}</option>
+                      ))}
                 </select>
               </div>
 

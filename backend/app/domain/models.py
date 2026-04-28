@@ -33,6 +33,7 @@ class FooterDiscount:
 class AutomaticBonusRule:
     product_id: int | None = None
     offering_id: int | None = None
+    offering_label: str = ""
     buy_quantity: int = 10
     bonus_quantity: int = 1
 
@@ -43,6 +44,7 @@ class AutomaticBonusRule:
         return cls(
             product_id=int(product_id) if product_id is not None else None,
             offering_id=int(offering_id) if offering_id is not None else None,
+            offering_label=str(data.get("offering_label") or ""),
             buy_quantity=int(data.get("buy_quantity") or 10),
             bonus_quantity=int(data.get("bonus_quantity") or 1),
         )

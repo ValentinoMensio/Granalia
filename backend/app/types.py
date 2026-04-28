@@ -12,6 +12,7 @@ class FooterDiscountData(TypedDict):
 class AutomaticBonusRuleData(TypedDict):
     product_id: int | None
     offering_id: int | None
+    offering_label: NotRequired[str]
     buy_quantity: int
     bonus_quantity: int
 

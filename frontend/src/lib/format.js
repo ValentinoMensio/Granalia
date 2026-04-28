@@ -1,4 +1,4 @@
-const emptyItem = () => ({ product_id: '', offering_id: '', quantity: 0, bonus_quantity: 0, unit_price: '' })
+const emptyItem = () => ({ product_id: '', offering_id: '', quantity: 0, bonus_quantity: 0, bonus_quantity_manual: false, unit_price: '' })
 
 const normalize = (value) =>
   (value || '')
@@ -93,7 +93,7 @@ const summarizeAutomaticBonuses = (customer, catalog = []) => {
       const productName = product?.name || (rule.product_id ? `Producto #${rule.product_id}` : '')
       const scope = rule.product_id
         ? [productName, offering?.label].filter(Boolean).join('/')
-        : 'Todos los productos'
+        : ['Todos los productos', rule.offering_label].filter(Boolean).join('/')
       return `${scope}: ${rule.bonus_quantity} cada ${rule.buy_quantity}`
     })
     .join(', ')

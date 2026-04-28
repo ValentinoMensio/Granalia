@@ -44,11 +44,27 @@ function buildAvailableDiscountGroups(catalog) {
   ).sort()
 }
 
+function normalizeBonusText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+}
+
+function isAutomaticBonusExcluded(item) {
+  const productName = normalizeBonusText(item.product_name)
+  const offeringLabel = normalizeBonusText(item.offering_label)
+  const isCornFlour = productName.includes('maiz') && (productName.includes('harina') || productName.includes('h. maiz') || productName.includes('h maiz'))
+  return isCornFlour && (offeringLabel.includes('1 kg') || offeringLabel.includes('1000'))
+}
+
 function normalizeAutomaticBonusRules(rules) {
   return (rules || [])
     .map((rule) => ({
       product_id: rule.product_id === '' || rule.product_id === undefined ? null : rule.product_id,
       offering_id: rule.offering_id === '' || rule.offering_id === undefined ? null : rule.offering_id,
+      offering_label: String(rule.offering_label || '').trim(),
       buy_quantity: Number(rule.buy_quantity || 0),
       bonus_quantity: Number(rule.bonus_quantity || 0),
     }))
@@ -56,15 +72,19 @@ function normalizeAutomaticBonusRules(rules) {
 }
 
 function matchingAutomaticBonusRule(item, rules) {
+  if (isAutomaticBonusExcluded(item)) return null
+
   let best = null
   let bestScore = -1
 
   for (const rule of normalizeAutomaticBonusRules(rules)) {
     const productMatches = rule.product_id === null || String(rule.product_id) === String(item.product_id || '')
-    const offeringMatches = rule.offering_id === null || String(rule.offering_id) === String(item.offering_id || '')
+    const offeringMatches = rule.offering_id !== null
+      ? String(rule.offering_id) === String(item.offering_id || '')
+      : !rule.offering_label || normalizeBonusText(rule.offering_label) === normalizeBonusText(item.offering_label)
     if (!productMatches || !offeringMatches) continue
 
-    const score = (rule.product_id === null ? 0 : 1) + (rule.offering_id === null ? 0 : 1)
+    const score = (rule.product_id === null ? 0 : 1) + (rule.offering_id === null && !rule.offering_label ? 0 : 1)
     if (score > bestScore) {
       best = rule
       bestScore = score
@@ -76,9 +96,12 @@ function matchingAutomaticBonusRule(item, rules) {
 
 function applyAutomaticBonusRulesToItems(items, rules) {
   const normalizedRules = normalizeAutomaticBonusRules(rules)
-  if (!normalizedRules.length) return items
+  if (!normalizedRules.length) {
+    return items.map((item) => (isAutomaticBonusExcluded(item) ? { ...item, bonus_quantity: 0 } : item))
+  }
 
   return items.map((item) => {
+    if (item.bonus_quantity_manual && !isAutomaticBonusExcluded(item)) return item
     const rule = matchingAutomaticBonusRule(item, normalizedRules)
     const quantity = Number(item.quantity || 0)
     const bonusQuantity = rule ? Math.floor(quantity / rule.buy_quantity) * rule.bonus_quantity : 0
@@ -161,10 +184,12 @@ function buildFormFromInvoiceDetail(invoiceDetail, customers) {
       unit_price: item.unit_price || '',
       product_name: item.product_name || '',
       offering_label: item.offering_label || '',
+      bonus_quantity_manual: false,
     }
 
     if (Number(item.unit_price || 0) === 0) {
       current.bonus_quantity += Number(item.quantity || 0)
+      current.bonus_quantity_manual = true
     } else {
       current.quantity += Number(item.quantity || 0)
       current.unit_price = Number(item.unit_price || 0)

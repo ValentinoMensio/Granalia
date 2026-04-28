@@ -62,16 +62,11 @@ class InvoiceItemInput(BaseModel):
 class AutomaticBonusRule(BaseModel):
     product_id: int | None = None
     offering_id: int | None = None
+    offering_label: str = Field(default="", max_length=120)
     buy_quantity: int = Field(default=10, ge=1, le=10000)
     bonus_quantity: int = Field(default=1, ge=1, le=10000)
 
-    @field_validator("offering_id")
-    @classmethod
-    def validate_scope(cls, value: int | None, info) -> int | None:
-        product_id = info.data.get("product_id")
-        if value is not None and product_id is None:
-            raise ValueError("offering_id requires product_id")
-        return value
+    _normalize_offering_label = field_validator("offering_label")(_strip_optional)
 
 
 class InvoiceCreate(BaseModel):

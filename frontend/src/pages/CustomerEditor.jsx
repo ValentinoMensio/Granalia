@@ -93,7 +93,7 @@ export default function CustomerEditor() {
       ...formData,
       automatic_bonus_rules: [
         ...(formData.automatic_bonus_rules || []),
-        { product_id: null, offering_id: null, buy_quantity: 10, bonus_quantity: 1 },
+        { product_id: null, offering_id: null, offering_label: '', buy_quantity: 10, bonus_quantity: 1 },
       ],
     })
   }
@@ -102,9 +102,14 @@ export default function CustomerEditor() {
     const next = [...(formData.automatic_bonus_rules || [])]
     const nextValue = ['product_id', 'offering_id'].includes(field)
       ? (value === '' ? null : Number(value))
+      : field === 'offering_label'
+      ? value
       : Number(value || 0)
     next[index] = { ...next[index], [field]: nextValue }
-    if (field === 'product_id') next[index].offering_id = null
+    if (field === 'product_id') {
+      next[index].offering_id = null
+      next[index].offering_label = ''
+    }
     setFormData({ ...formData, automatic_bonus_rules: next })
   }
 

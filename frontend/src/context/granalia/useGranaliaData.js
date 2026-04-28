@@ -158,7 +158,7 @@ function useGranaliaData() {
     setForm((current) => {
       const automaticBonusRules = [
         ...(current.automaticBonusRules || []),
-        { product_id: null, offering_id: null, buy_quantity: 10, bonus_quantity: 1 },
+        { product_id: null, offering_id: null, offering_label: '', buy_quantity: 10, bonus_quantity: 1 },
       ]
       return {
         ...current,
@@ -173,9 +173,14 @@ function useGranaliaData() {
       const automaticBonusRules = [...(current.automaticBonusRules || [])]
       const nextValue = ['product_id', 'offering_id'].includes(field)
         ? (value === '' ? null : Number(value))
+        : field === 'offering_label'
+        ? value
         : Number(value || 0)
       automaticBonusRules[index] = { ...automaticBonusRules[index], [field]: nextValue }
-      if (field === 'product_id') automaticBonusRules[index].offering_id = null
+      if (field === 'product_id') {
+        automaticBonusRules[index].offering_id = null
+        automaticBonusRules[index].offering_label = ''
+      }
       return {
         ...current,
         automaticBonusRules,
@@ -200,13 +205,24 @@ function useGranaliaData() {
       const items = [...current.items]
       items[index] = { ...items[index], [field]: value }
       if (field === 'product_id') {
+        const product = catalog.find((entry) => entry.id === value)
+        items[index].product_name = product?.name || ''
         items[index].offering_id = ''
+        items[index].offering_label = ''
+        items[index].bonus_quantity_manual = false
         items[index].unit_price = ''
       }
       if (field === 'offering_id') {
         const product = catalog.find((entry) => entry.id === items[index].product_id)
         const offering = product?.offerings.find((entry) => entry.id === value)
+        items[index].product_name = product?.name || ''
+        items[index].offering_label = offering?.label || ''
+        items[index].bonus_quantity_manual = false
         items[index].unit_price = offering ? Number(offering.price || 0) : ''
+      }
+      if (field === 'bonus_quantity') {
+        items[index].bonus_quantity_manual = true
+        return { ...current, items: applyAutomaticBonusRulesToItems(items, current.automaticBonusRules) }
       }
       return { ...current, items: applyAutomaticBonusRulesToItems(items, current.automaticBonusRules) }
     })
