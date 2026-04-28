@@ -161,11 +161,6 @@ export default function InvoiceHistory() {
             Limpiar filtros
           </Button>
         </div>
-        <div className="mt-3 flex justify-end">
-          <Button variant="primary" onClick={() => navigate('/history/stats')} className="w-full">
-            Estadística
-          </Button>
-        </div>
       </aside>
 
       <section className="surface w-full self-start p-4 sm:p-6">
@@ -175,6 +170,26 @@ export default function InvoiceHistory() {
           </div>
           <div className="badge self-start md:mt-1">{filteredInvoices.length} resultados</div>
         </div>
+
+        <button
+          type="button"
+          onClick={() => navigate('/history/stats')}
+          className="mt-5 w-full overflow-hidden rounded-[28px] border border-brand-red/20 bg-gradient-to-br from-brand-red via-red-700 to-stone-950 p-4 text-left text-white shadow-lg shadow-red-950/10 transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-red-950/20 focus:outline-none focus:ring-2 focus:ring-brand-red focus:ring-offset-2 sm:p-5"
+        >
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-red-100/80">Inteligencia comercial</div>
+              <div className="mt-2 text-2xl font-semibold tracking-tight">Estadística de facturas</div>
+              <div className="mt-1 max-w-2xl text-sm leading-6 text-red-50/85">
+                Mirá rankings por cliente, transporte y mes, con totales de venta, bultos y descuentos.
+              </div>
+            </div>
+            <div className="flex items-center gap-3 rounded-2xl bg-white/10 px-4 py-3 text-sm font-semibold backdrop-blur">
+              <span>Ver tablero</span>
+              <span className="text-xl leading-none">→</span>
+            </div>
+          </div>
+        </button>
 
         <div className="mobile-list mt-6">
           {paginatedInvoices.map((invoice) => {
