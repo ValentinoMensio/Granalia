@@ -9,6 +9,7 @@ import PageSectionHeader from '../components/ui/PageSectionHeader'
 
 const EMPTY_FILTERS = { customerId: '', dateFrom: '', dateTo: '', transport: '' }
 const EMPTY_PRODUCT_FILTERS = { productId: '', offeringId: '' }
+const MONTH_LABELS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
 const weight = (value) => new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(Number(value || 0))
 
@@ -46,6 +47,33 @@ function buildMonthlyRanking(invoices) {
     grouped.set(key, current)
   }
   return Array.from(grouped.values()).sort((a, b) => String(b.monthKey).localeCompare(String(a.monthKey)))
+}
+
+function yearFromFilters(filters, invoices) {
+  const filteredYear = String(filters.dateFrom || filters.dateTo || '').slice(0, 4)
+  if (filteredYear) return filteredYear
+
+  const latestInvoice = [...invoices]
+    .filter((invoice) => invoice.order_date)
+    .sort((a, b) => String(b.order_date).localeCompare(String(a.order_date)))[0]
+  return String(latestInvoice?.order_date || new Date().toISOString()).slice(0, 4)
+}
+
+function buildYearMonthlyRows(rows, year) {
+  const rowsByMonth = new Map(rows.map((row) => [row.monthKey, row]))
+  return MONTH_LABELS.map((month, index) => {
+    const monthKey = `${year}-${String(index + 1).padStart(2, '0')}`
+    return rowsByMonth.get(monthKey) || {
+      label: month,
+      monthKey,
+      count: 0,
+      bultos: 0,
+      weight: 0,
+      gross: 0,
+      discount: 0,
+      total: 0,
+    }
+  })
 }
 
 function itemOfferingLabel(item) {
@@ -147,7 +175,7 @@ function buildCustomerProductRanking(items) {
 
 function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false }) {
   return (
-    <section className="surface p-4 sm:p-6">
+    <section className="surface p-4 pr-5 sm:p-6 sm:pr-8">
       <div className="mb-4 flex items-start justify-between gap-3 border-b border-stone-200 pb-3">
         <h2 className="subsection-title text-xl">{title}</h2>
         <div className="badge">{rows.length} filas</div>
@@ -180,7 +208,7 @@ function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false
                 <td className="table-cell whitespace-nowrap !px-2 text-right">{money(row.bultos)}</td>
                 {showWeight ? <td className="table-cell whitespace-nowrap !px-2 text-right">{weight(row.weight)} kg</td> : null}
                 <td className="table-cell whitespace-nowrap !px-2 text-right">${money(row.discount)}</td>
-                <td className="table-cell whitespace-nowrap !px-2 text-right font-semibold text-brand-red">${money(row.total)}</td>
+                <td className="table-cell whitespace-nowrap !pl-2 !pr-4 text-right font-semibold text-brand-red">${money(row.total)}</td>
               </tr>
             ))}
             {rows.length === 0 && (
@@ -195,34 +223,47 @@ function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false
   )
 }
 
-function MonthlyBarChart({ rows }) {
+function MonthlyBarChart({ rows, year }) {
   const safeRows = Array.isArray(rows) ? rows : []
   const maxTotal = safeRows.reduce((max, row) => Math.max(max, Number(row?.total || 0)), 0)
+  const chartMax = maxTotal || 1
+  const ticks = [1, 0.75, 0.5, 0.25, 0]
 
   return (
-    <section className="surface p-4 sm:p-6">
+    <section className="surface p-4 pr-5 sm:p-6 sm:pr-8">
       <div className="mb-4 flex items-start justify-between gap-3 border-b border-stone-200 pb-3">
-        <h2 className="subsection-title text-xl">Evolución mensual</h2>
-        <div className="badge">{safeRows.length} meses</div>
+        <h2 className="subsection-title text-xl">Evolución mensual {year}</h2>
+        <div className="badge">12 meses</div>
       </div>
-      <div className="space-y-3">
-        {safeRows.map((row) => {
-          const percentage = maxTotal ? Math.max(4, Math.round((Number(row.total || 0) / maxTotal) * 100)) : 0
-          return (
-            <div key={row.monthKey || row.label} className="grid gap-2 sm:grid-cols-[5.5rem_minmax(0,1fr)_7rem] sm:items-center">
-              <div className="text-sm font-semibold text-brand-ink">{row.label}</div>
-              <div className="h-5 overflow-hidden rounded-full bg-stone-100">
-                <div className="h-full rounded-full bg-brand-red" style={{ width: `${percentage}%` }} />
-              </div>
-              <div className="text-right text-sm font-semibold text-brand-red">${money(row.total)}</div>
+      <div className="grid grid-cols-[4rem_minmax(0,1fr)] gap-3">
+        <div className="relative h-72 text-right text-[11px] font-medium text-slate-400">
+          {ticks.map((tick) => (
+            <div key={tick} className="absolute right-0" style={{ top: `${(1 - tick) * 100}%`, transform: 'translateY(-50%)' }}>
+              ${money(chartMax * tick)}
             </div>
-          )
-        })}
-        {safeRows.length === 0 && (
-          <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-400">
-            No hay datos para graficar.
+          ))}
+        </div>
+        <div>
+          <div className="relative grid h-72 grid-cols-12 items-end gap-1 border-b border-l border-stone-300 pl-2 pr-3 sm:gap-3">
+            {ticks.slice(0, -1).map((tick) => (
+              <div key={tick} className="pointer-events-none absolute left-0 right-3 border-t border-dashed border-stone-200" style={{ bottom: `${tick * 100}%` }} />
+            ))}
+            {safeRows.map((row, index) => {
+              const total = Number(row.total || 0)
+              const percentage = Math.round((total / chartMax) * 100)
+              return (
+                <div key={row.monthKey || row.label} className="relative z-10 flex h-full min-w-0 flex-col justify-end gap-2">
+                  <div className="text-center text-[10px] font-semibold text-brand-red sm:text-xs">{total ? `$${money(total)}` : ''}</div>
+                  <div className="mx-auto w-full max-w-10 rounded-t-lg bg-brand-red" style={{ height: `${percentage}%`, minHeight: total ? '0.35rem' : '0' }} title={`${MONTH_LABELS[index]}: $${money(total)}`} />
+                </div>
+              )
+            })}
           </div>
-        )}
+          <div className="mt-2 grid grid-cols-12 gap-1 pr-3 pl-2 text-center text-[11px] font-semibold text-slate-500 sm:gap-3 sm:text-xs">
+            {MONTH_LABELS.map((month) => <div key={month}>{month}</div>)}
+          </div>
+          <div className="mt-2 text-center text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Mes</div>
+        </div>
       </div>
     </section>
   )
@@ -267,6 +308,8 @@ export default function InvoiceStats() {
   }, [filteredInvoices])
 
   const byMonth = useMemo(() => buildMonthlyRanking(filteredInvoices), [filteredInvoices])
+  const chartYear = useMemo(() => yearFromFilters(filters, filteredInvoices), [filters, filteredInvoices])
+  const monthlyChartRows = useMemo(() => buildYearMonthlyRows(byMonth, chartYear), [byMonth, chartYear])
   const filteredInvoiceIds = useMemo(() => new Set(filteredInvoices.map((invoice) => String(invoice.invoice_id))), [filteredInvoices])
   const productOptions = useMemo(() => {
     const grouped = new Map()
@@ -404,10 +447,10 @@ export default function InvoiceStats() {
         <RankingTable title={loadingItems ? 'Ranking por producto/formato (cargando...)' : 'Ranking por producto/formato'} rows={byProduct} countLabel="Líneas" showWeight />
         <RankingTable title="Total por producto" rows={byProductTotal} countLabel="Líneas" showWeight />
         <div className="xl:col-span-2">
-          <MonthlyBarChart rows={byMonth} />
+          <RankingTable title="Totales por mes" rows={byMonth} />
         </div>
         <div className="xl:col-span-2">
-          <RankingTable title="Totales por mes" rows={byMonth} />
+          <MonthlyBarChart rows={monthlyChartRows} year={chartYear} />
         </div>
       </div>
     </div>
