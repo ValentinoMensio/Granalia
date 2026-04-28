@@ -406,7 +406,6 @@ function useGranaliaData() {
     invoiceDownloadUrl,
     invoicePdfUrl,
     downloadInvoice,
-    downloadInvoicePdf,
     applyCustomer,
     updateFormField,
     addFooterDiscountRow,
