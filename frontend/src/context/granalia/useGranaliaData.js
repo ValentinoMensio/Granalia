@@ -105,14 +105,13 @@ function useGranaliaData() {
     return `${API_BASE}/api/invoices/${invoiceId}/pdf`
   }
 
-  function downloadInvoicePdf(invoiceId) {
-    const link = document.createElement('a')
-    link.href = invoicePdfUrl(invoiceId)
-    link.target = '_blank'
-    link.rel = 'noreferrer'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+  function openInvoicePdfPreview(invoiceId, previewWindow = null) {
+    const url = invoicePdfUrl(invoiceId)
+    if (previewWindow && !previewWindow.closed) {
+      previewWindow.location.href = url
+      return true
+    }
+    return Boolean(window.open(url, '_blank'))
   }
 
   function downloadInvoice(invoiceId) {
@@ -351,6 +350,11 @@ function useGranaliaData() {
     }
 
     setGenerating(true)
+    const previewWindow = window.open('', '_blank')
+    if (previewWindow) {
+      previewWindow.document.title = 'Generando factura...'
+      previewWindow.document.body.innerHTML = '<p style="font-family: sans-serif; padding: 24px;">Generando previsualización...</p>'
+    }
     try {
       const isEditing = editingInvoiceId !== null
       const invoiceId = editingInvoiceId
@@ -359,16 +363,16 @@ function useGranaliaData() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(buildInvoicePayload(form, currentCustomer)),
       })
-      const shouldDownload = window.confirm(`Factura ${data.invoice_id} ${isEditing ? 'actualizada' : 'guardada'}. ¿Querés descargarla en PDF?`)
-      if (shouldDownload) {
-        downloadInvoicePdf(data.invoice_id)
-      }
+      const previewOpened = openInvoicePdfPreview(data.invoice_id, previewWindow)
       await refreshInvoices()
       setEditingInvoiceId(null)
       setForm(createInitialForm())
-      setStatus(`Factura ${data.invoice_id} ${isEditing ? 'actualizada' : 'guardada'}${shouldDownload ? ' y descargada en PDF' : ''}.`)
+      setStatus(`Factura ${data.invoice_id} ${isEditing ? 'actualizada' : 'guardada'}${previewOpened ? ' y abierta para previsualizar' : ''}.`)
       return { invoiceId: data.invoice_id, updated: isEditing }
     } catch (error) {
+      if (previewWindow && !previewWindow.closed) {
+        previewWindow.close()
+      }
       setStatus(`Error al ${editingInvoiceId !== null ? 'actualizar' : 'guardar'} la factura: ${error.message}`)
     } finally {
       setGenerating(false)

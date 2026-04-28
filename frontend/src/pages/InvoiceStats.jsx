@@ -10,6 +10,8 @@ import PageSectionHeader from '../components/ui/PageSectionHeader'
 const EMPTY_FILTERS = { customerId: '', dateFrom: '', dateTo: '', transport: '' }
 const EMPTY_PRODUCT_FILTERS = { productId: '', offeringId: '' }
 
+const weight = (value) => new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(Number(value || 0))
+
 function monthLabel(value) {
   if (!value) return 'Sin fecha'
   const [year, month] = String(value).split('-')
@@ -20,7 +22,7 @@ function buildRanking(invoices, keyFn) {
   const grouped = new Map()
   for (const invoice of invoices) {
     const key = keyFn(invoice)
-    const current = grouped.get(key) || { label: key, count: 0, bultos: 0, gross: 0, discount: 0, total: 0 }
+    const current = grouped.get(key) || { label: key, count: 0, bultos: 0, weight: 0, gross: 0, discount: 0, total: 0 }
     current.count += 1
     current.bultos += Number(invoice.total_bultos || 0)
     current.gross += Number(invoice.gross_total || 0)
@@ -31,15 +33,92 @@ function buildRanking(invoices, keyFn) {
   return Array.from(grouped.values()).sort((a, b) => b.total - a.total)
 }
 
+function buildMonthlyRanking(invoices) {
+  const grouped = new Map()
+  for (const invoice of invoices) {
+    const key = String(invoice.order_date || '').slice(0, 7) || 'Sin fecha'
+    const current = grouped.get(key) || { label: monthLabel(key), monthKey: key, count: 0, bultos: 0, weight: 0, gross: 0, discount: 0, total: 0 }
+    current.count += 1
+    current.bultos += Number(invoice.total_bultos || 0)
+    current.gross += Number(invoice.gross_total || 0)
+    current.discount += Number(invoice.discount_total || 0)
+    current.total += Number(invoice.final_total || 0)
+    grouped.set(key, current)
+  }
+  return Array.from(grouped.values()).sort((a, b) => String(b.monthKey).localeCompare(String(a.monthKey)))
+}
+
+function itemOfferingLabel(item) {
+  const explicit = String(item.offering_label || '').trim()
+  if (explicit) return explicit
+
+  const label = String(item.label || '').trim()
+  const product = String(item.product_name || '').trim()
+
+  if (label && product && label.toLowerCase().startsWith(product.toLowerCase())) {
+    const suffix = label.slice(product.length).trim()
+    if (suffix) return suffix
+  }
+
+  const formatMatch = label.match(/(?:16x300|12x300|12x350|12x400|10x500|12x500|10x\s*1\s*kg|10x1000|x\s*(?:4|5|25|30)\s*kg)\b/i)
+  return formatMatch ? formatMatch[0].replace(/\s+/g, ' ') : 'Sin formato'
+}
+
+function itemProductLabel(item) {
+  const explicit = String(item.product_name || '').trim()
+  if (explicit) return explicit
+
+  const label = String(item.label || '').trim()
+  const offering = itemOfferingLabel(item)
+  return offering !== 'Sin formato' ? label.replace(offering, '').trim() || label : label || 'Sin producto'
+}
+
+function kilogramsPerUnit(label) {
+  const text = String(label || '').toLowerCase().replace(/\s+/g, '')
+  const packMatch = text.match(/(\d+)x(\d+(?:[.,]\d+)?)(kg|gr|g)?/)
+  if (packMatch) {
+    const units = Number(packMatch[1] || 0)
+    const size = Number(String(packMatch[2] || 0).replace(',', '.'))
+    const unit = packMatch[3] || 'gr'
+    return units * (unit === 'kg' ? size : size / 1000)
+  }
+
+  const bagMatch = text.match(/x(\d+(?:[.,]\d+)?)kg/)
+  if (bagMatch) return Number(String(bagMatch[1] || 0).replace(',', '.'))
+
+  return 0
+}
+
+function itemWeight(item) {
+  return Number(item.quantity || 0) * kilogramsPerUnit(itemOfferingLabel(item))
+}
+
 function buildProductRanking(items) {
   const grouped = new Map()
   for (const item of items) {
-    const product = item.product_name || String(item.label || '').trim() || 'Sin producto'
-    const offering = item.offering_label || 'Sin formato'
+    const product = itemProductLabel(item)
+    const offering = itemOfferingLabel(item)
     const key = `${product} / ${offering}`
     const current = grouped.get(key) || { label: key, count: 0, bultos: 0, gross: 0, discount: 0, total: 0 }
     current.count += 1
     current.bultos += Number(item.quantity || 0)
+    current.gross += Number(item.gross || 0)
+    current.discount += Number(item.discount || 0)
+    current.total += Number(item.total || 0)
+    current.weight += itemWeight(item)
+    grouped.set(key, current)
+  }
+  return Array.from(grouped.values()).sort((a, b) => b.total - a.total)
+}
+
+function buildProductTotalRanking(items) {
+  const grouped = new Map()
+  for (const item of items) {
+    const key = itemProductLabel(item)
+    const current = grouped.get(key) || { label: key, count: 0, bultos: 0, weight: 0, gross: 0, discount: 0, total: 0 }
+    current.count += 1
+    current.bultos += Number(item.quantity || 0)
+    current.weight += itemWeight(item)
     current.gross += Number(item.gross || 0)
     current.discount += Number(item.discount || 0)
     current.total += Number(item.total || 0)
@@ -48,41 +127,101 @@ function buildProductRanking(items) {
   return Array.from(grouped.values()).sort((a, b) => b.total - a.total)
 }
 
-function RankingTable({ title, rows, countLabel = 'Facturas' }) {
+function buildCustomerProductRanking(items) {
+  const grouped = new Map()
+  for (const item of items) {
+    const key = item.client_name || 'Sin cliente'
+    const current = grouped.get(key) || { label: key, invoiceIds: new Set(), count: 0, bultos: 0, weight: 0, gross: 0, discount: 0, total: 0 }
+    current.invoiceIds.add(String(item.invoice_id))
+    current.bultos += Number(item.quantity || 0)
+    current.weight += itemWeight(item)
+    current.gross += Number(item.gross || 0)
+    current.discount += Number(item.discount || 0)
+    current.total += Number(item.total || 0)
+    grouped.set(key, current)
+  }
+  return Array.from(grouped.values())
+    .map((row) => ({ ...row, count: row.invoiceIds.size, invoiceIds: undefined }))
+    .sort((a, b) => b.total - a.total)
+}
+
+function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false }) {
   return (
     <section className="surface p-4 sm:p-6">
       <div className="mb-4 flex items-start justify-between gap-3 border-b border-stone-200 pb-3">
         <h2 className="subsection-title text-xl">{title}</h2>
         <div className="badge">{rows.length} filas</div>
       </div>
-      <div className="table-shell max-h-[30rem] overflow-y-auto">
-        <table className="table-base">
+      <div className="table-shell max-h-[30rem] overflow-x-hidden overflow-y-auto">
+        <table className="table-base !min-w-0 table-fixed text-xs sm:text-sm">
+          <colgroup>
+            <col className={showWeight ? 'w-[36%]' : 'w-[42%]'} />
+            <col className="w-[12%]" />
+            <col className="w-[14%]" />
+            {showWeight ? <col className="w-[14%]" /> : null}
+            <col className={showWeight ? 'w-[12%]' : 'w-[16%]'} />
+            <col className={showWeight ? 'w-[12%]' : 'w-[16%]'} />
+          </colgroup>
           <thead className="table-head">
             <tr>
-              <th>Grupo</th>
-              <th className="text-right">{countLabel}</th>
-              <th className="text-right">Bultos</th>
-              <th className="text-right">Descuento</th>
-              <th className="text-right">Total</th>
+              <th className="!px-2">Grupo</th>
+              <th className="!px-2 text-right">{countLabel}</th>
+              <th className="!px-2 text-right">Bultos</th>
+              {showWeight ? <th className="!px-2 text-right">Peso</th> : null}
+              <th className="!px-2 text-right">Descuento</th>
+              <th className="!px-2 text-right">Total</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
               <tr key={row.label} className="table-row">
-                <td className="table-cell font-medium">{row.label}</td>
-                <td className="table-cell text-right">{row.count}</td>
-                <td className="table-cell text-right">{money(row.bultos)}</td>
-                <td className="table-cell text-right">${money(row.discount)}</td>
-                <td className="table-cell text-right font-semibold text-brand-red">${money(row.total)}</td>
+                <td className="table-cell break-words !px-2 font-medium leading-snug">{row.label}</td>
+                <td className="table-cell whitespace-nowrap !px-2 text-right">{row.count}</td>
+                <td className="table-cell whitespace-nowrap !px-2 text-right">{money(row.bultos)}</td>
+                {showWeight ? <td className="table-cell whitespace-nowrap !px-2 text-right">{weight(row.weight)} kg</td> : null}
+                <td className="table-cell whitespace-nowrap !px-2 text-right">${money(row.discount)}</td>
+                <td className="table-cell whitespace-nowrap !px-2 text-right font-semibold text-brand-red">${money(row.total)}</td>
               </tr>
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan="5" className="table-cell py-8 text-center text-slate-400">No hay datos para estos filtros.</td>
+                <td colSpan={showWeight ? 6 : 5} className="table-cell py-8 text-center text-slate-400">No hay datos para estos filtros.</td>
               </tr>
             )}
           </tbody>
         </table>
+      </div>
+    </section>
+  )
+}
+
+function MonthlyBarChart({ rows }) {
+  const maxTotal = Math.max(...rows.map((row) => Number(row.total || 0)), 0)
+
+  return (
+    <section className="surface p-4 sm:p-6">
+      <div className="mb-4 flex items-start justify-between gap-3 border-b border-stone-200 pb-3">
+        <h2 className="subsection-title text-xl">Evolución mensual</h2>
+        <div className="badge">{rows.length} meses</div>
+      </div>
+      <div className="space-y-3">
+        {rows.map((row) => {
+          const percentage = maxTotal ? Math.max(4, Math.round((Number(row.total || 0) / maxTotal) * 100)) : 0
+          return (
+            <div key={row.monthKey || row.label} className="grid gap-2 sm:grid-cols-[5.5rem_minmax(0,1fr)_7rem] sm:items-center">
+              <div className="text-sm font-semibold text-brand-ink">{row.label}</div>
+              <div className="h-5 overflow-hidden rounded-full bg-stone-100">
+                <div className="h-full rounded-full bg-brand-red" style={{ width: `${percentage}%` }} />
+              </div>
+              <div className="text-right text-sm font-semibold text-brand-red">${money(row.total)}</div>
+            </div>
+          )
+        })}
+        {rows.length === 0 && (
+          <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-400">
+            No hay datos para graficar.
+          </div>
+        )}
       </div>
     </section>
   )
@@ -126,14 +265,13 @@ export default function InvoiceStats() {
     return { gross, discount, total, bultos, average }
   }, [filteredInvoices])
 
-  const byCustomer = useMemo(() => buildRanking(filteredInvoices, (invoice) => invoice.client_name || 'Sin cliente'), [filteredInvoices])
-  const byMonth = useMemo(() => buildRanking(filteredInvoices, (invoice) => monthLabel(invoice.order_date)), [filteredInvoices])
+  const byMonth = useMemo(() => buildMonthlyRanking(filteredInvoices), [filteredInvoices])
   const filteredInvoiceIds = useMemo(() => new Set(filteredInvoices.map((invoice) => String(invoice.invoice_id))), [filteredInvoices])
   const productOptions = useMemo(() => {
     const grouped = new Map()
     for (const item of invoiceItems) {
       const id = String(item.product_id || '')
-      const label = item.product_name || 'Sin producto'
+      const label = itemProductLabel(item)
       const key = id || label
       if (!grouped.has(key)) grouped.set(key, { id, label })
     }
@@ -145,9 +283,9 @@ export default function InvoiceStats() {
       const matchesProduct = !productFilters.productId || String(item.product_id || '') === String(productFilters.productId)
       if (!matchesProduct) continue
       const id = String(item.offering_id || '')
-      const label = item.offering_label || 'Sin formato'
-      const key = id || label
-      if (!grouped.has(key)) grouped.set(key, { id, label })
+      const label = itemOfferingLabel(item)
+      const key = productFilters.productId ? id || label : label
+      if (!grouped.has(key)) grouped.set(key, { id: productFilters.productId ? id : label, label })
     }
     return Array.from(grouped.values()).sort((a, b) => a.label.localeCompare(b.label, 'es'))
   }, [invoiceItems, productFilters.productId])
@@ -155,12 +293,22 @@ export default function InvoiceStats() {
     () => invoiceItems.filter((item) => {
       const matchesInvoice = filteredInvoiceIds.has(String(item.invoice_id))
       const matchesProduct = !productFilters.productId || String(item.product_id || '') === String(productFilters.productId)
-      const matchesOffering = !productFilters.offeringId || String(item.offering_id || '') === String(productFilters.offeringId)
+      const matchesOffering = !productFilters.offeringId || (productFilters.productId
+        ? String(item.offering_id || '') === String(productFilters.offeringId)
+        : itemOfferingLabel(item) === String(productFilters.offeringId))
       return matchesInvoice && matchesProduct && matchesOffering
     }),
     [filteredInvoiceIds, invoiceItems, productFilters]
   )
+  const hasProductFilter = Boolean(productFilters.productId || productFilters.offeringId)
+  const byCustomer = useMemo(
+    () => hasProductFilter
+      ? buildCustomerProductRanking(filteredItems)
+      : buildRanking(filteredInvoices, (invoice) => invoice.client_name || 'Sin cliente'),
+    [filteredInvoices, filteredItems, hasProductFilter]
+  )
   const byProduct = useMemo(() => buildProductRanking(filteredItems), [filteredItems])
+  const byProductTotal = useMemo(() => buildProductTotalRanking(filteredItems), [filteredItems])
 
   function updateFilter(field, value) {
     setFilters((current) => ({ ...current, [field]: value }))
@@ -227,13 +375,23 @@ export default function InvoiceStats() {
         </div>
       </section>
 
-      <section className="grid gap-3 md:grid-cols-5">
-        <Metric label="Facturas" value={money(filteredInvoices.length)} />
-        <Metric label="Bultos" value={money(summary.bultos)} />
-        <Metric label="Bruto" value={`$${money(summary.gross)}`} />
-        <Metric label="Descuentos" value={`$${money(summary.discount)}`} />
-        <Metric label="Total" value={`$${money(summary.total)}`} />
-      </section>
+      <div className="pt-4">
+        <div className="mb-4 flex items-center gap-3">
+          <div className="h-px flex-1 bg-stone-200" />
+          <div className="rounded-full border border-stone-200 bg-white px-4 py-1 text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+            Resultados
+          </div>
+          <div className="h-px flex-1 bg-stone-200" />
+        </div>
+
+        <section className="grid gap-3 md:grid-cols-5">
+          <Metric label="Facturas" value={money(filteredInvoices.length)} />
+          <Metric label="Bultos" value={money(summary.bultos)} />
+          <Metric label="Bruto" value={`$${money(summary.gross)}`} />
+          <Metric label="Descuentos" value={`$${money(summary.discount)}`} />
+          <Metric label="Total" value={`$${money(summary.total)}`} />
+        </section>
+      </div>
 
       <section className="grid gap-3 md:grid-cols-2">
         <Metric label="Promedio por factura" value={`$${money(summary.average)}`} />
@@ -241,8 +399,12 @@ export default function InvoiceStats() {
       </section>
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <RankingTable title="Ranking por cliente" rows={byCustomer} />
-        <RankingTable title={loadingItems ? 'Ranking por producto/formato (cargando...)' : 'Ranking por producto/formato'} rows={byProduct} countLabel="Líneas" />
+        <RankingTable title="Ranking por cliente" rows={byCustomer} showWeight={hasProductFilter} />
+        <RankingTable title={loadingItems ? 'Ranking por producto/formato (cargando...)' : 'Ranking por producto/formato'} rows={byProduct} countLabel="Líneas" showWeight />
+        <RankingTable title="Total por producto" rows={byProductTotal} countLabel="Líneas" showWeight />
+        <div className="xl:col-span-2">
+          <MonthlyBarChart rows={byMonth} />
+        </div>
         <div className="xl:col-span-2">
           <RankingTable title="Totales por mes" rows={byMonth} />
         </div>

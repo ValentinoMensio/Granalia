@@ -86,7 +86,7 @@ def download_invoice_pdf(invoice_id: int) -> Response:
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="factura-{invoice_id}.pdf"'},
+        headers={"Content-Disposition": f'inline; filename="factura-{invoice_id}.pdf"'},
     )
 
 

@@ -115,10 +115,10 @@ def _draw_header(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
     _draw_logo(pdf, margin=MARGIN, y=y, logo_path=logo_path)
 
     _set_color(pdf, COLOR_TEXT)
-    pdf.setFont(FONT_BOLD, 15)
+    pdf.setFont(FONT_BOLD, 17)
     pdf.drawRightString(width - MARGIN, y - 8, f"Factura #{invoice['id']}")
 
-    pdf.setFont(FONT_REGULAR, 8)
+    pdf.setFont(FONT_REGULAR, 12)
     _set_color(pdf, COLOR_MUTED)
     pdf.drawRightString(width - MARGIN, y - 25, str(invoice["order_date"]))
 
@@ -130,7 +130,7 @@ def _draw_header(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
 def _draw_invoice_info(pdf: canvas.Canvas, invoice: dict, y: float) -> float:
     _set_color(pdf, COLOR_TEXT)
 
-    pdf.setFont(FONT_BOLD, 15)
+    pdf.setFont(FONT_BOLD, 17)
     pdf.drawString(MARGIN, y, f"Cliente: {invoice['client_name']}")
     y -= 23
 
@@ -139,7 +139,7 @@ def _draw_invoice_info(pdf: canvas.Canvas, invoice: dict, y: float) -> float:
         ("Dirección", invoice.get("customer_address")),
     ]
 
-    pdf.setFont(FONT_REGULAR, 11)
+    pdf.setFont(FONT_REGULAR, 14)
     for label, value in customer_fields:
         text = str(value or "").strip()
         if not text:
@@ -161,7 +161,7 @@ def _draw_invoice_info(pdf: canvas.Canvas, invoice: dict, y: float) -> float:
 
 
 def _draw_items_header(pdf: canvas.Canvas, width: float, y: float) -> float:
-    pdf.setFont(FONT_BOLD, 12)
+    pdf.setFont(FONT_BOLD, 16)
     _set_color(pdf, COLOR_TEXT)
 
     pdf.drawString(MARGIN, y, "Producto")
@@ -176,7 +176,7 @@ def _draw_items_header(pdf: canvas.Canvas, width: float, y: float) -> float:
 
 
 def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float) -> float:
-    font_size = 10.5
+    font_size = 14
 
     pdf.setFont(FONT_REGULAR, font_size)
     _set_color(pdf, COLOR_TEXT)
@@ -208,7 +208,7 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
     y -= 12
 
     # Bulto más grande y en negro
-    pdf.setFont(FONT_BOLD, 12)
+    pdf.setFont(FONT_BOLD, 14)
     _set_color(pdf, COLOR_TEXT)
 
     pdf.drawString(MARGIN, y, "Bulto")
@@ -222,7 +222,7 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
     y -= 28
 
     _set_color(pdf, COLOR_TEXT)
-    pdf.setFont(FONT_BOLD, 13)
+    pdf.setFont(FONT_BOLD, 15)
     pdf.drawString(width - 200, y, "Bruto")
     pdf.drawRightString(width - MARGIN, y, _money(invoice.get("gross_total") or 0))
 
@@ -235,14 +235,14 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
             else "Descuento"
         )
 
-        pdf.setFont(FONT_REGULAR, 11)
+        pdf.setFont(FONT_REGULAR, 13)
         _set_color(pdf, COLOR_MUTED)
         pdf.drawString(width - 200, y, clean_cell_text(discount_label))
         pdf.drawRightString(width - MARGIN, y, _money(invoice.get("discount_total") or 0))
 
         y -= 20
 
-    pdf.setFont(FONT_BOLD, 15)
+    pdf.setFont(FONT_BOLD, 17)
     _set_color(pdf, COLOR_TEXT)
     pdf.drawString(width - 200, y, "Total")
     pdf.drawRightString(width - MARGIN, y, _money(invoice.get("final_total") or 0))
