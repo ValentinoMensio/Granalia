@@ -20,6 +20,7 @@ MAX_PRODUCT_OFFERINGS = 100
 NonEmptyStr = Annotated[str, Field(min_length=1, max_length=MAX_NAME_LENGTH)]
 OfferingLabelStr = Annotated[str, Field(min_length=1, max_length=120)]
 NonNegativeInt = Annotated[int, Field(ge=0)]
+NonNegativeNumber = Annotated[float, Field(ge=0)]
 
 
 def _strip_required(value: str) -> str:
@@ -54,9 +55,14 @@ class FooterDiscount(BaseModel):
 class InvoiceItemInput(BaseModel):
     product_id: int
     offering_id: int
-    quantity: NonNegativeInt
+    quantity: NonNegativeNumber
     bonus_quantity: NonNegativeInt = 0
     unit_price: NonNegativeInt | None = None
+
+    @field_validator("bonus_quantity", mode="before")
+    @classmethod
+    def normalize_quantity(cls, value: Any) -> int:
+        return round(float(value or 0))
 
 
 class AutomaticBonusRule(BaseModel):
@@ -257,7 +263,7 @@ class InvoiceSummaryOut(BaseModel):
     gross_total: int
     discount_total: int
     final_total: int
-    total_bultos: int
+    total_bultos: float
 
 
 class InvoiceListItemOut(BaseModel):
@@ -267,7 +273,7 @@ class InvoiceListItemOut(BaseModel):
     client_name: str
     transport: str = ""
     order_date: str
-    total_bultos: int
+    total_bultos: float
     gross_total: int
     discount_total: int
     final_total: int
@@ -283,7 +289,7 @@ class InvoiceItemOut(BaseModel):
     product_id: int | None = None
     offering_id: int | None = None
     label: str
-    quantity: int
+    quantity: float
     unit_price: int
     gross: int
     discount: int
@@ -304,7 +310,7 @@ class InvoiceDetailOut(BaseModel):
     notes: list[str] = Field(default_factory=list)
     footer_discounts: list[FooterDiscount] = Field(default_factory=list)
     line_discounts_by_format: dict[str, float] = Field(default_factory=dict)
-    total_bultos: int
+    total_bultos: float
     gross_total: int
     discount_total: int
     final_total: int

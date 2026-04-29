@@ -1,6 +1,6 @@
 import Button from '../ui/Button'
 import Metric from '../ui/Metric'
-import { money } from '../../lib/format'
+import { isX1KgLabel, money } from '../../lib/format'
 
 function optionsWithHistoricalSelection(options, selectedId, selectedLabel) {
   if (!selectedId || options.some((entry) => String(entry.id) === String(selectedId))) {
@@ -14,6 +14,12 @@ function productsWithHistoricalSelection(catalog, selectedId, selectedName) {
     return catalog
   }
   return [...catalog, { id: selectedId, name: `${selectedName || 'Producto anterior'} (inactivo)`, offerings: [] }]
+}
+
+function parseQuantityInput(value, allowsFractionalQuantity) {
+  if (value === '') return 0
+  const quantity = Number(value)
+  return allowsFractionalQuantity ? quantity : Math.round(quantity)
 }
 
 function ProductRowsCard({
@@ -81,6 +87,7 @@ function ProductRowsCard({
                 const product = productsById[item.product_id]
                 const offeringOptions = optionsWithHistoricalSelection(product?.offerings || [], item.offering_id, item.offering_label)
                 const offering = offeringOptions.find((entry) => String(entry.id) === String(item.offering_id))
+                const allowsFractionalQuantity = isX1KgLabel(offering?.label || item.offering_label)
                 const price = item.unit_price === '' || item.unit_price === undefined ? Number(offering?.price || 0) : Number(item.unit_price || 0)
                 const quantity = Number(item.quantity || 0)
                 const rowTotal = quantity * price
@@ -135,9 +142,10 @@ function ProductRowsCard({
                         className="input w-full min-w-0"
                         type="number"
                         min="0"
+                        step={allowsFractionalQuantity ? '0.01' : '1'}
                         value={item.quantity || ''}
                         onChange={(event) =>
-                          onUpdateItem(index, 'quantity', event.target.value === '' ? 0 : Number(event.target.value))
+                          onUpdateItem(index, 'quantity', parseQuantityInput(event.target.value, allowsFractionalQuantity))
                         }
                       />
                     </td>
@@ -147,9 +155,10 @@ function ProductRowsCard({
                         className="input w-full min-w-0"
                         type="number"
                         min="0"
+                        step="1"
                         value={item.bonus_quantity || ''}
                         onChange={(event) =>
-                          onUpdateItem(index, 'bonus_quantity', event.target.value === '' ? 0 : Number(event.target.value))
+                          onUpdateItem(index, 'bonus_quantity', event.target.value === '' ? 0 : Math.round(Number(event.target.value)))
                         }
                       />
                     </td>
@@ -191,6 +200,7 @@ function ProductRowsCard({
             const product = productsById[item.product_id]
             const offeringOptions = optionsWithHistoricalSelection(product?.offerings || [], item.offering_id, item.offering_label)
             const offering = offeringOptions.find((entry) => String(entry.id) === String(item.offering_id))
+            const allowsFractionalQuantity = isX1KgLabel(offering?.label || item.offering_label)
             const price = item.unit_price === '' || item.unit_price === undefined ? Number(offering?.price || 0) : Number(item.unit_price || 0)
             const quantity = Number(item.quantity || 0)
             const rowTotal = quantity * price
@@ -256,9 +266,10 @@ function ProductRowsCard({
                         className="input w-full min-w-0"
                         type="number"
                         min="0"
+                        step={allowsFractionalQuantity ? '0.01' : '1'}
                         value={item.quantity || ''}
                         onChange={(event) =>
-                          onUpdateItem(index, 'quantity', event.target.value === '' ? 0 : Number(event.target.value))
+                          onUpdateItem(index, 'quantity', parseQuantityInput(event.target.value, allowsFractionalQuantity))
                         }
                       />
                     </div>
@@ -271,9 +282,10 @@ function ProductRowsCard({
                         className="input w-full min-w-0"
                         type="number"
                         min="0"
+                        step="1"
                         value={item.bonus_quantity || ''}
                         onChange={(event) =>
-                          onUpdateItem(index, 'bonus_quantity', event.target.value === '' ? 0 : Number(event.target.value))
+                          onUpdateItem(index, 'bonus_quantity', event.target.value === '' ? 0 : Math.round(Number(event.target.value)))
                         }
                       />
                     </div>

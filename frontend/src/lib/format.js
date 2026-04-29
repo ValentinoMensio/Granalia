@@ -45,12 +45,17 @@ const discountKeyForLabel = (label) => {
   if (text.includes('12x300')) return 'Pack 300/350/400 gr'
   if (text.includes('12x350') || text.includes('12x400')) return 'Pack 300/350/400 gr'
   if (text.includes('10x500') || text.includes('12x500')) return 'Pack 500 gr'
-  if (text.includes('10x1 kg') || text.includes('10x1000') || text.includes('10x 1 kg')) return 'Pack 1 kg'
+  if (text.includes('10x1 kg') || text.includes('10x1000') || text.includes('10x 1 kg') || text.includes('x 1 kg') || text.includes('x1 kg') || text.includes('x1kg')) return 'Pack 1 kg'
   if (text.includes('x 4 kg') || text.includes('x4 kg')) return 'Bolsa 4 kg'
   if (text.includes('x 5 kg') || text.includes('x5 kg')) return 'Bolsa 5 kg'
   if (text.includes('x 25 kg') || text.includes('x25 kg')) return 'Bolsa 25 kg'
   if (text.includes('x 30 kg') || text.includes('x30 kg')) return 'Bolsa 30 kg'
   return String(label || '').trim() || 'Otros'
+}
+
+const isX1KgLabel = (label) => {
+  const text = String(label || '').toLowerCase().trim()
+  return text.includes('x 1 kg') || text.includes('x1 kg') || text.includes('x1kg')
 }
 
 const summarizeDiscounts = (customer) => {
@@ -99,4 +104,4 @@ const summarizeAutomaticBonuses = (customer, catalog = []) => {
     .join(', ')
 }
 
-export { discountKeyForLabel, emptyItem, money, normalize, percent, summarizeAutomaticBonuses, summarizeDiscounts }
+export { discountKeyForLabel, emptyItem, isX1KgLabel, money, normalize, percent, summarizeAutomaticBonuses, summarizeDiscounts }

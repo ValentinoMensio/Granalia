@@ -96,7 +96,7 @@ class CatalogProduct:
 class OrderItem:
     product_id: int
     offering_id: int
-    quantity: int
+    quantity: float
     bonus_quantity: int = 0
     unit_price: int | None = None
 
@@ -105,7 +105,7 @@ class OrderItem:
         return cls(
             product_id=int(data["product_id"]),
             offering_id=int(data["offering_id"]),
-            quantity=int(data["quantity"]),
+            quantity=float(data["quantity"]),
             bonus_quantity=int(data.get("bonus_quantity", 0)),
             unit_price=int(data["unit_price"]) if data.get("unit_price") is not None else None,
         )
@@ -190,7 +190,7 @@ class InvoiceRow:
     product_id: int | None
     offering_id: int | None
     label: str
-    quantity: int
+    quantity: float
     unit_price: int
     gross: int
     discount: int
@@ -205,7 +205,7 @@ class InvoiceSummary:
     gross_total: int
     discount_total: int
     final_total: int
-    total_bultos: int
+    total_bultos: float
 
     def to_data(self) -> InvoiceSummaryData:
         return asdict(self)

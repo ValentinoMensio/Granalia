@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
+from decimal import Decimal
 from typing import Any
 
 from ..types import CustomerProfileData
@@ -37,6 +38,8 @@ def serialize_value(value: Any) -> Any:
         return value.tobytes()
     if isinstance(value, bytes):
         return value
+    if isinstance(value, Decimal):
+        return float(value)
     if isinstance(value, list):
         return [serialize_value(item) for item in value]
     if isinstance(value, dict):

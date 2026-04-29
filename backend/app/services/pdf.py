@@ -9,7 +9,7 @@ from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen import canvas
 
-from ..core.utils import clean_cell_text
+from ..core.utils import clean_cell_text, format_quantity
 from ..dependencies import BASE_DIR
 
 
@@ -208,7 +208,7 @@ def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: in
     )
 
     pdf.drawString(MARGIN, y, label)
-    pdf.drawCentredString(MARGIN + 285, y, str(item.get("quantity") or 0))
+    pdf.drawCentredString(MARGIN + 285, y, format_quantity(item.get("quantity") or 0))
     pdf.drawRightString(MARGIN + 405, y, _money(item.get("unit_price") or 0))
     pdf.drawRightString(width - MARGIN, y, _money(item.get("total") or 0))
 
@@ -217,7 +217,7 @@ def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: in
 def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> float:
     totals_label_x = width - 240
     total_bultos = sum(
-        int(item.get("quantity") or 0)
+        float(item.get("quantity") or 0)
         for item in invoice.get("items", [])
     )
 
@@ -229,7 +229,7 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
     _set_color(pdf, COLOR_TEXT)
 
     pdf.drawString(MARGIN, y, "Bulto")
-    pdf.drawCentredString(MARGIN + 285, y, str(total_bultos))
+    pdf.drawCentredString(MARGIN + 285, y, format_quantity(total_bultos))
 
     y -= 16
     _line(pdf, MARGIN, y, width - MARGIN)

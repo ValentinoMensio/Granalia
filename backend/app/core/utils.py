@@ -63,6 +63,18 @@ def discount_key_for_label(label: str) -> str:
     return clean_cell_text(label) or "Otros"
 
 
+def is_x1kg_label(label: str) -> bool:
+    text = normalize_text(label)
+    return "x 1 kg" in text or "x1 kg" in text or "x1kg" in text
+
+
+def format_quantity(value: float | int) -> str:
+    quantity = float(value or 0)
+    if quantity.is_integer():
+        return str(int(quantity))
+    return f"{quantity:.2f}".rstrip("0").rstrip(".")
+
+
 def safe_filename(value: str) -> str:
     text = clean_cell_text(value)
     text = re.sub(r"[\\/:*?\"<>|]", "-", text)

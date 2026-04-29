@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import BigInteger, Boolean, CheckConstraint, Column, Date, DateTime, ForeignKey, Integer, LargeBinary, MetaData, String, Table, Text, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, Column, Date, DateTime, ForeignKey, Integer, LargeBinary, MetaData, Numeric, String, Table, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 
 
@@ -128,7 +128,7 @@ def build_metadata() -> tuple[MetaData, dict[str, Table]]:
             Column("notes", JSONB, nullable=False),
             Column("footer_discounts", JSONB, nullable=False),
             Column("line_discounts_by_format", JSONB, nullable=False),
-            Column("total_bultos", Integer, nullable=False),
+            Column("total_bultos", Numeric(12, 2), nullable=False),
             Column("gross_total", Integer, nullable=False),
             Column("discount_total", Integer, nullable=False),
             Column("final_total", Integer, nullable=False),
@@ -163,7 +163,7 @@ def build_metadata() -> tuple[MetaData, dict[str, Table]]:
             Column("product_id", BigInteger, ForeignKey("products.id", ondelete="SET NULL")),
             Column("offering_id", BigInteger, ForeignKey("product_offerings.id", ondelete="SET NULL")),
             Column("label", Text, nullable=False),
-            Column("quantity", Integer, nullable=False),
+            Column("quantity", Numeric(12, 2), nullable=False),
             Column("unit_price", Integer, nullable=False),
             Column("gross", Integer, nullable=False),
             Column("discount", Integer, nullable=False),

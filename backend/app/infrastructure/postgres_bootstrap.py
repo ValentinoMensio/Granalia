@@ -25,6 +25,7 @@ class PostgresBootstrapMixin(PostgresRepositoryProtocol):
         now = utc_now()
         with self.engine.begin() as connection:
             self._ensure_customer_billing_fields(connection=connection)
+            self._ensure_fractional_invoice_quantities(connection=connection)
 
             active_catalog = connection.execute(
                 select(self.catalogs.c.catalog).where(self.catalogs.c.active.is_(True)).order_by(self.catalogs.c.id.desc()).limit(1)

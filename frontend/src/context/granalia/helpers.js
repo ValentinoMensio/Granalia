@@ -1,4 +1,4 @@
-import { discountKeyForLabel } from '../../lib/format'
+import { discountKeyForLabel, isX1KgLabel } from '../../lib/format'
 
 function splitNotes(value) {
   return String(value || '')
@@ -69,6 +69,15 @@ function normalizeAutomaticBonusRules(rules) {
       bonus_quantity: Number(rule.bonus_quantity || 0),
     }))
     .filter((rule) => rule.buy_quantity > 0 && rule.bonus_quantity > 0)
+}
+
+function toNonNegativeInteger(value) {
+  return Math.max(0, Math.round(Number(value || 0)))
+}
+
+function toQuantity(value, label) {
+  const quantity = Math.max(0, Number(value || 0))
+  return isX1KgLabel(label) ? quantity : Math.round(quantity)
 }
 
 function matchingAutomaticBonusRule(item, rules) {
@@ -164,8 +173,8 @@ function buildInvoicePayload(form, currentCustomer) {
         .map((item) => ({
           product_id: item.product_id,
           offering_id: item.offering_id,
-          quantity: item.quantity,
-          bonus_quantity: item.bonus_quantity,
+          quantity: toQuantity(item.quantity, item.offering_label),
+          bonus_quantity: toNonNegativeInteger(item.bonus_quantity),
           unit_price: item.unit_price === '' || item.unit_price === undefined ? undefined : Number(item.unit_price || 0),
         })),
     },

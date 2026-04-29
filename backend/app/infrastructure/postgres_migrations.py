@@ -49,6 +49,23 @@ class PostgresMigrationMixin(PostgresRepositoryProtocol):
             ).scalar()
         )
 
+    def _is_numeric_column(self, connection, table_name: str, column_name: str) -> bool:
+        return bool(
+            connection.execute(
+                text(
+                    """
+                    select 1
+                    from information_schema.columns
+                    where table_schema = 'public'
+                      and table_name = :table_name
+                      and column_name = :column_name
+                      and data_type = 'numeric'
+                    """
+                ),
+                {"table_name": table_name, "column_name": column_name},
+            ).scalar()
+        )
+
     def _ensure_customer_billing_fields(self, *, connection) -> None:
         if not self._table_exists(connection, "customers"):
             return
@@ -443,6 +460,12 @@ class PostgresMigrationMixin(PostgresRepositoryProtocol):
                 .where(self.invoices.c.id == row["id"])
                 .values(transport_id=transport_id)
             )
+
+    def _ensure_fractional_invoice_quantities(self, *, connection) -> None:
+        if self._table_exists(connection, "invoice_items") and not self._is_numeric_column(connection, "invoice_items", "quantity"):
+            connection.execute(text("ALTER TABLE invoice_items ALTER COLUMN quantity TYPE NUMERIC(12, 2) USING quantity::numeric"))
+        if self._table_exists(connection, "invoices") and not self._is_numeric_column(connection, "invoices", "total_bultos"):
+            connection.execute(text("ALTER TABLE invoices ALTER COLUMN total_bultos TYPE NUMERIC(12, 2) USING total_bultos::numeric"))
 
     def _drop_transport_redundancy(self, *, connection) -> None:
         if self._table_exists(connection, "customers"):
