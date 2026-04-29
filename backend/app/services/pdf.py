@@ -22,8 +22,11 @@ FONT_BOLD = "Helvetica-Bold"
 COLOR_TEXT = (0.02, 0.02, 0.02)
 COLOR_MUTED = (0.28, 0.28, 0.28)
 COLOR_LINE = (0.25, 0.25, 0.25)
-COLOR_HEADER_BG = (0.62, 0.66, 0.72)
-COLOR_ROW_BG = (0.72, 0.76, 0.82)
+COLOR_HEADER_BG = (0.86, 0.88, 0.91)
+COLOR_ROW_BG = (0.92, 0.94, 0.97)
+TABLE_PAD_X = 2
+ITEM_FONT_SIZE = 10
+ITEM_ROW_HEIGHT = 16
 
 def _money(value: int | float) -> str:
     return f"$ {int(round(value or 0)):,}".replace(",", ".")
@@ -161,20 +164,35 @@ def _draw_invoice_info(pdf: canvas.Canvas, invoice: dict, y: float) -> float:
     return y - 28
 
 
-def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: int) -> float:
-    font_size = 14
-    row_height = 24
+def _draw_items_header(pdf: canvas.Canvas, width: float, y: float) -> float:
+    pdf.setFillColorRGB(*COLOR_HEADER_BG)
+    pdf.rect(MARGIN - TABLE_PAD_X, y - 12, width - (MARGIN * 2) + (TABLE_PAD_X * 2), 30, stroke=0, fill=1)
 
-    bg_top = 8
-    bg_height = row_height
+    pdf.setFont(FONT_BOLD, 16)
+    _set_color(pdf, COLOR_TEXT)
+
+    pdf.drawString(MARGIN, y, "Producto")
+    pdf.drawCentredString(MARGIN + 285, y, "Cant.")
+    pdf.drawRightString(MARGIN + 405, y, "Precio")
+    pdf.drawRightString(width - MARGIN, y, "Total")
+
+    y -= 12
+    _line(pdf, MARGIN, y, width - MARGIN)
+
+    return y - 18
+
+
+def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: int) -> float:
+    font_size = ITEM_FONT_SIZE
+    row_height = ITEM_ROW_HEIGHT
 
     if index % 2:
         pdf.setFillColorRGB(*COLOR_ROW_BG)
         pdf.rect(
-            MARGIN - 6,
-            y - bg_top,
-            width - (MARGIN * 2) + 12,
-            bg_height,
+            MARGIN - TABLE_PAD_X,
+            y - 4,
+            width - (MARGIN * 2) + (TABLE_PAD_X * 2),
+            row_height,
             stroke=0,
             fill=1,
         )
@@ -186,33 +204,7 @@ def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: in
         str(item.get("label") or ""),
         FONT_REGULAR,
         font_size,
-        max_width=260,
-    )
-
-    pdf.drawString(MARGIN, y, label)
-    pdf.drawCentredString(MARGIN + 285, y, str(item.get("quantity") or 0))
-    pdf.drawRightString(MARGIN + 405, y, _money(item.get("unit_price") or 0))
-    pdf.drawRightString(width - MARGIN, y, _money(item.get("total") or 0))
-
-    return y - row_height
-
-
-def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: int) -> float:
-    font_size = 14
-    row_height = 25
-
-    if index % 2:
-        pdf.setFillColorRGB(*COLOR_ROW_BG)
-        pdf.rect(MARGIN - 6, y - 9, width - (MARGIN * 2) + 12, 27, stroke=0, fill=1)
-
-    pdf.setFont(FONT_REGULAR, font_size)
-    _set_color(pdf, COLOR_TEXT)
-
-    label = _truncate(
-        str(item.get("label") or ""),
-        FONT_REGULAR,
-        font_size,
-        max_width=260,
+        max_width=280,
     )
 
     pdf.drawString(MARGIN, y, label)
