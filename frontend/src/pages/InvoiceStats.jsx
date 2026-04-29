@@ -264,7 +264,7 @@ function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false
         )}
       </div>
 
-      <div className="table-shell hidden max-h-[30rem] overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable] sm:block">
+      <div className="stats-table-scroll table-shell hidden max-h-[30rem] overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable] sm:block">
         <table className="table-base !min-w-0 table-fixed text-xs sm:text-sm">
           <colgroup>
             <col className={showWeight ? 'w-[30%]' : 'w-[34%]'} />

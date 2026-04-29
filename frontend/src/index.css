@@ -283,6 +283,25 @@
     @apply px-4 py-3 align-middle;
   }
 
+  .stats-table-scroll {
+    scrollbar-color: rgb(var(--border)) rgb(var(--surface));
+  }
+
+  .stats-table-scroll::-webkit-scrollbar {
+    width: 12px;
+    background: rgb(var(--surface));
+  }
+
+  .stats-table-scroll::-webkit-scrollbar-track {
+    background: rgb(var(--surface));
+  }
+
+  .stats-table-scroll::-webkit-scrollbar-thumb {
+    border: 3px solid rgb(var(--surface));
+    border-radius: 999px;
+    background: rgb(var(--border));
+  }
+
   .tab-nav {
     @apply flex w-full overflow-x-auto rounded-xl border p-1 sm:inline-flex sm:w-auto;
     border-color: rgb(var(--border));
