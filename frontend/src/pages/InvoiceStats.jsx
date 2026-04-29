@@ -550,7 +550,7 @@ export default function InvoiceStats() {
         <div className="mb-4 border-b border-stone-200 pb-3">
           <h2 className="subsection-title text-xl">Filtros generales</h2>
         </div>
-        <div className="grid gap-3 md:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-3">
           <input className="input" type="date" value={filters.dateFrom} onChange={(event) => updateFilter('dateFrom', event.target.value)} />
           <input className="input" type="date" value={filters.dateTo} onChange={(event) => updateFilter('dateTo', event.target.value)} />
           <select className="input" value={filters.transport} onChange={(event) => updateFilter('transport', event.target.value)}>
@@ -559,7 +559,6 @@ export default function InvoiceStats() {
               <option key={transport.transport_id} value={transport.transport_id}>{transport.name}</option>
             ))}
           </select>
-          <Button variant="secondary" onClick={() => setFilters(EMPTY_FILTERS)}>Limpiar</Button>
         </div>
 
         <div className="mt-4 space-y-3">
@@ -577,7 +576,10 @@ export default function InvoiceStats() {
               </Button>
             </div>
           ))}
-          <Button variant="ghost" onClick={addCustomerFilter}>+ Agregar cliente</Button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button variant="ghost" onClick={addCustomerFilter}>+ Agregar cliente</Button>
+            <Button variant="secondary" onClick={() => setFilters(EMPTY_FILTERS)}>Limpiar</Button>
+          </div>
         </div>
       </section>
 
