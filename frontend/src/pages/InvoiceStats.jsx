@@ -173,7 +173,7 @@ function buildCustomerProductRanking(items) {
     .sort((a, b) => b.total - a.total)
 }
 
-function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false, onRowClick, selectedLabel = '' }) {
+function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false, onRowClick, selectedLabel = '', embedded = false }) {
   const [sort, setSort] = useState({ key: 'total', direction: 'desc' })
   const columns = [
     { key: 'label', label: 'Grupo', align: 'left' },
@@ -207,7 +207,7 @@ function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false
   }
 
   return (
-    <section className="surface p-4 pr-5 sm:p-6 sm:pr-8">
+    <section className={embedded ? '' : 'surface p-4 pr-5 sm:p-6 sm:pr-8'}>
       <div className="mb-4 flex items-start justify-between gap-3 border-b border-stone-200 pb-3">
         <h2 className="subsection-title text-xl">{title}</h2>
         <div className="badge">{rows.length} filas</div>
@@ -268,14 +268,14 @@ function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false
   )
 }
 
-function MonthlyBarChart({ rows, year }) {
+function MonthlyBarChart({ rows, year, embedded = false }) {
   const safeRows = Array.isArray(rows) ? rows : []
   const maxTotal = safeRows.reduce((max, row) => Math.max(max, Number(row?.total || 0)), 0)
   const chartMax = maxTotal || 1
   const ticks = [1, 0.75, 0.5, 0.25, 0]
 
   return (
-    <section className="surface p-4 pr-5 sm:p-6 sm:pr-8">
+    <section className={embedded ? '' : 'surface p-4 pr-5 sm:p-6 sm:pr-8'}>
       <div className="mb-4 flex items-start justify-between gap-3 border-b border-stone-200 pb-3">
         <h2 className="subsection-title text-xl">Evolución mensual {year}</h2>
         <div className="badge">12 meses</div>
@@ -495,28 +495,36 @@ export default function InvoiceStats() {
         <Metric label="Clientes con facturas" value={money(new Set(filteredInvoices.map((invoice) => invoice.customer_id || invoice.client_name)).size)} />
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div className="space-y-6">
         <RankingTable title="Ranking por cliente" rows={byCustomer} showWeight={hasProductFilter} />
-        <RankingTable
-          title={loadingItems ? 'Total por producto (cargando...)' : 'Total por producto'}
-          rows={byProductTotal}
-          countLabel="Líneas"
-          showWeight
-          selectedLabel={selectedProductLabel}
-          onRowClick={(row) => setSelectedProductLabel((current) => current === row.label ? '' : row.label)}
-        />
-        <RankingTable
-          title={selectedProductLabel ? `Desglose por formato: ${selectedProductLabel}` : 'Desglose por formato'}
-          rows={selectedProductFormats}
-          countLabel="Líneas"
-          showWeight
-        />
-        <div className="xl:col-span-2">
-          <RankingTable title="Totales por mes" rows={byMonth} />
-        </div>
-        <div className="xl:col-span-2">
-          <MonthlyBarChart rows={monthlyChartRows} year={chartYear} />
-        </div>
+
+        <section className="surface p-4 pr-5 sm:p-6 sm:pr-8">
+          <div className="grid gap-6 xl:grid-cols-2">
+            <RankingTable
+              title={loadingItems ? 'Total por producto (cargando...)' : 'Total por producto'}
+              rows={byProductTotal}
+              countLabel="Líneas"
+              showWeight
+              selectedLabel={selectedProductLabel}
+              embedded
+              onRowClick={(row) => setSelectedProductLabel((current) => current === row.label ? '' : row.label)}
+            />
+            <RankingTable
+              title={selectedProductLabel ? `Desglose por formato: ${selectedProductLabel}` : 'Desglose por formato'}
+              rows={selectedProductFormats}
+              countLabel="Líneas"
+              showWeight
+              embedded
+            />
+          </div>
+        </section>
+
+        <section className="surface p-4 pr-5 sm:p-6 sm:pr-8">
+          <RankingTable title="Totales por mes" rows={byMonth} embedded />
+          <div className="mt-6 border-t border-stone-200 pt-6">
+            <MonthlyBarChart rows={monthlyChartRows} year={chartYear} embedded />
+          </div>
+        </section>
       </div>
     </div>
   )
