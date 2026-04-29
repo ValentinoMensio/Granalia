@@ -19,7 +19,6 @@ MARGIN = 36
 FONT_REGULAR = "Helvetica"
 FONT_BOLD = "Helvetica-Bold"
 
-# Colores con más contraste
 COLOR_TEXT = (0.02, 0.02, 0.02)
 COLOR_MUTED = (0.28, 0.28, 0.28)
 COLOR_LINE = (0.55, 0.55, 0.55)
@@ -164,16 +163,8 @@ def _draw_invoice_info(pdf: canvas.Canvas, invoice: dict, y: float) -> float:
 
 
 def _draw_items_header(pdf: canvas.Canvas, width: float, y: float) -> float:
-    # Encabezado más alto y con fondo más contrastado
     pdf.setFillColorRGB(*COLOR_HEADER_BG)
-    pdf.rect(
-        MARGIN - 6,
-        y - 14,
-        width - (MARGIN * 2) + 12,
-        34,
-        stroke=0,
-        fill=1,
-    )
+    pdf.rect(MARGIN - 6, y - 14, width - (MARGIN * 2) + 12, 34, stroke=0, fill=1)
 
     pdf.setFont(FONT_BOLD, 16)
     _set_color(pdf, COLOR_TEXT)
@@ -183,33 +174,19 @@ def _draw_items_header(pdf: canvas.Canvas, width: float, y: float) -> float:
     pdf.drawRightString(MARGIN + 405, y, "Precio")
     pdf.drawRightString(width - MARGIN, y, "Total")
 
-    # Línea inferior del encabezado más visible
     y -= 14
-    pdf.setStrokeColorRGB(0.35, 0.35, 0.35)
-    pdf.setLineWidth(1)
-    pdf.line(MARGIN, y, width - MARGIN)
-
-    _set_color(pdf, COLOR_TEXT)
+    _line(pdf, MARGIN, y, width - MARGIN)
 
     return y - 24
 
 
 def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: int) -> float:
     font_size = 14
-
-    # Más interlineado entre productos
     row_height = 30
 
     if index % 2:
         pdf.setFillColorRGB(*COLOR_ROW_BG)
-        pdf.rect(
-            MARGIN - 6,
-            y - 9,
-            width - (MARGIN * 2) + 12,
-            27,
-            stroke=0,
-            fill=1,
-        )
+        pdf.rect(MARGIN - 6, y - 9, width - (MARGIN * 2) + 12, 27, stroke=0, fill=1)
 
     pdf.setFont(FONT_REGULAR, font_size)
     _set_color(pdf, COLOR_TEXT)
@@ -227,7 +204,6 @@ def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: in
     pdf.drawRightString(width - MARGIN, y, _money(item.get("total") or 0))
 
     return y - row_height
-
 
 def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> float:
     totals_label_x = width - 240
@@ -267,11 +243,7 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
 
         pdf.setFont(FONT_REGULAR, 13)
         _set_color(pdf, COLOR_MUTED)
-        pdf.drawString(
-            totals_label_x,
-            y,
-            _truncate(clean_cell_text(discount_label), FONT_REGULAR, 13, 210),
-        )
+        pdf.drawString(totals_label_x, y, _truncate(clean_cell_text(discount_label), FONT_REGULAR, 13, 210))
         pdf.drawRightString(width - MARGIN, y, _money(invoice.get("discount_total") or 0))
 
         y -= 20
@@ -282,7 +254,6 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
     pdf.drawRightString(width - MARGIN, y, _money(invoice.get("final_total") or 0))
 
     return y - 20
-
 
 def _draw_notes(pdf: canvas.Canvas, invoice: dict, y: float) -> float:
     notes = invoice.get("notes") or []
