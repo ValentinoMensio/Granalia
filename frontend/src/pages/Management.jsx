@@ -8,7 +8,7 @@ import PageSectionHeader from '../components/ui/PageSectionHeader'
 import PriceListPanel from '../components/sidebar/PriceListPanel'
 
 export default function Management() {
-  const { setStatus, customers, bootstrap, catalog, uploading, setPdfFile, uploadPriceList, refreshAll } = useGranalia()
+  const { setStatus, customers, bootstrap, catalog, priceListUploadName, priceListUploadTargetId, uploading, setPdfFile, setPriceListUploadName, setPriceListUploadTargetId, uploadPriceList, refreshAll } = useGranalia()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const requestedTab = searchParams.get('tab')
@@ -357,8 +357,12 @@ export default function Management() {
 
             <PriceListPanel
               bootstrap={bootstrap}
+              priceListUploadName={priceListUploadName}
+              priceListUploadTargetId={priceListUploadTargetId}
               uploading={uploading}
               onFileChange={setPdfFile}
+              onUploadNameChange={setPriceListUploadName}
+              onUploadTargetChange={setPriceListUploadTargetId}
               onUpload={uploadPriceList}
             />
           </div>

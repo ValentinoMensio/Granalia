@@ -12,7 +12,7 @@ MAX_PRICE_LIST_PDF_BYTES = 20 * 1024 * 1024
 
 
 @router.post("/upload")
-async def upload_price_list(file: UploadFile = File(...), name: str = Form(default=""), activate: bool = Form(default=True)) -> PriceListUploadOut:
+async def upload_price_list(file: UploadFile = File(...), name: str = Form(default=""), activate: bool = Form(default=True), price_list_id: int | None = Form(default=None)) -> PriceListUploadOut:
     if file.content_type not in {"application/pdf", "application/octet-stream"}:
         raise HTTPException(status_code=400, detail="El archivo debe ser PDF")
     filename = file.filename or "lista.pdf"
@@ -25,8 +25,9 @@ async def upload_price_list(file: UploadFile = File(...), name: str = Form(defau
         raise HTTPException(status_code=413, detail="El PDF no puede superar 20 MB")
     repository = get_repository()
     list_name = name.strip() or filename
-    price_list = repository.save_price_list(filename, pdf_bytes, activate=activate, source="upload", name=list_name)
-    updated_catalog = build_catalog_snapshot_from_pdf(pdf_bytes, repository.get_active_catalog())
+    price_list = repository.save_price_list(filename, pdf_bytes, activate=activate, source="upload", name=list_name if price_list_id is None else None, price_list_id=price_list_id)
+    base_catalog = repository.get_catalog_for_price_list(price_list_id) if price_list_id is not None else repository.get_active_catalog()
+    updated_catalog = build_catalog_snapshot_from_pdf(pdf_bytes, base_catalog)
     repository.replace_active_catalog(updated_catalog, name=f"Catalogo desde {list_name}", price_list_id=int(price_list["id"]), active=activate)
     return PriceListUploadOut.model_validate({"bootstrap": repository.bootstrap_payload()})
 

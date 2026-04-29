@@ -25,6 +25,8 @@ function useGranaliaData() {
   const [saving, setSaving] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [pdfFile, setPdfFile] = useState(null)
+  const [priceListUploadName, setPriceListUploadName] = useState('')
+  const [priceListUploadTargetId, setPriceListUploadTargetId] = useState('')
   const [form, setForm] = useState(createInitialForm)
 
   const productsById = useMemo(() => buildProductsById(catalog), [catalog])
@@ -343,13 +345,18 @@ function useGranaliaData() {
     try {
       const formData = new FormData()
       formData.append('file', pdfFile)
-      formData.append('name', pdfFile.name.replace(/\.pdf$/i, ''))
+      formData.append('name', priceListUploadName.trim() || pdfFile.name.replace(/\.pdf$/i, ''))
       formData.append('activate', 'true')
+      if (priceListUploadTargetId) {
+        formData.append('price_list_id', priceListUploadTargetId)
+      }
       const data = await request('/api/price-lists/upload', { method: 'POST', body: formData })
       applyBootstrap(data.bootstrap)
       setForm((current) => ({ ...current, priceListId: data.bootstrap?.price_list?.id ? String(data.bootstrap.price_list.id) : current.priceListId }))
       setStatus('Lista de precios actualizada en la base.')
       setPdfFile(null)
+      setPriceListUploadName('')
+      setPriceListUploadTargetId('')
     } finally {
       setUploading(false)
     }
@@ -409,11 +416,15 @@ function useGranaliaData() {
     saving,
     generating,
     pdfFile,
+    priceListUploadName,
+    priceListUploadTargetId,
     form,
     productsById,
     totals,
     availableDiscountGroups,
     setPdfFile,
+    setPriceListUploadName,
+    setPriceListUploadTargetId,
     setStatus,
     loadInvoiceDetail,
     clearInvoiceDetail,

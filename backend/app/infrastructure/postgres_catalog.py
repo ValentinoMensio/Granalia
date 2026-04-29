@@ -416,10 +416,18 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
         payload: PriceListMetaData = cast(PriceListMetaData, {key: serialize_value(value) for key, value in row.items()})
         return payload
 
-    def save_price_list(self, filename: str, pdf_bytes: bytes, activate: bool = True, source: str = "upload", name: str | None = None) -> PriceListMetaData:
+    def save_price_list(self, filename: str, pdf_bytes: bytes, activate: bool = True, source: str = "upload", name: str | None = None, price_list_id: int | None = None) -> PriceListMetaData:
         now = utc_now()
+        existing_name = None
+        if price_list_id is not None:
+            with self.engine.connect() as connection:
+                existing_name = connection.execute(
+                    select(self.price_lists.c.name).where(self.price_lists.c.id == price_list_id)
+                ).scalar_one_or_none()
+            if existing_name is None:
+                raise RuntimeError("Lista de precios no encontrada")
         payload = {
-            "name": name or filename,
+            "name": name or existing_name or filename,
             "filename": filename,
             "content_type": "application/pdf",
             "size": len(pdf_bytes),
@@ -432,8 +440,12 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
         with self.engine.begin() as connection:
             if activate:
                 connection.execute(update(self.price_lists).where(self.price_lists.c.active.is_(True)).values(active=False, updated_at=now))
-            inserted = connection.execute(self.price_lists.insert().values(**payload).returning(self.price_lists.c.id)).scalar_one()
-            payload["id"] = inserted
+            if price_list_id is not None:
+                connection.execute(update(self.price_lists).where(self.price_lists.c.id == price_list_id).values(**payload))
+                payload["id"] = price_list_id
+            else:
+                inserted = connection.execute(self.price_lists.insert().values(**payload).returning(self.price_lists.c.id)).scalar_one()
+                payload["id"] = inserted
         payload.pop("pdf_data", None)
         return cast(PriceListMetaData, serialize_value(payload))
 
