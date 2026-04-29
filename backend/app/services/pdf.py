@@ -161,22 +161,40 @@ def _draw_invoice_info(pdf: canvas.Canvas, invoice: dict, y: float) -> float:
     return y - 28
 
 
-def _draw_items_header(pdf: canvas.Canvas, width: float, y: float) -> float:
-    pdf.setFillColorRGB(*COLOR_HEADER_BG)
-    pdf.rect(MARGIN - 6, y - 14, width - (MARGIN * 2) + 12, 34, stroke=0, fill=1)
+def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: int) -> float:
+    font_size = 14
+    row_height = 24
 
-    pdf.setFont(FONT_BOLD, 16)
+    bg_top = 8
+    bg_height = row_height
+
+    if index % 2:
+        pdf.setFillColorRGB(*COLOR_ROW_BG)
+        pdf.rect(
+            MARGIN - 6,
+            y - bg_top,
+            width - (MARGIN * 2) + 12,
+            bg_height,
+            stroke=0,
+            fill=1,
+        )
+
+    pdf.setFont(FONT_REGULAR, font_size)
     _set_color(pdf, COLOR_TEXT)
 
-    pdf.drawString(MARGIN, y, "Producto")
-    pdf.drawCentredString(MARGIN + 285, y, "Cant.")
-    pdf.drawRightString(MARGIN + 405, y, "Precio")
-    pdf.drawRightString(width - MARGIN, y, "Total")
+    label = _truncate(
+        str(item.get("label") or ""),
+        FONT_REGULAR,
+        font_size,
+        max_width=260,
+    )
 
-    y -= 14
-    _line(pdf, MARGIN, y, width - MARGIN)
+    pdf.drawString(MARGIN, y, label)
+    pdf.drawCentredString(MARGIN + 285, y, str(item.get("quantity") or 0))
+    pdf.drawRightString(MARGIN + 405, y, _money(item.get("unit_price") or 0))
+    pdf.drawRightString(width - MARGIN, y, _money(item.get("total") or 0))
 
-    return y - 24
+    return y - row_height
 
 
 def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: int) -> float:
