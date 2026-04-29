@@ -8,7 +8,7 @@ import PageSectionHeader from '../components/ui/PageSectionHeader'
 import PriceListPanel from '../components/sidebar/PriceListPanel'
 
 export default function Management() {
-  const { setStatus, customers, bootstrap, catalog, priceListUploadName, priceListUploadTargetId, uploading, setPdfFile, setPriceListUploadName, setPriceListUploadTargetId, uploadPriceList, refreshAll } = useGranalia()
+  const { setStatus, customers, bootstrap, catalog, priceListUploadName, priceListUploadTargetId, uploading, setPdfFile, setPriceListUploadName, setPriceListUploadTargetId, uploadPriceList, deletePriceList, refreshAll } = useGranalia()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const requestedTab = searchParams.get('tab')
@@ -54,6 +54,18 @@ export default function Management() {
       setStatus(`${type} eliminado correctamente.`)
     } catch (e) {
       setStatus(`Error al eliminar: ${e.message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleDeletePriceList(priceList) {
+    if (!window.confirm(`¿Eliminar la lista de precios "${priceList.name}"? Las facturas existentes conservarán sus importes, pero quedarán sin lista asociada.`)) return
+    setLoading(true)
+    try {
+      await deletePriceList(priceList.id)
+    } catch (e) {
+      setStatus(`Error al eliminar lista: ${e.message}`)
     } finally {
       setLoading(false)
     }
@@ -360,6 +372,7 @@ export default function Management() {
               priceListUploadName={priceListUploadName}
               priceListUploadTargetId={priceListUploadTargetId}
               uploading={uploading}
+              onDelete={handleDeletePriceList}
               onFileChange={setPdfFile}
               onUploadNameChange={setPriceListUploadName}
               onUploadTargetChange={setPriceListUploadTargetId}

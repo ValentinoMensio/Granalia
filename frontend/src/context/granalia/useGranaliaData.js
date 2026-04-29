@@ -362,6 +362,20 @@ function useGranaliaData() {
     }
   }
 
+  async function deletePriceList(priceListId) {
+    if (!priceListId) return
+    await request(`/api/price-lists/${priceListId}`, { method: 'DELETE' })
+    const nextBootstrap = await request('/api/bootstrap')
+    applyBootstrap(nextBootstrap)
+    setForm((current) => ({
+      ...current,
+      priceListId: nextBootstrap.price_list?.id ? String(nextBootstrap.price_list.id) : '',
+      items: [emptyItem()],
+    }))
+    await refreshInvoices()
+    setStatus('Lista de precios eliminada.')
+  }
+
   async function generateInvoice() {
     if (!form.clientName.trim()) {
       setStatus('Ingresá un cliente.')
@@ -450,6 +464,7 @@ function useGranaliaData() {
     saveCustomer,
     updateCustomer,
     uploadPriceList,
+    deletePriceList,
     generateInvoice,
     refreshAll: loadAll,
   }

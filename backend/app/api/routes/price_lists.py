@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from ...dependencies import get_repository
-from ...schemas import MAX_NAME_LENGTH, PriceListMetaOut, PriceListUploadOut, ProductCatalogOut
+from ...schemas import MAX_NAME_LENGTH, PriceListMetaOut, PriceListUploadOut, ProductCatalogOut, StatusResponse
 from ...services.catalog import build_catalog_snapshot_from_pdf
 
 
@@ -44,3 +44,12 @@ def price_list_catalog(price_list_id: int) -> list[ProductCatalogOut]:
     except RuntimeError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
     return [ProductCatalogOut.model_validate(item) for item in catalog]
+
+
+@router.delete("/{price_list_id}", response_model=StatusResponse)
+def delete_price_list(price_list_id: int) -> StatusResponse:
+    try:
+        get_repository().delete_price_list(price_list_id)
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    return StatusResponse(status="deleted")

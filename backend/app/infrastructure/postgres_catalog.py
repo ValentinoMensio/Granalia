@@ -403,6 +403,41 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
             raise RuntimeError("Lista de precios no encontrada")
         return cast(list[CatalogProductData], serialize_value(catalog))
 
+    def delete_price_list(self, price_list_id: int) -> None:
+        now = utc_now()
+        with self.engine.begin() as connection:
+            row = connection.execute(
+                select(self.price_lists.c.id, self.price_lists.c.active).where(self.price_lists.c.id == price_list_id)
+            ).mappings().first()
+            if not row:
+                raise ValueError("Lista de precios no encontrada")
+
+            connection.execute(
+                update(self.invoices)
+                .where(self.invoices.c.price_list_id == price_list_id)
+                .values(price_list_id=None, price_list_name="")
+            )
+            connection.execute(self.catalogs.delete().where(self.catalogs.c.price_list_id == price_list_id))
+            connection.execute(self.price_lists.delete().where(self.price_lists.c.id == price_list_id))
+
+            if row["active"]:
+                replacement = connection.execute(
+                    select(self.price_lists.c.id)
+                    .order_by(self.price_lists.c.id.desc())
+                    .limit(1)
+                ).scalar_one_or_none()
+                if replacement is not None:
+                    connection.execute(
+                        update(self.price_lists)
+                        .where(self.price_lists.c.id == replacement)
+                        .values(active=True, updated_at=now)
+                    )
+                    connection.execute(
+                        update(self.catalogs)
+                        .where(self.catalogs.c.price_list_id == replacement)
+                        .values(active=True, updated_at=now)
+                    )
+
     def get_active_price_list_meta(self) -> PriceListMetaData | None:
         with self.engine.connect() as connection:
             row = connection.execute(
