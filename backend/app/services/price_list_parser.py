@@ -79,16 +79,26 @@ def _extract_numbers(line: str) -> list[int]:
 def _build_offerings(formats: list[str], numbers: list[int]) -> list[CatalogOffering]:
     offerings: list[CatalogOffering] = []
     idx = 0
+    x1kg_price: int | None = None
 
     def append_offering(id: str, label: str, price: int) -> None:
         if price > 0:
             offerings.append(CatalogOffering(id=id, label=label, price=price))
+
+    def set_x1kg_price(price: int, *, preferred: bool = False) -> None:
+        nonlocal x1kg_price
+        if price > 0 and (x1kg_price is None or preferred):
+            x1kg_price = price
+
+    def price_per_kg(price: int, grams: int) -> int:
+        return round(price * 1000 / grams)
 
     for fmt in formats:
         if fmt == "bulk":
             if idx >= len(numbers):
                 continue
             price = numbers[idx]
+            set_x1kg_price(price, preferred=True)
             append_offering("x25kg", "x 25 kg", price * 25)
             append_offering("x30kg", "x 30 kg", price * 30)
             idx += 1
@@ -97,6 +107,7 @@ def _build_offerings(formats: list[str], numbers: list[int]) -> list[CatalogOffe
             if idx >= len(numbers):
                 continue
             price = numbers[idx]
+            set_x1kg_price(price, preferred=True)
             append_offering("x25kg", "x 25 kg", price * 25)
             idx += 1
             continue
@@ -105,19 +116,28 @@ def _build_offerings(formats: list[str], numbers: list[int]) -> list[CatalogOffe
         price = numbers[idx]
         idx += 1
         if fmt == "12x400":
+            set_x1kg_price(price_per_kg(price, 400))
             append_offering("12x400", "12x400 gr", price * 12)
         elif fmt == "16x300":
+            set_x1kg_price(price_per_kg(price, 300))
             append_offering("16x300", "16x300 gr", price * 16)
         elif fmt == "12x350":
+            set_x1kg_price(price_per_kg(price, 350))
             append_offering("12x350", "12x350 gr", price * 12)
         elif fmt == "10x500":
+            set_x1kg_price(price_per_kg(price, 500))
             append_offering("10x500", "10x500 gr", price * 10)
         elif fmt == "10x1000":
+            set_x1kg_price(price, preferred=True)
             append_offering("10x1000", "10x1 kg", price * 10)
         elif fmt == "x4kg":
+            set_x1kg_price(price, preferred=True)
             append_offering("x4kg", "x 4 kg", price * 4)
         elif fmt == "x5kg":
+            set_x1kg_price(price, preferred=True)
             append_offering("x5kg", "x 5 kg", price * 5)
+    if x1kg_price is not None:
+        append_offering("x1kg", "x 1 kg", x1kg_price)
     return offerings
 
 

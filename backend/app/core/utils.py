@@ -50,7 +50,7 @@ def discount_key_for_label(label: str) -> str:
         return "Pack 300/350/400 gr"
     if "10x500" in text or "12x500" in text:
         return "Pack 500 gr"
-    if "10x1 kg" in text or "10x1000" in text or "10x 1 kg" in text:
+    if "10x1 kg" in text or "10x1000" in text or "10x 1 kg" in text or "x 1 kg" in text or "x1 kg" in text:
         return "Pack 1 kg"
     if "x 4 kg" in text or "x4 kg" in text:
         return "Bolsa 4 kg"
