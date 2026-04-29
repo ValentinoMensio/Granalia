@@ -364,15 +364,17 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
             connection.execute(self.products.delete().where(self.products.c.id == product_id))
             self._refresh_active_catalog_snapshot(connection=connection, now=now)
 
-    def replace_active_catalog(self, catalog: list[CatalogProductData], name: str = "Lista activa") -> dict[str, object]:
+    def replace_active_catalog(self, catalog: list[CatalogProductData], name: str = "Lista activa", price_list_id: int | None = None, active: bool = True) -> dict[str, object]:
         now = utc_now()
         with self.engine.begin() as connection:
-            connection.execute(update(self.catalogs).where(self.catalogs.c.active.is_(True)).values(active=False, updated_at=now))
+            if active:
+                connection.execute(update(self.catalogs).where(self.catalogs.c.active.is_(True)).values(active=False, updated_at=now))
             self._sync_catalog_tables(catalog, connection=connection, now=now)
             normalized_catalog = self._catalog_snapshot(connection=connection)
             payload = {
+                "price_list_id": price_list_id,
                 "name": name,
-                "active": True,
+                "active": active,
                 "source": "manual_refresh",
                 "catalog": normalized_catalog,
                 "created_at": now,
@@ -381,10 +383,30 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
             connection.execute(self.catalogs.insert().values(**payload))
         return cast(dict[str, object], serialize_value(payload))
 
+    def list_price_lists(self) -> list[PriceListMetaData]:
+        with self.engine.connect() as connection:
+            rows = connection.execute(
+                select(self.price_lists.c.id, self.price_lists.c.name, self.price_lists.c.filename, self.price_lists.c.content_type, self.price_lists.c.size, self.price_lists.c.active, self.price_lists.c.source, self.price_lists.c.uploaded_at, self.price_lists.c.updated_at)
+                .order_by(self.price_lists.c.active.desc(), self.price_lists.c.id.desc())
+            ).mappings().all()
+        return cast(list[PriceListMetaData], [{key: serialize_value(value) for key, value in row.items()} for row in rows])
+
+    def get_catalog_for_price_list(self, price_list_id: int) -> list[CatalogProductData]:
+        with self.engine.connect() as connection:
+            catalog = connection.execute(
+                select(self.catalogs.c.catalog)
+                .where(self.catalogs.c.price_list_id == price_list_id)
+                .order_by(self.catalogs.c.active.desc(), self.catalogs.c.id.desc())
+                .limit(1)
+            ).scalar_one_or_none()
+        if not catalog:
+            raise RuntimeError("Lista de precios no encontrada")
+        return cast(list[CatalogProductData], serialize_value(catalog))
+
     def get_active_price_list_meta(self) -> PriceListMetaData | None:
         with self.engine.connect() as connection:
             row = connection.execute(
-                select(self.price_lists.c.id, self.price_lists.c.filename, self.price_lists.c.content_type, self.price_lists.c.size, self.price_lists.c.active, self.price_lists.c.source, self.price_lists.c.uploaded_at, self.price_lists.c.updated_at)
+                select(self.price_lists.c.id, self.price_lists.c.name, self.price_lists.c.filename, self.price_lists.c.content_type, self.price_lists.c.size, self.price_lists.c.active, self.price_lists.c.source, self.price_lists.c.uploaded_at, self.price_lists.c.updated_at)
                 .where(self.price_lists.c.active.is_(True))
                 .order_by(self.price_lists.c.id.desc())
                 .limit(1)
@@ -394,9 +416,10 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
         payload: PriceListMetaData = cast(PriceListMetaData, {key: serialize_value(value) for key, value in row.items()})
         return payload
 
-    def save_price_list(self, filename: str, pdf_bytes: bytes, activate: bool = True, source: str = "upload") -> PriceListMetaData:
+    def save_price_list(self, filename: str, pdf_bytes: bytes, activate: bool = True, source: str = "upload", name: str | None = None) -> PriceListMetaData:
         now = utc_now()
         payload = {
+            "name": name or filename,
             "filename": filename,
             "content_type": "application/pdf",
             "size": len(pdf_bytes),
@@ -409,7 +432,8 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
         with self.engine.begin() as connection:
             if activate:
                 connection.execute(update(self.price_lists).where(self.price_lists.c.active.is_(True)).values(active=False, updated_at=now))
-            connection.execute(self.price_lists.insert().values(**payload))
+            inserted = connection.execute(self.price_lists.insert().values(**payload).returning(self.price_lists.c.id)).scalar_one()
+            payload["id"] = inserted
         payload.pop("pdf_data", None)
         return cast(PriceListMetaData, serialize_value(payload))
 

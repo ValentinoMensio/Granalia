@@ -73,6 +73,8 @@ class OrderItemData(TypedDict):
 class OrderData(TypedDict):
     client_name: str
     date: str
+    price_list_id: NotRequired[int | None]
+    declared: NotRequired[bool]
     secondary_line: str
     transport: str
     notes: list[str]
@@ -111,6 +113,9 @@ class InvoiceListItemData(TypedDict):
     client_name: str
     transport: str
     order_date: str
+    price_list_id: int | None
+    price_list_name: str
+    declared: bool
     total_bultos: float
     gross_total: int
     discount_total: int
@@ -143,6 +148,9 @@ class InvoiceDetailData(TypedDict):
     legacy_key: str | None
     client_name: str
     order_date: str
+    price_list_id: int | None
+    price_list_name: str
+    declared: bool
     secondary_line: str
     transport: str
     notes: list[str]
@@ -171,6 +179,7 @@ class InvoiceFileData(TypedDict):
 
 class PriceListMetaData(TypedDict):
     id: NotRequired[int]
+    name: str
     filename: str
     content_type: str
     size: int
@@ -190,5 +199,6 @@ class BootstrapPayloadData(TypedDict):
     profiles: dict[str, CustomerProfileData]
     clients: list[str]
     transports: list[TransportData]
+    price_lists: list[PriceListMetaData]
     price_list: PriceListMetaData | None
     database: DatabaseInfoData

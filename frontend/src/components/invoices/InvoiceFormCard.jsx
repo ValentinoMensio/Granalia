@@ -45,6 +45,22 @@ function InvoiceFormCard({
           <input className="input" type="date" value={form.date} onChange={(event) => onFieldChange('date', event.target.value)} />
         </Field>
 
+        <Field label="Lista de precios">
+          <select className="input" value={form.priceListId} onChange={(event) => onFieldChange('priceListId', event.target.value)}>
+            <option value="">Lista predeterminada</option>
+            {(bootstrap?.price_lists || []).map((priceList) => (
+              <option key={priceList.id} value={priceList.id}>{priceList.name}</option>
+            ))}
+          </select>
+        </Field>
+
+        <Field label="Declaración">
+          <select className="input" value={form.declared ? 'true' : 'false'} onChange={(event) => onFieldChange('declared', event.target.value === 'true')}>
+            <option value="false">No declarada</option>
+            <option value="true">Declarada</option>
+          </select>
+        </Field>
+
         <Field label="Cliente" full>
           <input className="input" value={form.clientName} onChange={(event) => onFieldChange('clientName', event.target.value)} />
         </Field>

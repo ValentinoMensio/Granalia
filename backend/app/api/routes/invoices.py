@@ -95,10 +95,10 @@ def create_invoice(payload: InvoiceRequest) -> InvoiceCreateOut:
     repository = get_repository()
     order = payload.order.model_dump()
     profile = payload.profile.model_dump()
-    catalog = repository.get_active_catalog()
     try:
+        catalog = repository.get_catalog_for_price_list(int(order["price_list_id"])) if order.get("price_list_id") else repository.get_active_catalog()
         filename, xlsx_bytes, snapshot = generate_invoice_document(order, profile, catalog)
-    except ValueError as error:
+    except (RuntimeError, ValueError) as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
     invoice_id = repository.save_invoice(order, profile, snapshot, filename, xlsx_bytes)
     return InvoiceCreateOut.model_validate({
@@ -117,11 +117,12 @@ def update_invoice(invoice_id: int, payload: InvoiceRequest) -> InvoiceCreateOut
         raise HTTPException(status_code=404, detail="Factura no encontrada")
     order = payload.order.model_dump()
     profile = payload.profile.model_dump()
-    catalog = catalog_with_invoice_history(repository.get_active_catalog(), invoice)
     try:
+        base_catalog = repository.get_catalog_for_price_list(int(order["price_list_id"])) if order.get("price_list_id") else repository.get_active_catalog()
+        catalog = catalog_with_invoice_history(base_catalog, invoice)
         filename, xlsx_bytes, snapshot = generate_invoice_document(order, profile, catalog)
         repository.update_invoice(invoice_id, order, profile, snapshot, filename, xlsx_bytes)
-    except ValueError as error:
+    except (RuntimeError, ValueError) as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
     return InvoiceCreateOut.model_validate({
         "invoice_id": invoice_id,

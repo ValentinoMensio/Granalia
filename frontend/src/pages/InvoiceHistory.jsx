@@ -200,6 +200,14 @@ export default function InvoiceHistory() {
                     <span>Transporte</span>
                     <span className="min-w-0 truncate text-right font-medium text-slate-800">{invoice.transport || 'Sin transporte'}</span>
                   </div>
+                  <div className="flex justify-between gap-3">
+                    <span>Tipo</span>
+                    <span className="font-medium text-slate-800">{invoice.declared ? 'Declarada' : 'No declarada'}</span>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <span>Lista</span>
+                    <span className="min-w-0 truncate text-right font-medium text-slate-800">{invoice.price_list_name || 'Sin lista'}</span>
+                  </div>
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
                   <Button variant="secondary" className="w-full" onClick={() => handleSelectInvoice(invoice.invoice_id)}>
@@ -249,9 +257,11 @@ export default function InvoiceHistory() {
               <col className="w-[9%]" />
               <col className="w-[22%]" />
               <col className="w-[12%]" />
-              <col className="w-[18%]" />
-              <col className="w-[11%]" />
-              <col className="w-[30%]" />
+              <col className="w-[13%]" />
+              <col className="w-[10%]" />
+              <col className="w-[12%]" />
+              <col className="w-[10%]" />
+              <col className="w-[12%]" />
             </colgroup>
             <thead className="table-head">
               <tr>
@@ -259,6 +269,8 @@ export default function InvoiceHistory() {
                 <th>Cliente</th>
                 <th>Fecha</th>
                 <th>Transporte</th>
+                <th>Tipo</th>
+                <th>Lista</th>
                 <th className="text-right">Total</th>
                 <th className="text-right w-[30%]">Acciones</th>
               </tr>
@@ -273,6 +285,8 @@ export default function InvoiceHistory() {
                     <td className="table-cell truncate font-medium" title={invoice.client_name}>{invoice.client_name}</td>
                     <td className={`table-cell truncate ${isUpcoming ? 'text-slate-800' : 'text-slate-600'}`}>{invoice.order_date}</td>
                     <td className={`table-cell truncate ${isUpcoming ? 'text-slate-800' : 'text-slate-600'}`} title={invoice.transport || 'Sin transporte'}>{invoice.transport || 'Sin transporte'}</td>
+                    <td className="table-cell truncate">{invoice.declared ? 'Declarada' : 'No declarada'}</td>
+                    <td className="table-cell truncate" title={invoice.price_list_name || 'Sin lista'}>{invoice.price_list_name || 'Sin lista'}</td>
                     <td className="table-cell truncate text-right font-medium">${money(invoice.final_total)}</td>
                     <td className="table-cell">
                       <div className="flex items-center justify-end gap-x-2 text-xs">
@@ -313,7 +327,7 @@ export default function InvoiceHistory() {
               })}
               {filteredInvoices.length === 0 && (
                 <tr>
-                  <td colSpan="6" className="table-cell py-10 text-center text-slate-400">No hay facturas que coincidan con los filtros.</td>
+                  <td colSpan="8" className="table-cell py-10 text-center text-slate-400">No hay facturas que coincidan con los filtros.</td>
                 </tr>
               )}
             </tbody>
@@ -357,7 +371,7 @@ export default function InvoiceHistory() {
 
         {invoiceDetail && !loadingDetail && (
           <div className="mt-6 space-y-6">
-            <div className="surface-muted grid gap-4 p-4 text-sm md:grid-cols-3 xl:grid-cols-6">
+            <div className="surface-muted grid gap-4 p-4 text-sm md:grid-cols-3 xl:grid-cols-8">
               <div>
                 <div className="text-xs uppercase tracking-wide text-slate-400">Factura</div>
                 <div className="mt-1 font-mono">#{invoiceDetail.id}</div>
@@ -381,6 +395,14 @@ export default function InvoiceHistory() {
               <div>
                 <div className="text-xs uppercase tracking-wide text-slate-400">Transporte asociado</div>
                 <div className="mt-1">{invoiceDetail.transport_name || (invoiceDetail.transport_id ? `#${invoiceDetail.transport_id}` : 'Sin asociar')}</div>
+              </div>
+              <div>
+                <div className="text-xs uppercase tracking-wide text-slate-400">Tipo</div>
+                <div className="mt-1">{invoiceDetail.declared ? 'Declarada' : 'No declarada'}</div>
+              </div>
+              <div>
+                <div className="text-xs uppercase tracking-wide text-slate-400">Lista</div>
+                <div className="mt-1">{invoiceDetail.price_list_name || 'Sin lista'}</div>
               </div>
             </div>
 

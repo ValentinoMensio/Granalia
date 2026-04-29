@@ -46,14 +46,15 @@ function useGranaliaData() {
   }
 
   function primeForm(nextBootstrap) {
+    const defaultPriceListId = nextBootstrap.price_list?.id ? String(nextBootstrap.price_list.id) : ''
     const sourceCustomers = Object.values(nextBootstrap.profiles || {})
     if (!sourceCustomers.length) {
-      setForm(createInitialForm())
+      setForm({ ...createInitialForm(), priceListId: defaultPriceListId })
       return
     }
 
     const firstCustomer = sourceCustomers[0]
-    setForm(applyCustomerToForm(createInitialForm(), firstCustomer))
+    setForm(applyCustomerToForm({ ...createInitialForm(), priceListId: defaultPriceListId }, firstCustomer))
   }
 
   async function loadAll() {
@@ -130,6 +131,17 @@ function useGranaliaData() {
   }
 
   function updateFormField(field, value) {
+    if (field === 'priceListId') {
+      setForm((current) => ({ ...current, priceListId: value, items: [emptyItem()] }))
+      if (value) {
+        request(`/api/price-lists/${value}/catalog`)
+          .then((nextCatalog) => setCatalog(nextCatalog))
+          .catch((error) => setStatus(error.message))
+      } else {
+        setCatalog(bootstrap?.catalog || [])
+      }
+      return
+    }
     setForm((current) => ({ ...current, [field]: value }))
   }
 
@@ -256,6 +268,9 @@ function useGranaliaData() {
 
   async function startInvoiceEdit(invoiceId) {
     const detail = await loadInvoiceDetail(invoiceId)
+    if (detail.price_list_id) {
+      setCatalog(await request(`/api/price-lists/${detail.price_list_id}/catalog`))
+    }
     setEditingInvoiceId(invoiceId)
     setForm(buildFormFromInvoiceDetail(detail, customers))
     setStatus(`Editando factura ${invoiceId}.`)
@@ -328,8 +343,11 @@ function useGranaliaData() {
     try {
       const formData = new FormData()
       formData.append('file', pdfFile)
+      formData.append('name', pdfFile.name.replace(/\.pdf$/i, ''))
+      formData.append('activate', 'true')
       const data = await request('/api/price-lists/upload', { method: 'POST', body: formData })
       applyBootstrap(data.bootstrap)
+      setForm((current) => ({ ...current, priceListId: data.bootstrap?.price_list?.id ? String(data.bootstrap.price_list.id) : current.priceListId }))
       setStatus('Lista de precios actualizada en la base.')
       setPdfFile(null)
     } finally {
@@ -366,7 +384,7 @@ function useGranaliaData() {
       const previewOpened = openInvoicePdfPreview(data.invoice_id, previewWindow)
       await refreshInvoices()
       setEditingInvoiceId(null)
-      setForm(createInitialForm())
+      setForm({ ...createInitialForm(), priceListId: bootstrap?.price_list?.id ? String(bootstrap.price_list.id) : '' })
       setStatus(`Factura ${data.invoice_id} ${isEditing ? 'actualizada' : 'guardada'}${previewOpened ? ' y abierta para previsualizar' : ''}.`)
       return { invoiceId: data.invoice_id, updated: isEditing }
     } catch (error) {

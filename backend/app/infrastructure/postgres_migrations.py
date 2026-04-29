@@ -467,6 +467,21 @@ class PostgresMigrationMixin(PostgresRepositoryProtocol):
         if self._table_exists(connection, "invoices") and not self._is_numeric_column(connection, "invoices", "total_bultos"):
             connection.execute(text("ALTER TABLE invoices ALTER COLUMN total_bultos TYPE NUMERIC(12, 2) USING total_bultos::numeric"))
 
+    def _ensure_price_list_invoice_fields(self, *, connection) -> None:
+        if self._table_exists(connection, "price_lists") and not self._column_exists(connection, "price_lists", "name"):
+            connection.execute(text("ALTER TABLE price_lists ADD COLUMN name VARCHAR(255) NOT NULL DEFAULT 'Lista principal'"))
+        if self._table_exists(connection, "catalogs") and not self._column_exists(connection, "catalogs", "price_list_id"):
+            connection.execute(text("ALTER TABLE catalogs ADD COLUMN price_list_id BIGINT REFERENCES price_lists(id) ON DELETE SET NULL"))
+            connection.execute(text("UPDATE catalogs c SET price_list_id = p.id FROM price_lists p WHERE c.active = true AND p.active = true"))
+        if self._table_exists(connection, "invoices"):
+            if not self._column_exists(connection, "invoices", "price_list_id"):
+                connection.execute(text("ALTER TABLE invoices ADD COLUMN price_list_id BIGINT REFERENCES price_lists(id) ON DELETE SET NULL"))
+            if not self._column_exists(connection, "invoices", "declared"):
+                connection.execute(text("ALTER TABLE invoices ADD COLUMN declared BOOLEAN NOT NULL DEFAULT false"))
+            if not self._column_exists(connection, "invoices", "price_list_name"):
+                connection.execute(text("ALTER TABLE invoices ADD COLUMN price_list_name VARCHAR(255) NOT NULL DEFAULT ''"))
+            connection.execute(text("UPDATE invoices i SET price_list_id = p.id, price_list_name = p.name FROM price_lists p WHERE p.active = true AND COALESCE(i.price_list_name, '') = ''"))
+
     def _drop_transport_redundancy(self, *, connection) -> None:
         if self._table_exists(connection, "customers"):
             connection.execute(text("ALTER TABLE customers DROP COLUMN IF EXISTS transport"))

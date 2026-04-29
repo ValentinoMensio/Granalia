@@ -7,7 +7,7 @@ import Button from '../components/ui/Button'
 import Metric from '../components/ui/Metric'
 import PageSectionHeader from '../components/ui/PageSectionHeader'
 
-const EMPTY_FILTERS = { customerIds: [''], dateFrom: '', dateTo: '', transport: '' }
+const EMPTY_FILTERS = { customerIds: [''], dateFrom: '', dateTo: '', transport: '', priceListId: '', declared: '' }
 const EMPTY_PRODUCT_FILTERS = { lines: [{ productId: '', offeringId: '' }] }
 const MONTH_LABELS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
@@ -175,6 +175,7 @@ function buildCustomerProductRanking(items) {
 
 function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false, onRowClick, selectedLabel = '', embedded = false }) {
   const [sort, setSort] = useState({ key: 'total', direction: 'desc' })
+  const [showAllMobile, setShowAllMobile] = useState(false)
   const columns = [
     { key: 'label', label: 'Grupo', align: 'left' },
     { key: 'count', label: countLabel, align: 'right' },
@@ -206,6 +207,8 @@ function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false
     return sort.direction === 'desc' ? '↓' : '↑'
   }
 
+  const mobileRows = showAllMobile ? sortedRows : sortedRows.slice(0, 8)
+
   return (
     <section className={embedded ? '' : 'surface p-4 pr-5 sm:p-6 sm:pr-8'}>
       <div className="mb-4 flex flex-col gap-3 border-b border-stone-200 pb-3 sm:flex-row sm:items-start sm:justify-between">
@@ -213,12 +216,12 @@ function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false
         <div className="badge">{rows.length} filas</div>
       </div>
 
-      <div className="mb-4 grid grid-cols-2 gap-2 sm:hidden">
-        {columns.map((column) => (
+      <div className="mb-3 flex gap-2 overflow-x-auto pb-1 sm:hidden">
+        {columns.filter((column) => ['total', 'label', 'bultos', 'weight'].includes(column.key)).map((column) => (
           <button
             key={column.key}
             type="button"
-            className={`rounded-xl border border-stone-200 px-3 py-2 text-xs font-bold uppercase tracking-[0.12em] ${sort.key === column.key ? 'bg-brand-red text-white' : 'bg-white text-slate-500'}`.trim()}
+            className={`shrink-0 rounded-full border border-stone-200 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.12em] ${sort.key === column.key ? 'bg-brand-red text-white' : 'bg-white text-slate-500'}`.trim()}
             onClick={() => updateSort(column.key)}
           >
             {column.label} {sortIndicator(column.key)}
@@ -226,41 +229,39 @@ function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false
         ))}
       </div>
 
-      <div className="space-y-3 sm:hidden">
-        {sortedRows.map((row) => (
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white sm:hidden">
+        {mobileRows.map((row) => (
           <button
             key={row.label}
             type="button"
-            className={`mobile-card w-full text-left ${onRowClick ? 'cursor-pointer' : 'cursor-default'} ${selectedLabel === row.label ? 'border-brand-red bg-blue-100 shadow-sm ring-1 ring-brand-red/30' : ''}`.trim()}
+            className={`grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-slate-100 px-3 py-2.5 text-left last:border-b-0 ${onRowClick ? 'cursor-pointer' : 'cursor-default'} ${selectedLabel === row.label ? 'bg-blue-100 ring-1 ring-inset ring-brand-red/30' : ''}`.trim()}
             onClick={onRowClick ? () => onRowClick(row) : undefined}
           >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h3 className="mobile-card-title break-words">{row.label}</h3>
-                <div className="mt-1 text-xs font-medium text-slate-400">{countLabel}: {row.count}</div>
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold text-slate-900">{row.label}</div>
+              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] font-medium text-slate-500">
+                <span>{countLabel}: {row.count}</span>
+                <span>Bultos: {money(row.bultos)}</span>
+                {showWeight ? <span>{weight(row.weight)} kg</span> : null}
               </div>
-              <div className="shrink-0 text-right text-sm font-semibold text-brand-red">${money(row.total)}</div>
             </div>
-            <div className="mobile-field-grid mt-4">
-              <div className="mobile-field">
-                <span className="mobile-field-label">Bultos</span>
-                <span className="mobile-field-value">{money(row.bultos)}</span>
-              </div>
-              {showWeight ? (
-                <div className="mobile-field">
-                  <span className="mobile-field-label">Peso</span>
-                  <span className="mobile-field-value">{weight(row.weight)} kg</span>
-                </div>
-              ) : null}
-              <div className="mobile-field">
-                <span className="mobile-field-label">Descuento</span>
-                <span className="mobile-field-value">${money(row.discount)}</span>
-              </div>
+            <div className="text-right">
+              <div className="text-sm font-bold text-brand-red">${money(row.total)}</div>
+              {Number(row.discount || 0) > 0 ? <div className="text-[11px] text-slate-400">Dto ${money(row.discount)}</div> : null}
             </div>
           </button>
         ))}
         {sortedRows.length === 0 && (
           <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-400">No hay datos para estos filtros.</div>
+        )}
+        {sortedRows.length > 8 && (
+          <button
+            type="button"
+            className="w-full bg-slate-50 px-3 py-2 text-center text-xs font-bold uppercase tracking-[0.12em] text-slate-500"
+            onClick={() => setShowAllMobile((current) => !current)}
+          >
+            {showAllMobile ? 'Ver menos' : `Ver ${sortedRows.length - 8} más`}
+          </button>
         )}
       </div>
 
@@ -408,7 +409,9 @@ export default function InvoiceStats() {
       const matchesDateFrom = !filters.dateFrom || invoice.order_date >= filters.dateFrom
       const matchesDateTo = !filters.dateTo || invoice.order_date <= filters.dateTo
       const matchesTransport = !filters.transport || String(invoice.transport_id || '') === String(filters.transport)
-      return matchesCustomer && matchesDateFrom && matchesDateTo && matchesTransport
+      const matchesPriceList = !filters.priceListId || String(invoice.price_list_id || '') === String(filters.priceListId)
+      const matchesDeclared = !filters.declared || String(Boolean(invoice.declared)) === String(filters.declared)
+      return matchesCustomer && matchesDateFrom && matchesDateTo && matchesTransport && matchesPriceList && matchesDeclared
     })
   }, [filters, statsInvoices])
 
@@ -554,7 +557,7 @@ export default function InvoiceStats() {
         <div className="mb-4 border-b border-stone-200 pb-3">
           <h2 className="subsection-title text-xl">Filtros generales</h2>
         </div>
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-5">
           <input className="input" type="date" value={filters.dateFrom} onChange={(event) => updateFilter('dateFrom', event.target.value)} />
           <input className="input" type="date" value={filters.dateTo} onChange={(event) => updateFilter('dateTo', event.target.value)} />
           <select className="input" value={filters.transport} onChange={(event) => updateFilter('transport', event.target.value)}>
@@ -562,6 +565,17 @@ export default function InvoiceStats() {
             {(bootstrap?.transports || []).map((transport) => (
               <option key={transport.transport_id} value={transport.transport_id}>{transport.name}</option>
             ))}
+          </select>
+          <select className="input" value={filters.priceListId} onChange={(event) => updateFilter('priceListId', event.target.value)}>
+            <option value="">Todas las listas</option>
+            {(bootstrap?.price_lists || []).map((priceList) => (
+              <option key={priceList.id} value={priceList.id}>{priceList.name}</option>
+            ))}
+          </select>
+          <select className="input" value={filters.declared} onChange={(event) => updateFilter('declared', event.target.value)}>
+            <option value="">Declaradas y no declaradas</option>
+            <option value="true">Declaradas</option>
+            <option value="false">No declaradas</option>
           </select>
         </div>
 

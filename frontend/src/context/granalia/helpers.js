@@ -165,6 +165,8 @@ function buildInvoicePayload(form, currentCustomer) {
     order: {
       client_name: form.clientName,
       date: form.date,
+      price_list_id: form.priceListId ? Number(form.priceListId) : null,
+      declared: Boolean(form.declared),
       secondary_line: form.secondaryLine,
       transport: form.transport,
       notes: splitNotes(form.notes),
@@ -211,6 +213,8 @@ function buildFormFromInvoiceDetail(invoiceDetail, customers) {
 
   return {
     customerId: matchingCustomer ? String(matchingCustomer.id) : '',
+    priceListId: invoiceDetail.price_list_id ? String(invoiceDetail.price_list_id) : '',
+    declared: Boolean(invoiceDetail.declared),
     clientName: invoiceDetail.client_name || '',
     date: invoiceDetail.order_date || new Date().toISOString().slice(0, 10),
     secondaryLine: invoiceDetail.secondary_line || '',

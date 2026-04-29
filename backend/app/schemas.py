@@ -78,6 +78,8 @@ class AutomaticBonusRule(BaseModel):
 class InvoiceCreate(BaseModel):
     client_name: NonEmptyStr
     date: str = Field(min_length=10, max_length=10)
+    price_list_id: int | None = None
+    declared: bool = False
     secondary_line: str = Field(default="", max_length=MAX_SHORT_TEXT_LENGTH)
     transport: str = Field(default="", max_length=MAX_SHORT_TEXT_LENGTH)
     notes: list[str] = Field(default_factory=list, max_length=MAX_NOTES)
@@ -231,6 +233,7 @@ class CustomerOut(BaseModel):
 
 class PriceListMetaOut(BaseModel):
     id: int
+    name: str
     filename: str
     content_type: str
     size: int
@@ -250,6 +253,7 @@ class BootstrapOut(BaseModel):
     profiles: dict[str, CustomerOut] = Field(default_factory=dict)
     clients: list[str] = Field(default_factory=list)
     transports: list[TransportOut] = Field(default_factory=list)
+    price_lists: list[PriceListMetaOut] = Field(default_factory=list)
     price_list: PriceListMetaOut | None = None
     database: DatabaseInfoOut
 
@@ -273,6 +277,9 @@ class InvoiceListItemOut(BaseModel):
     client_name: str
     transport: str = ""
     order_date: str
+    price_list_id: int | None = None
+    price_list_name: str = ""
+    declared: bool = False
     total_bultos: float
     gross_total: int
     discount_total: int
@@ -305,6 +312,9 @@ class InvoiceDetailOut(BaseModel):
     legacy_key: str | None = None
     client_name: str
     order_date: str
+    price_list_id: int | None = None
+    price_list_name: str = ""
+    declared: bool = False
     secondary_line: str = ""
     transport: str = ""
     notes: list[str] = Field(default_factory=list)

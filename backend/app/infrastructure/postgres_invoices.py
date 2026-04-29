@@ -21,6 +21,7 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
     invoice_items: Table
     products: Table
     product_offerings: Table
+    price_lists: Table
 
     def list_invoices(self, limit: int = 50) -> list[InvoiceListItemData]:
         with self.engine.connect() as connection:
@@ -32,6 +33,9 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     self.invoices.c.client_name,
                     self.invoices.c.transport,
                     self.invoices.c.order_date,
+                    self.invoices.c.price_list_id,
+                    self.invoices.c.price_list_name,
+                    self.invoices.c.declared,
                     self.invoices.c.total_bultos,
                     self.invoices.c.gross_total,
                     self.invoices.c.discount_total,
@@ -87,6 +91,9 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     self.invoices.c.legacy_key,
                     self.invoices.c.client_name,
                     self.invoices.c.order_date,
+                    self.invoices.c.price_list_id,
+                    self.invoices.c.price_list_name,
+                    self.invoices.c.declared,
                     self.invoices.c.secondary_line,
                     self.invoices.c.transport,
                     self.invoices.c.notes,
@@ -152,8 +159,11 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
         invoice_payload = {
             "customer_id": None,
             "transport_id": None,
+            "price_list_id": order.get("price_list_id"),
             "legacy_key": f"invoice:{int(created_at.timestamp())}:{order['client_name']}",
             "client_name": order["client_name"],
+            "declared": bool(order.get("declared", False)),
+            "price_list_name": str(order.get("price_list_name") or ""),
             "order_date": order_date,
             "secondary_line": order.get("secondary_line") or profile.get("secondary_line") or "",
             "transport": order.get("transport") or profile.get("transport") or "",
@@ -185,6 +195,9 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                 }
             )
         with self.engine.begin() as connection:
+            if invoice_payload["price_list_id"]:
+                price_list_row = connection.execute(select(self.price_lists.c.name).where(self.price_lists.c.id == invoice_payload["price_list_id"])).scalar_one_or_none()
+                invoice_payload["price_list_name"] = str(price_list_row or invoice_payload["price_list_name"] or "")
             transport_name = order.get("transport") or profile.get("transport") or ""
             transport_id = self._resolve_transport_id(connection=connection, transport_name=transport_name, now=created_at)
             customer_id = self._upsert_customer(
@@ -243,6 +256,10 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                 raise ValueError("Factura no encontrada")
 
             transport_name = order.get("transport") or profile.get("transport") or ""
+            price_list_name = str(order.get("price_list_name") or "")
+            if order.get("price_list_id"):
+                price_list_row = connection.execute(select(self.price_lists.c.name).where(self.price_lists.c.id == order.get("price_list_id"))).scalar_one_or_none()
+                price_list_name = str(price_list_row or price_list_name)
             transport_id = self._resolve_transport_id(connection=connection, transport_name=transport_name, now=updated_at)
             customer_id = self._upsert_customer(
                 {
@@ -273,7 +290,10 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                 .values(
                     customer_id=customer_id,
                     transport_id=transport_id,
+                    price_list_id=order.get("price_list_id"),
                     client_name=order["client_name"],
+                    declared=bool(order.get("declared", False)),
+                    price_list_name=price_list_name,
                     order_date=order_date,
                     secondary_line=order.get("secondary_line") or profile.get("secondary_line") or "",
                     transport=transport_name,

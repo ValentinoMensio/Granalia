@@ -26,6 +26,7 @@ class PostgresBootstrapMixin(PostgresRepositoryProtocol):
         with self.engine.begin() as connection:
             self._ensure_customer_billing_fields(connection=connection)
             self._ensure_fractional_invoice_quantities(connection=connection)
+            self._ensure_price_list_invoice_fields(connection=connection)
 
             active_catalog = connection.execute(
                 select(self.catalogs.c.catalog).where(self.catalogs.c.active.is_(True)).order_by(self.catalogs.c.id.desc()).limit(1)
@@ -44,11 +45,13 @@ class PostgresBootstrapMixin(PostgresRepositoryProtocol):
             catalog = self.get_active_catalog()
         except RuntimeError:
             catalog = []
+        price_lists = self.list_price_lists()
         return {
             "catalog": catalog,
             "profiles": profiles,
             "clients": clients,
             "transports": self.get_transports(),
+            "price_lists": price_lists,
             "price_list": self.get_active_price_list_meta(),
             "database": {
                 "type": "postgresql",

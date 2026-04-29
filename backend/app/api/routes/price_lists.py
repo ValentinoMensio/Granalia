@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from ...dependencies import get_repository
-from ...schemas import MAX_NAME_LENGTH, PriceListUploadOut
+from ...schemas import MAX_NAME_LENGTH, PriceListMetaOut, PriceListUploadOut, ProductCatalogOut
 from ...services.catalog import build_catalog_snapshot_from_pdf
 
 
@@ -12,7 +12,7 @@ MAX_PRICE_LIST_PDF_BYTES = 20 * 1024 * 1024
 
 
 @router.post("/upload")
-async def upload_price_list(file: UploadFile = File(...)) -> PriceListUploadOut:
+async def upload_price_list(file: UploadFile = File(...), name: str = Form(default=""), activate: bool = Form(default=True)) -> PriceListUploadOut:
     if file.content_type not in {"application/pdf", "application/octet-stream"}:
         raise HTTPException(status_code=400, detail="El archivo debe ser PDF")
     filename = file.filename or "lista.pdf"
@@ -24,7 +24,22 @@ async def upload_price_list(file: UploadFile = File(...)) -> PriceListUploadOut:
     if len(pdf_bytes) > MAX_PRICE_LIST_PDF_BYTES:
         raise HTTPException(status_code=413, detail="El PDF no puede superar 20 MB")
     repository = get_repository()
-    repository.save_price_list(filename, pdf_bytes, activate=True, source="upload")
+    list_name = name.strip() or filename
+    price_list = repository.save_price_list(filename, pdf_bytes, activate=activate, source="upload", name=list_name)
     updated_catalog = build_catalog_snapshot_from_pdf(pdf_bytes, repository.get_active_catalog())
-    repository.replace_active_catalog(updated_catalog, name=f"Catalogo desde {filename}")
+    repository.replace_active_catalog(updated_catalog, name=f"Catalogo desde {list_name}", price_list_id=int(price_list["id"]), active=activate)
     return PriceListUploadOut.model_validate({"bootstrap": repository.bootstrap_payload()})
+
+
+@router.get("", response_model=list[PriceListMetaOut])
+def list_price_lists() -> list[PriceListMetaOut]:
+    return [PriceListMetaOut.model_validate(item) for item in get_repository().list_price_lists()]
+
+
+@router.get("/{price_list_id}/catalog", response_model=list[ProductCatalogOut])
+def price_list_catalog(price_list_id: int) -> list[ProductCatalogOut]:
+    try:
+        catalog = get_repository().get_catalog_for_price_list(price_list_id)
+    except RuntimeError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    return [ProductCatalogOut.model_validate(item) for item in catalog]
