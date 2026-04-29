@@ -19,11 +19,12 @@ MARGIN = 36
 FONT_REGULAR = "Helvetica"
 FONT_BOLD = "Helvetica-Bold"
 
-COLOR_TEXT = (0.05, 0.05, 0.05)
-COLOR_MUTED = (0.42, 0.42, 0.42)
-COLOR_LINE = (0.78, 0.78, 0.78)
-COLOR_HEADER_BG = (0.9, 0.91, 0.93)
-COLOR_ROW_BG = (0.92, 0.94, 0.97)
+# Colores con más contraste
+COLOR_TEXT = (0.02, 0.02, 0.02)
+COLOR_MUTED = (0.28, 0.28, 0.28)
+COLOR_LINE = (0.55, 0.55, 0.55)
+COLOR_HEADER_BG = (0.78, 0.81, 0.86)
+COLOR_ROW_BG = (0.90, 0.93, 0.97)
 
 
 def _money(value: int | float) -> str:
@@ -60,7 +61,7 @@ def _set_color(pdf: canvas.Canvas, color: tuple[float, float, float]) -> None:
 
 def _line(pdf: canvas.Canvas, x1: float, y: float, x2: float) -> None:
     pdf.setStrokeColorRGB(*COLOR_LINE)
-    pdf.setLineWidth(0.6)
+    pdf.setLineWidth(0.8)
     pdf.line(x1, y, x2, y)
     _set_color(pdf, COLOR_TEXT)
 
@@ -163,8 +164,16 @@ def _draw_invoice_info(pdf: canvas.Canvas, invoice: dict, y: float) -> float:
 
 
 def _draw_items_header(pdf: canvas.Canvas, width: float, y: float) -> float:
+    # Encabezado más alto y con fondo más contrastado
     pdf.setFillColorRGB(*COLOR_HEADER_BG)
-    pdf.rect(MARGIN - 6, y - 12, width - (MARGIN * 2) + 12, 30, stroke=0, fill=1)
+    pdf.rect(
+        MARGIN - 6,
+        y - 14,
+        width - (MARGIN * 2) + 12,
+        34,
+        stroke=0,
+        fill=1,
+    )
 
     pdf.setFont(FONT_BOLD, 16)
     _set_color(pdf, COLOR_TEXT)
@@ -174,19 +183,33 @@ def _draw_items_header(pdf: canvas.Canvas, width: float, y: float) -> float:
     pdf.drawRightString(MARGIN + 405, y, "Precio")
     pdf.drawRightString(width - MARGIN, y, "Total")
 
-    y -= 12
-    _line(pdf, MARGIN, y, width - MARGIN)
+    # Línea inferior del encabezado más visible
+    y -= 14
+    pdf.setStrokeColorRGB(0.35, 0.35, 0.35)
+    pdf.setLineWidth(1)
+    pdf.line(MARGIN, y, width - MARGIN)
 
-    return y - 22
+    _set_color(pdf, COLOR_TEXT)
+
+    return y - 24
 
 
 def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: int) -> float:
     font_size = 14
-    row_height = 24
+
+    # Más interlineado entre productos
+    row_height = 30
 
     if index % 2:
         pdf.setFillColorRGB(*COLOR_ROW_BG)
-        pdf.rect(MARGIN - 6, y - 7, width - (MARGIN * 2) + 12, 21, stroke=0, fill=1)
+        pdf.rect(
+            MARGIN - 6,
+            y - 9,
+            width - (MARGIN * 2) + 12,
+            27,
+            stroke=0,
+            fill=1,
+        )
 
     pdf.setFont(FONT_REGULAR, font_size)
     _set_color(pdf, COLOR_TEXT)
@@ -207,6 +230,7 @@ def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: in
 
 
 def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> float:
+    totals_label_x = width - 240
     total_bultos = sum(
         int(item.get("quantity") or 0)
         for item in invoice.get("items", [])
@@ -229,7 +253,7 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
 
     _set_color(pdf, COLOR_TEXT)
     pdf.setFont(FONT_BOLD, 15)
-    pdf.drawString(width - 200, y, "Bruto")
+    pdf.drawString(totals_label_x, y, "Bruto")
     pdf.drawRightString(width - MARGIN, y, _money(invoice.get("gross_total") or 0))
 
     y -= 24
@@ -243,17 +267,22 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
 
         pdf.setFont(FONT_REGULAR, 13)
         _set_color(pdf, COLOR_MUTED)
-        pdf.drawRightString(width - 120, y, _truncate(clean_cell_text(discount_label), FONT_REGULAR, 13, 210))
+        pdf.drawString(
+            totals_label_x,
+            y,
+            _truncate(clean_cell_text(discount_label), FONT_REGULAR, 13, 210),
+        )
         pdf.drawRightString(width - MARGIN, y, _money(invoice.get("discount_total") or 0))
 
         y -= 20
 
     pdf.setFont(FONT_BOLD, 17)
     _set_color(pdf, COLOR_TEXT)
-    pdf.drawString(width - 200, y, "Total")
+    pdf.drawString(totals_label_x, y, "Total")
     pdf.drawRightString(width - MARGIN, y, _money(invoice.get("final_total") or 0))
 
     return y - 20
+
 
 def _draw_notes(pdf: canvas.Canvas, invoice: dict, y: float) -> float:
     notes = invoice.get("notes") or []
