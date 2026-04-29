@@ -22,6 +22,8 @@ FONT_BOLD = "Helvetica-Bold"
 COLOR_TEXT = (0.05, 0.05, 0.05)
 COLOR_MUTED = (0.42, 0.42, 0.42)
 COLOR_LINE = (0.78, 0.78, 0.78)
+COLOR_HEADER_BG = (0.9, 0.91, 0.93)
+COLOR_ROW_BG = (0.97, 0.975, 0.985)
 
 
 def _money(value: int | float) -> str:
@@ -161,6 +163,9 @@ def _draw_invoice_info(pdf: canvas.Canvas, invoice: dict, y: float) -> float:
 
 
 def _draw_items_header(pdf: canvas.Canvas, width: float, y: float) -> float:
+    pdf.setFillColorRGB(*COLOR_HEADER_BG)
+    pdf.rect(MARGIN - 6, y - 7, width - (MARGIN * 2) + 12, 25, stroke=0, fill=1)
+
     pdf.setFont(FONT_BOLD, 16)
     _set_color(pdf, COLOR_TEXT)
 
@@ -172,11 +177,16 @@ def _draw_items_header(pdf: canvas.Canvas, width: float, y: float) -> float:
     y -= 12
     _line(pdf, MARGIN, y, width - MARGIN)
 
-    return y - 20
+    return y - 22
 
 
-def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float) -> float:
+def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: int) -> float:
     font_size = 14
+    row_height = 24
+
+    if index % 2:
+        pdf.setFillColorRGB(*COLOR_ROW_BG)
+        pdf.rect(MARGIN - 6, y - 7, width - (MARGIN * 2) + 12, 21, stroke=0, fill=1)
 
     pdf.setFont(FONT_REGULAR, font_size)
     _set_color(pdf, COLOR_TEXT)
@@ -193,7 +203,7 @@ def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float) -> float:
     pdf.drawRightString(MARGIN + 405, y, _money(item.get("unit_price") or 0))
     pdf.drawRightString(width - MARGIN, y, _money(item.get("total") or 0))
 
-    return y - 17
+    return y - row_height
 
 
 def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> float:
@@ -204,22 +214,18 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
 
     discount_summary = _discount_summary(invoice)
 
-    # Más separación antes de Bulto
-    y -= 12
+    y -= 14
 
-    # Bulto más grande y en negro
-    pdf.setFont(FONT_BOLD, 14)
+    pdf.setFont(FONT_BOLD, 17)
     _set_color(pdf, COLOR_TEXT)
 
     pdf.drawString(MARGIN, y, "Bulto")
     pdf.drawCentredString(MARGIN + 285, y, str(total_bultos))
 
-    # Línea debajo de Bulto
-    y -= 14
+    y -= 16
     _line(pdf, MARGIN, y, width - MARGIN)
 
-    # Más aire antes del bloque de totales
-    y -= 28
+    y -= 30
 
     _set_color(pdf, COLOR_TEXT)
     pdf.setFont(FONT_BOLD, 15)
@@ -296,11 +302,11 @@ def build_invoice_pdf(invoice: dict) -> bytes:
     y = _draw_invoice_info(pdf, invoice, y)
     y = _draw_items_header(pdf, width, y)
 
-    for item in invoice.get("items", []):
+    for index, item in enumerate(invoice.get("items", [])):
         if y < 120:
             y = _new_page(pdf, invoice, width, height)
 
-        y = _draw_item(pdf, item, width, y)
+        y = _draw_item(pdf, item, width, y, index)
 
     y = _draw_totals(pdf, invoice, width, y)
     _draw_notes(pdf, invoice, y)
