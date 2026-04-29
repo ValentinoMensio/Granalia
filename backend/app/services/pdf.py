@@ -207,6 +207,11 @@ def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: in
     pdf.drawRightString(MARGIN + 405, y, _money(item.get("unit_price") or 0))
     pdf.drawRightString(width - MARGIN - TABLE_INNER_PAD_X, y, _money(item.get("total") or 0))
 
+    pdf.setStrokeColorRGB(0.84, 0.84, 0.84)
+    pdf.setLineWidth(0.35)
+    pdf.line(MARGIN, y - 6, width - MARGIN, y - 6)
+    _set_color(pdf, COLOR_TEXT)
+
     return y - row_height
 
 def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> float:
