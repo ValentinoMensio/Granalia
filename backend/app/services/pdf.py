@@ -21,10 +21,9 @@ FONT_BOLD = "Helvetica-Bold"
 
 COLOR_TEXT = (0.02, 0.02, 0.02)
 COLOR_MUTED = (0.28, 0.28, 0.28)
-COLOR_LINE = (0.55, 0.55, 0.55)
-COLOR_HEADER_BG = (0.78, 0.81, 0.86)
-COLOR_ROW_BG = (0.90, 0.93, 0.97)
-
+COLOR_LINE = (0.25, 0.25, 0.25)
+COLOR_HEADER_BG = (0.62, 0.66, 0.72)
+COLOR_ROW_BG = (0.72, 0.76, 0.82)
 
 def _money(value: int | float) -> str:
     return f"$ {int(round(value or 0)):,}".replace(",", ".")
@@ -60,7 +59,7 @@ def _set_color(pdf: canvas.Canvas, color: tuple[float, float, float]) -> None:
 
 def _line(pdf: canvas.Canvas, x1: float, y: float, x2: float) -> None:
     pdf.setStrokeColorRGB(*COLOR_LINE)
-    pdf.setLineWidth(0.8)
+    pdf.setLineWidth(1.1)
     pdf.line(x1, y, x2, y)
     _set_color(pdf, COLOR_TEXT)
 
@@ -182,7 +181,7 @@ def _draw_items_header(pdf: canvas.Canvas, width: float, y: float) -> float:
 
 def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: int) -> float:
     font_size = 14
-    row_height = 30
+    row_height = 25
 
     if index % 2:
         pdf.setFillColorRGB(*COLOR_ROW_BG)
