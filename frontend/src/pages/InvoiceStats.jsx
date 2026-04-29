@@ -7,8 +7,8 @@ import Button from '../components/ui/Button'
 import Metric from '../components/ui/Metric'
 import PageSectionHeader from '../components/ui/PageSectionHeader'
 
-const EMPTY_FILTERS = { customerId: '', dateFrom: '', dateTo: '', transport: '' }
-const EMPTY_PRODUCT_FILTERS = { productId: '', offeringId: '' }
+const EMPTY_FILTERS = { customerIds: [''], dateFrom: '', dateTo: '', transport: '' }
+const EMPTY_PRODUCT_FILTERS = { lines: [{ productId: '', offeringId: '' }] }
 const MONTH_LABELS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
 const weight = (value) => new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(Number(value || 0))
@@ -208,11 +208,63 @@ function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false
 
   return (
     <section className={embedded ? '' : 'surface p-4 pr-5 sm:p-6 sm:pr-8'}>
-      <div className="mb-4 flex items-start justify-between gap-3 border-b border-stone-200 pb-3">
+      <div className="mb-4 flex flex-col gap-3 border-b border-stone-200 pb-3 sm:flex-row sm:items-start sm:justify-between">
         <h2 className="subsection-title text-xl">{title}</h2>
         <div className="badge">{rows.length} filas</div>
       </div>
-      <div className="table-shell max-h-[30rem] overflow-x-hidden overflow-y-auto pr-3 [scrollbar-gutter:stable]">
+
+      <div className="mb-4 grid grid-cols-2 gap-2 sm:hidden">
+        {columns.map((column) => (
+          <button
+            key={column.key}
+            type="button"
+            className={`rounded-xl border border-stone-200 px-3 py-2 text-xs font-bold uppercase tracking-[0.12em] ${sort.key === column.key ? 'bg-brand-red text-white' : 'bg-white text-slate-500'}`.trim()}
+            onClick={() => updateSort(column.key)}
+          >
+            {column.label} {sortIndicator(column.key)}
+          </button>
+        ))}
+      </div>
+
+      <div className="space-y-3 sm:hidden">
+        {sortedRows.map((row) => (
+          <button
+            key={row.label}
+            type="button"
+            className={`mobile-card w-full text-left ${onRowClick ? 'cursor-pointer' : 'cursor-default'} ${selectedLabel === row.label ? 'border-brand-red bg-brand-sand/40' : ''}`.trim()}
+            onClick={onRowClick ? () => onRowClick(row) : undefined}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="mobile-card-title break-words">{row.label}</h3>
+                <div className="mt-1 text-xs font-medium text-slate-400">{countLabel}: {row.count}</div>
+              </div>
+              <div className="shrink-0 text-right text-sm font-semibold text-brand-red">${money(row.total)}</div>
+            </div>
+            <div className="mobile-field-grid mt-4">
+              <div className="mobile-field">
+                <span className="mobile-field-label">Bultos</span>
+                <span className="mobile-field-value">{money(row.bultos)}</span>
+              </div>
+              {showWeight ? (
+                <div className="mobile-field">
+                  <span className="mobile-field-label">Peso</span>
+                  <span className="mobile-field-value">{weight(row.weight)} kg</span>
+                </div>
+              ) : null}
+              <div className="mobile-field">
+                <span className="mobile-field-label">Descuento</span>
+                <span className="mobile-field-value">${money(row.discount)}</span>
+              </div>
+            </div>
+          </button>
+        ))}
+        {sortedRows.length === 0 && (
+          <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-400">No hay datos para estos filtros.</div>
+        )}
+      </div>
+
+      <div className="table-shell hidden max-h-[30rem] overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable] sm:block">
         <table className="table-base !min-w-0 table-fixed text-xs sm:text-sm">
           <colgroup>
             <col className={showWeight ? 'w-[30%]' : 'w-[34%]'} />
@@ -280,7 +332,22 @@ function MonthlyBarChart({ rows, year, embedded = false }) {
         <h2 className="subsection-title text-xl">Evolución mensual {year}</h2>
         <div className="badge">12 meses</div>
       </div>
-      <div className="grid grid-cols-[4rem_minmax(0,1fr)] gap-3">
+      <div className="space-y-3 sm:hidden">
+        {safeRows.map((row, index) => {
+          const total = Number(row.total || 0)
+          const percentage = Math.round((total / chartMax) * 100)
+          return (
+            <div key={row.monthKey || row.label} className="grid grid-cols-[2.5rem_minmax(0,1fr)_5rem] items-center gap-2">
+              <div className="text-xs font-bold text-slate-500">{MONTH_LABELS[index]}</div>
+              <div className="h-4 overflow-hidden rounded-full bg-stone-100">
+                <div className="h-full rounded-full bg-brand-red" style={{ width: `${percentage}%` }} />
+              </div>
+              <div className="text-right text-xs font-semibold text-brand-red">${money(total)}</div>
+            </div>
+          )
+        })}
+      </div>
+      <div className="hidden grid-cols-[4rem_minmax(0,1fr)] gap-3 sm:grid">
         <div className="relative h-72 text-right text-[11px] font-medium text-slate-400">
           {ticks.map((tick) => (
             <div key={tick} className="absolute right-0" style={{ top: `${(1 - tick) * 100}%`, transform: 'translateY(-50%)' }}>
@@ -335,8 +402,9 @@ export default function InvoiceStats() {
   }, [])
 
   const filteredInvoices = useMemo(() => {
+    const selectedCustomerIds = (filters.customerIds || []).filter(Boolean).map(String)
     return statsInvoices.filter((invoice) => {
-      const matchesCustomer = !filters.customerId || String(invoice.customer_id || '') === String(filters.customerId)
+      const matchesCustomer = !selectedCustomerIds.length || selectedCustomerIds.includes(String(invoice.customer_id || ''))
       const matchesDateFrom = !filters.dateFrom || invoice.order_date >= filters.dateFrom
       const matchesDateTo = !filters.dateTo || invoice.order_date <= filters.dateTo
       const matchesTransport = !filters.transport || String(invoice.transport_id || '') === String(filters.transport)
@@ -367,30 +435,47 @@ export default function InvoiceStats() {
     }
     return Array.from(grouped.values()).sort((a, b) => a.label.localeCompare(b.label, 'es'))
   }, [invoiceItems])
-  const offeringOptions = useMemo(() => {
+  const offeringOptionsByProduct = useMemo(() => {
     const grouped = new Map()
     for (const item of invoiceItems) {
-      const matchesProduct = !productFilters.productId || String(item.product_id || '') === String(productFilters.productId)
-      if (!matchesProduct) continue
+      const productKey = String(item.product_id || '')
       const id = String(item.offering_id || '')
       const label = itemOfferingLabel(item)
-      const key = productFilters.productId ? id || label : label
-      if (!grouped.has(key)) grouped.set(key, { id: productFilters.productId ? id : label, label })
+      const productMap = grouped.get(productKey) || new Map()
+      const productKeyValue = id || label
+      if (!productMap.has(productKeyValue)) productMap.set(productKeyValue, { id, label })
+      grouped.set(productKey, productMap)
+
+      const allMap = grouped.get('') || new Map()
+      if (!allMap.has(label)) allMap.set(label, { id: label, label })
+      grouped.set('', allMap)
     }
-    return Array.from(grouped.values()).sort((a, b) => a.label.localeCompare(b.label, 'es'))
-  }, [invoiceItems, productFilters.productId])
+    return Object.fromEntries(
+      Array.from(grouped.entries()).map(([productId, offerings]) => [
+        productId,
+        Array.from(offerings.values()).sort((a, b) => a.label.localeCompare(b.label, 'es')),
+      ])
+    )
+  }, [invoiceItems])
+  const activeProductLines = useMemo(
+    () => (productFilters.lines || []).filter((line) => line.productId || line.offeringId),
+    [productFilters.lines]
+  )
   const filteredItems = useMemo(
     () => invoiceItems.filter((item) => {
       const matchesInvoice = filteredInvoiceIds.has(String(item.invoice_id))
-      const matchesProduct = !productFilters.productId || String(item.product_id || '') === String(productFilters.productId)
-      const matchesOffering = !productFilters.offeringId || (productFilters.productId
-        ? String(item.offering_id || '') === String(productFilters.offeringId)
-        : itemOfferingLabel(item) === String(productFilters.offeringId))
-      return matchesInvoice && matchesProduct && matchesOffering
+      const matchesProductLines = !activeProductLines.length || activeProductLines.some((line) => {
+        const matchesProduct = !line.productId || String(item.product_id || '') === String(line.productId)
+        const matchesOffering = !line.offeringId || (line.productId
+          ? String(item.offering_id || '') === String(line.offeringId)
+          : itemOfferingLabel(item) === String(line.offeringId))
+        return matchesProduct && matchesOffering
+      })
+      return matchesInvoice && matchesProductLines
     }),
-    [filteredInvoiceIds, invoiceItems, productFilters]
+    [activeProductLines, filteredInvoiceIds, invoiceItems]
   )
-  const hasProductFilter = Boolean(productFilters.productId || productFilters.offeringId)
+  const hasProductFilter = activeProductLines.length > 0
   const byCustomer = useMemo(
     () => hasProductFilter
       ? buildCustomerProductRanking(filteredItems)
@@ -410,13 +495,46 @@ export default function InvoiceStats() {
     setFilters((current) => ({ ...current, [field]: value }))
   }
 
-  function updateProductFilter(field, value) {
+  function updateCustomerFilter(index, value) {
+    setFilters((current) => {
+      const customerIds = [...(current.customerIds || [''])]
+      customerIds[index] = value
+      return { ...current, customerIds }
+    })
+  }
+
+  function addCustomerFilter() {
+    setFilters((current) => ({ ...current, customerIds: [...(current.customerIds || ['']), ''] }))
+  }
+
+  function removeCustomerFilter(index) {
+    setFilters((current) => {
+      const customerIds = (current.customerIds || ['']).filter((_, itemIndex) => itemIndex !== index)
+      return { ...current, customerIds: customerIds.length ? customerIds : [''] }
+    })
+  }
+
+  function updateProductFilter(index, field, value) {
     setSelectedProductLabel('')
     setProductFilters((current) => ({
-      ...current,
-      [field]: value,
-      ...(field === 'productId' ? { offeringId: '' } : {}),
+      lines: (current.lines || [{ productId: '', offeringId: '' }]).map((line, itemIndex) => (
+        itemIndex === index
+          ? { ...line, [field]: value, ...(field === 'productId' ? { offeringId: '' } : {}) }
+          : line
+      )),
     }))
+  }
+
+  function addProductFilter() {
+    setProductFilters((current) => ({ lines: [...(current.lines || [{ productId: '', offeringId: '' }]), { productId: '', offeringId: '' }] }))
+  }
+
+  function removeProductFilter(index) {
+    setSelectedProductLabel('')
+    setProductFilters((current) => {
+      const lines = (current.lines || [{ productId: '', offeringId: '' }]).filter((_, itemIndex) => itemIndex !== index)
+      return { lines: lines.length ? lines : [{ productId: '', offeringId: '' }] }
+    })
   }
 
   return (
@@ -432,13 +550,7 @@ export default function InvoiceStats() {
         <div className="mb-4 border-b border-stone-200 pb-3">
           <h2 className="subsection-title text-xl">Filtros generales</h2>
         </div>
-        <div className="grid gap-3 md:grid-cols-5">
-          <select className="input" value={filters.customerId} onChange={(event) => updateFilter('customerId', event.target.value)}>
-            <option value="">Todos los clientes</option>
-            {customers.map((customer) => (
-              <option key={customer.id} value={customer.id}>{customer.name}</option>
-            ))}
-          </select>
+        <div className="grid gap-3 md:grid-cols-4">
           <input className="input" type="date" value={filters.dateFrom} onChange={(event) => updateFilter('dateFrom', event.target.value)} />
           <input className="input" type="date" value={filters.dateTo} onChange={(event) => updateFilter('dateTo', event.target.value)} />
           <select className="input" value={filters.transport} onChange={(event) => updateFilter('transport', event.target.value)}>
@@ -449,26 +561,57 @@ export default function InvoiceStats() {
           </select>
           <Button variant="secondary" onClick={() => setFilters(EMPTY_FILTERS)}>Limpiar</Button>
         </div>
+
+        <div className="mt-4 space-y-3">
+          <div className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Clientes a comparar</div>
+          {(filters.customerIds || ['']).map((customerId, index) => (
+            <div key={index} className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
+              <select className="input" value={customerId} onChange={(event) => updateCustomerFilter(index, event.target.value)}>
+                <option value="">Todos los clientes</option>
+                {customers.map((customer) => (
+                  <option key={customer.id} value={customer.id}>{customer.name}</option>
+                ))}
+              </select>
+              <Button variant="secondary" onClick={() => removeCustomerFilter(index)} disabled={(filters.customerIds || ['']).length === 1}>
+                Quitar
+              </Button>
+            </div>
+          ))}
+          <Button variant="ghost" onClick={addCustomerFilter}>+ Agregar cliente</Button>
+        </div>
       </section>
 
       <section className="surface p-4 sm:p-6">
         <div className="mb-4 border-b border-stone-200 pb-3">
           <h2 className="subsection-title text-xl">Filtros de producto</h2>
         </div>
-        <div className="grid gap-3 md:grid-cols-3">
-          <select className="input" value={productFilters.productId} onChange={(event) => updateProductFilter('productId', event.target.value)}>
-            <option value="">Todos los productos</option>
-            {productOptions.map((product) => (
-              <option key={product.id || product.label} value={product.id}>{product.label}</option>
-            ))}
-          </select>
-          <select className="input" value={productFilters.offeringId} onChange={(event) => updateProductFilter('offeringId', event.target.value)}>
-            <option value="">Todos los formatos</option>
-            {offeringOptions.map((offering) => (
-              <option key={offering.id || offering.label} value={offering.id}>{offering.label}</option>
-            ))}
-          </select>
-          <Button variant="secondary" onClick={() => setProductFilters(EMPTY_PRODUCT_FILTERS)}>Limpiar productos</Button>
+        <div className="space-y-3">
+          {(productFilters.lines || [{ productId: '', offeringId: '' }]).map((line, index) => {
+            const offeringOptions = offeringOptionsByProduct[line.productId || ''] || []
+            return (
+              <div key={index} className="grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                <select className="input" value={line.productId} onChange={(event) => updateProductFilter(index, 'productId', event.target.value)}>
+                  <option value="">Todos los productos</option>
+                  {productOptions.map((product) => (
+                    <option key={product.id || product.label} value={product.id}>{product.label}</option>
+                  ))}
+                </select>
+                <select className="input" value={line.offeringId} onChange={(event) => updateProductFilter(index, 'offeringId', event.target.value)}>
+                  <option value="">Todos los formatos</option>
+                  {offeringOptions.map((offering) => (
+                    <option key={offering.id || offering.label} value={offering.id}>{offering.label}</option>
+                  ))}
+                </select>
+                <Button variant="secondary" onClick={() => removeProductFilter(index)} disabled={(productFilters.lines || []).length === 1}>
+                  Quitar
+                </Button>
+              </div>
+            )
+          })}
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button variant="ghost" onClick={addProductFilter}>+ Agregar producto</Button>
+            <Button variant="secondary" onClick={() => { setSelectedProductLabel(''); setProductFilters(EMPTY_PRODUCT_FILTERS) }}>Limpiar productos</Button>
+          </div>
         </div>
       </section>
 
