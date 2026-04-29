@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 
@@ -24,11 +25,19 @@ COLOR_MUTED = (0.28, 0.28, 0.28)
 COLOR_LINE = (0.25, 0.25, 0.25)
 COLOR_HEADER_BG = (0.78, 0.81, 0.86)
 TABLE_PAD_X = 0
-ITEM_FONT_SIZE = 12
+TABLE_INNER_PAD_X = 8
+ITEM_FONT_SIZE = 10
 ITEM_ROW_HEIGHT = 16
 
 def _money(value: int | float) -> str:
     return f"$ {int(round(value or 0)):,}".replace(",", ".")
+
+
+def _date(value: object) -> str:
+    try:
+        return datetime.strptime(str(value), "%Y-%m-%d").strftime("%d-%m-%Y")
+    except ValueError:
+        return str(value or "")
 
 
 def _discount_summary(invoice: dict) -> str:
@@ -123,7 +132,7 @@ def _draw_header(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
 
     pdf.setFont(FONT_REGULAR, 12)
     _set_color(pdf, COLOR_MUTED)
-    pdf.drawRightString(width - MARGIN, y - 25, f"Fecha de Emisión: {invoice['order_date']}")
+    pdf.drawRightString(width - MARGIN, y - 25, f"Fecha de Emisión: {_date(invoice.get('order_date') or invoice.get('date'))}")
 
     _set_color(pdf, COLOR_TEXT)
 
@@ -167,10 +176,10 @@ def _draw_items_header(pdf: canvas.Canvas, width: float, y: float) -> float:
     pdf.setFont(FONT_BOLD, 16)
     _set_color(pdf, COLOR_TEXT)
 
-    pdf.drawString(MARGIN, y, "Producto")
+    pdf.drawString(MARGIN + TABLE_INNER_PAD_X, y, "Producto")
     pdf.drawCentredString(MARGIN + 285, y, "Cant.")
     pdf.drawRightString(MARGIN + 405, y, "Precio")
-    pdf.drawRightString(width - MARGIN, y, "Total")
+    pdf.drawRightString(width - MARGIN - TABLE_INNER_PAD_X, y, "Total")
 
     y -= 12
     _line(pdf, MARGIN, y, width - MARGIN)
@@ -189,13 +198,13 @@ def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: in
         str(item.get("label") or ""),
         FONT_REGULAR,
         font_size,
-        max_width=250,
+        max_width=242,
     )
 
-    pdf.drawString(MARGIN, y, label)
+    pdf.drawString(MARGIN + TABLE_INNER_PAD_X, y, label)
     pdf.drawCentredString(MARGIN + 285, y, format_quantity(item.get("quantity") or 0))
     pdf.drawRightString(MARGIN + 405, y, _money(item.get("unit_price") or 0))
-    pdf.drawRightString(width - MARGIN, y, _money(item.get("total") or 0))
+    pdf.drawRightString(width - MARGIN - TABLE_INNER_PAD_X, y, _money(item.get("total") or 0))
 
     return y - row_height
 
@@ -210,10 +219,10 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
 
     y -= 14
 
-    pdf.setFont(FONT_BOLD, 17)
+    pdf.setFont(FONT_BOLD, 14)
     _set_color(pdf, COLOR_TEXT)
 
-    pdf.drawString(MARGIN, y, "Bulto")
+    pdf.drawString(MARGIN, y, "Bultos")
     pdf.drawCentredString(MARGIN + 285, y, format_quantity(total_bultos))
 
     y -= 16
@@ -230,9 +239,9 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
 
     if int(invoice.get("discount_total") or 0) > 0:
         discount_label = (
-            f"Descuento ({discount_summary})"
-            if discount_summary != "Sin descuentos"
-            else "Descuento"
+            f"Dto. ({discount_summary})"
+            if discount_summary != "Sin dto."
+            else "Dto."
         )
 
         pdf.setFont(FONT_REGULAR, 15)
@@ -261,11 +270,11 @@ def _draw_notes(pdf: canvas.Canvas, invoice: dict, y: float) -> float:
     y -= 22
 
     if transport:
-        pdf.setFont(FONT_BOLD, 10)
+        pdf.setFont(FONT_BOLD, 12)
         _set_color(pdf, COLOR_TEXT)
         pdf.drawString(MARGIN, y, "Transporte")
         y -= 15
-        pdf.setFont(FONT_REGULAR, 10)
+        pdf.setFont(FONT_REGULAR, 12)
         _set_color(pdf, COLOR_MUTED)
         pdf.drawString(MARGIN, y, transport)
         y -= 18
