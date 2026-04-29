@@ -173,45 +173,90 @@ function buildCustomerProductRanking(items) {
     .sort((a, b) => b.total - a.total)
 }
 
-function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false }) {
+function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false, onRowClick, selectedLabel = '' }) {
+  const [sort, setSort] = useState({ key: 'total', direction: 'desc' })
+  const columns = [
+    { key: 'label', label: 'Grupo', align: 'left' },
+    { key: 'count', label: countLabel, align: 'right' },
+    { key: 'bultos', label: 'Bultos', align: 'right' },
+    ...(showWeight ? [{ key: 'weight', label: 'Peso', align: 'right' }] : []),
+    { key: 'discount', label: 'Descuento', align: 'right' },
+    { key: 'total', label: 'Total', align: 'right' },
+  ]
+  const sortedRows = useMemo(() => {
+    return [...rows].sort((a, b) => {
+      if (sort.key === 'label') {
+        const result = String(a.label || '').localeCompare(String(b.label || ''), 'es')
+        return sort.direction === 'asc' ? result : -result
+      }
+      const result = Number(b[sort.key] || 0) - Number(a[sort.key] || 0)
+      return sort.direction === 'desc' ? result : -result
+    })
+  }, [rows, sort])
+
+  function updateSort(key) {
+    setSort((current) => ({
+      key,
+      direction: current.key === key && current.direction === 'desc' ? 'asc' : 'desc',
+    }))
+  }
+
+  function sortIndicator(key) {
+    if (sort.key !== key) return ''
+    return sort.direction === 'desc' ? '↓' : '↑'
+  }
+
   return (
     <section className="surface p-4 pr-5 sm:p-6 sm:pr-8">
       <div className="mb-4 flex items-start justify-between gap-3 border-b border-stone-200 pb-3">
         <h2 className="subsection-title text-xl">{title}</h2>
         <div className="badge">{rows.length} filas</div>
       </div>
-      <div className="table-shell max-h-[30rem] overflow-x-hidden overflow-y-auto">
+      <div className="table-shell max-h-[30rem] overflow-x-hidden overflow-y-auto pr-3 [scrollbar-gutter:stable]">
         <table className="table-base !min-w-0 table-fixed text-xs sm:text-sm">
           <colgroup>
-            <col className={showWeight ? 'w-[36%]' : 'w-[42%]'} />
-            <col className="w-[12%]" />
-            <col className="w-[14%]" />
-            {showWeight ? <col className="w-[14%]" /> : null}
-            <col className={showWeight ? 'w-[12%]' : 'w-[16%]'} />
-            <col className={showWeight ? 'w-[12%]' : 'w-[16%]'} />
+            <col className={showWeight ? 'w-[30%]' : 'w-[34%]'} />
+            <col className={showWeight ? 'w-[12%]' : 'w-[13%]'} />
+            <col className={showWeight ? 'w-[13%]' : 'w-[15%]'} />
+            {showWeight ? <col className="w-[15%]" /> : null}
+            <col className={showWeight ? 'w-[14%]' : 'w-[18%]'} />
+            <col className={showWeight ? 'w-[16%]' : 'w-[20%]'} />
           </colgroup>
           <thead className="table-head">
             <tr>
-              <th className="!px-2">Grupo</th>
-              <th className="!px-2 text-right">{countLabel}</th>
-              <th className="!px-2 text-right">Bultos</th>
-              {showWeight ? <th className="!px-2 text-right">Peso</th> : null}
-              <th className="!px-2 text-right">Descuento</th>
-              <th className="!px-2 text-right">Total</th>
+              {columns.map((column) => (
+                <th
+                  key={column.key}
+                  className={`sticky top-0 z-10 bg-stone-100 !px-2 ${column.align === 'right' ? 'text-right' : ''} ${column.key === 'total' ? '!pl-2 !pr-5' : ''}`.trim()}
+                >
+                  <button
+                    type="button"
+                    className={`inline-flex w-full items-center gap-1 ${column.align === 'right' ? 'justify-end' : 'justify-start'}`.trim()}
+                    onClick={() => updateSort(column.key)}
+                  >
+                    <span>{column.label}</span>
+                    <span className="text-[10px] text-slate-400">{sortIndicator(column.key)}</span>
+                  </button>
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr key={row.label} className="table-row">
+            {sortedRows.map((row) => (
+              <tr
+                key={row.label}
+                className={`table-row ${onRowClick ? 'cursor-pointer' : ''} ${selectedLabel === row.label ? 'bg-brand-sand/40' : ''}`.trim()}
+                onClick={onRowClick ? () => onRowClick(row) : undefined}
+              >
                 <td className="table-cell break-words !px-2 font-medium leading-snug">{row.label}</td>
                 <td className="table-cell whitespace-nowrap !px-2 text-right">{row.count}</td>
                 <td className="table-cell whitespace-nowrap !px-2 text-right">{money(row.bultos)}</td>
                 {showWeight ? <td className="table-cell whitespace-nowrap !px-2 text-right">{weight(row.weight)} kg</td> : null}
                 <td className="table-cell whitespace-nowrap !px-2 text-right">${money(row.discount)}</td>
-                <td className="table-cell whitespace-nowrap !pl-2 !pr-4 text-right font-semibold text-brand-red">${money(row.total)}</td>
+                <td className="table-cell whitespace-nowrap !pl-2 !pr-5 text-right font-semibold text-brand-red">${money(row.total)}</td>
               </tr>
             ))}
-            {rows.length === 0 && (
+            {sortedRows.length === 0 && (
               <tr>
                 <td colSpan={showWeight ? 6 : 5} className="table-cell py-8 text-center text-slate-400">No hay datos para estos filtros.</td>
               </tr>
@@ -274,6 +319,7 @@ export default function InvoiceStats() {
   const { bootstrap, customers, invoices } = useGranalia()
   const [filters, setFilters] = useState(EMPTY_FILTERS)
   const [productFilters, setProductFilters] = useState(EMPTY_PRODUCT_FILTERS)
+  const [selectedProductLabel, setSelectedProductLabel] = useState('')
   const [statsInvoices, setStatsInvoices] = useState(invoices)
   const [invoiceItems, setInvoiceItems] = useState([])
   const [loadingItems, setLoadingItems] = useState(false)
@@ -353,12 +399,19 @@ export default function InvoiceStats() {
   )
   const byProduct = useMemo(() => buildProductRanking(filteredItems), [filteredItems])
   const byProductTotal = useMemo(() => buildProductTotalRanking(filteredItems), [filteredItems])
+  const selectedProductFormats = useMemo(
+    () => selectedProductLabel
+      ? buildProductRanking(filteredItems.filter((item) => itemProductLabel(item) === selectedProductLabel))
+      : [],
+    [filteredItems, selectedProductLabel]
+  )
 
   function updateFilter(field, value) {
     setFilters((current) => ({ ...current, [field]: value }))
   }
 
   function updateProductFilter(field, value) {
+    setSelectedProductLabel('')
     setProductFilters((current) => ({
       ...current,
       [field]: value,
@@ -444,8 +497,20 @@ export default function InvoiceStats() {
 
       <div className="grid gap-6 xl:grid-cols-2">
         <RankingTable title="Ranking por cliente" rows={byCustomer} showWeight={hasProductFilter} />
-        <RankingTable title={loadingItems ? 'Ranking por producto/formato (cargando...)' : 'Ranking por producto/formato'} rows={byProduct} countLabel="Líneas" showWeight />
-        <RankingTable title="Total por producto" rows={byProductTotal} countLabel="Líneas" showWeight />
+        <RankingTable
+          title={loadingItems ? 'Total por producto (cargando...)' : 'Total por producto'}
+          rows={byProductTotal}
+          countLabel="Líneas"
+          showWeight
+          selectedLabel={selectedProductLabel}
+          onRowClick={(row) => setSelectedProductLabel((current) => current === row.label ? '' : row.label)}
+        />
+        <RankingTable
+          title={selectedProductLabel ? `Desglose por formato: ${selectedProductLabel}` : 'Desglose por formato'}
+          rows={selectedProductFormats}
+          countLabel="Líneas"
+          showWeight
+        />
         <div className="xl:col-span-2">
           <RankingTable title="Totales por mes" rows={byMonth} />
         </div>
