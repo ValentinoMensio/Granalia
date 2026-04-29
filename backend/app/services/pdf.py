@@ -210,6 +210,7 @@ def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: in
 
 def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> float:
     totals_label_x = width - 240
+    totals_value_x = width - MARGIN - TABLE_INNER_PAD_X
     total_bultos = sum(
         float(item.get("quantity") or 0)
         for item in invoice.get("items", [])
@@ -222,7 +223,7 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
     pdf.setFont(FONT_BOLD, 14)
     _set_color(pdf, COLOR_TEXT)
 
-    pdf.drawString(MARGIN, y, "Bultos")
+    pdf.drawString(MARGIN + TABLE_INNER_PAD_X, y, "Bultos")
     pdf.drawCentredString(MARGIN + 285, y, format_quantity(total_bultos))
 
     y -= 16
@@ -233,7 +234,7 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
     _set_color(pdf, COLOR_TEXT)
     pdf.setFont(FONT_BOLD, 15)
     pdf.drawString(totals_label_x, y, "Bruto")
-    pdf.drawRightString(width - MARGIN, y, _money(invoice.get("gross_total") or 0))
+    pdf.drawRightString(totals_value_x, y, _money(invoice.get("gross_total") or 0))
 
     y -= 18
 
@@ -247,7 +248,7 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
         pdf.setFont(FONT_REGULAR, 15)
         _set_color(pdf, COLOR_MUTED)
         pdf.drawString(totals_label_x, y, _truncate(clean_cell_text(discount_label), FONT_REGULAR, 15, 210))
-        pdf.drawRightString(width - MARGIN, y, _money(invoice.get("discount_total") or 0))
+        pdf.drawRightString(totals_value_x, y, _money(invoice.get("discount_total") or 0))
 
         y -= 28
     else:
@@ -256,7 +257,7 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
     pdf.setFont(FONT_BOLD, 15)
     _set_color(pdf, COLOR_TEXT)
     pdf.drawString(totals_label_x, y, "Total")
-    pdf.drawRightString(width - MARGIN, y, _money(invoice.get("final_total") or 0))
+    pdf.drawRightString(totals_value_x, y, _money(invoice.get("final_total") or 0))
 
     return y - 20
 
