@@ -1,5 +1,5 @@
 import { Component } from 'react'
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Login from './pages/Login'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { GranaliaProvider } from './context/GranaliaContext'
@@ -37,32 +37,6 @@ class AppErrorBoundary extends Component {
 }
 
 function AppLayout() {
-  const location = useLocation()
-  const isCreator = location.pathname === '/'
-
-  if (isCreator) {
-    return (
-      <div className="app-shell">
-        <AppHeader />
-
-        <Routes>
-          <Route path="/" element={<OrderCreator />} />
-          <Route path="/history" element={<InvoiceHistory />} />
-          <Route path="/history/stats" element={<InvoiceStats />} />
-          <Route path="/management" element={<Management />} />
-          <Route path="/customers/new" element={<CustomerEditor />} />
-          <Route path="/customers/:id" element={<CustomerEditor />} />
-          <Route path="/products/new" element={<ProductEditor />} />
-          <Route path="/products/:id" element={<ProductEditor />} />
-          <Route path="/transports/new" element={<TransportEditor />} />
-          <Route path="/transports/:id" element={<TransportEditor />} />
-        </Routes>
-
-        <StatusBar />
-      </div>
-    )
-  }
-
   return (
     <div className="app-shell">
       <AppHeader />

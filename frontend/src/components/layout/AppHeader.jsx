@@ -11,7 +11,6 @@ function AppHeader() {
     { to: '/history', label: 'Facturas', exact: true },
     { to: '/history/stats', label: 'Estadística', exact: true },
     { to: '/management', label: 'Gestión' },
-    { to: '/history/stats', label: 'Estadística' },
   ]
 
   return (

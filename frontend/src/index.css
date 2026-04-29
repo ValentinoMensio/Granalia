@@ -47,87 +47,14 @@
 }
 
 @layer components {
-.app-shell {
+  .app-shell {
     @apply mx-auto w-full max-w-[1540px] px-3 py-3 sm:px-4 sm:py-4 lg:px-6;
   }
 
-  .metric-card {
-    @apply rounded-lg border px-4 py-3;
-    border-color: rgb(var(--border));
-    background: rgb(var(--surface));
-  }
-
-  .table-shell {
-    @apply overflow-hidden rounded-lg border;
-    border-color: rgb(var(--border));
-    background-color: rgb(var(--surface));
-  }
-
-  .tab-nav {
-    @apply inline-flex rounded-lg border p-1;
-    border-color: rgb(var(--border));
-    background-color: rgb(var(--surface-muted));
-  }
-
-  .status-bar {
-    @apply mt-4 rounded-lg border px-4 py-3 text-sm;
-    border-color: rgb(var(--border));
-    background-color: rgb(var(--surface));
-    color: rgb(var(--text));
-  }
-
-  .editor-card {
-    @apply surface p-5 lg:p-6;
-  }
-
-  .input {
-    @apply w-full rounded-lg border px-3 py-2 text-sm outline-none transition;
-    border-color: rgb(var(--border));
-    background-color: rgb(var(--surface));
-    color: rgb(var(--text));
-  }
-
-  .input:focus {
-    border-color: rgb(var(--accent));
-    box-shadow: 0 0 0 2px rgba(29, 78, 182, 0.1);
-  }
-
-  .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-55;
-  }
-
-  .badge {
-    @apply inline-flex items-center rounded border px-2.5 py-0.5 text-xs font-medium;
-    border-color: rgb(var(--border));
-    background-color: rgb(var(--surface-muted));
-    color: rgb(var(--text));
-  }
-
-.surface {
+  .surface {
     @apply rounded-lg border bg-white shadow-sm;
     border-color: rgb(var(--border));
     background: rgb(var(--surface));
-  }
-
-  .surface-muted {
-    @apply rounded-lg border;
-    border-color: rgb(var(--border));
-    background: rgb(var(--surface-muted));
-  }
-
-  .surface-strong {
-    @apply rounded-lg border shadow-sm;
-    border-color: rgb(var(--border));
-    background: rgba(255,255,255,0.98);
-  }
-
-  .btn-primary {
-    @apply btn text-white;
-    background: rgb(var(--primary));
-  }
-
-  .btn-primary:hover {
-    background: rgb(var(--primary-strong));
   }
 
   .surface-muted {
