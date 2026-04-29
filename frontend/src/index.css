@@ -316,8 +316,9 @@
 
   .tab-button-active {
     @apply shadow-sm;
-    background: rgb(var(--surface));
-    color: rgb(var(--primary));
+    background: rgb(var(--primary-strong));
+    color: white;
+    box-shadow: 0 8px 18px rgba(var(--shadow), 0.16);
   }
 
   .status-bar {

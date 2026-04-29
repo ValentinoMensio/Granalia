@@ -7,8 +7,9 @@ function AppHeader() {
   const location = useLocation()
   const { logout } = useAuth()
   const links = [
-    { to: '/', label: 'Creador' },
-    { to: '/history', label: 'Facturas' },
+    { to: '/', label: 'Creador', exact: true },
+    { to: '/history', label: 'Facturas', exact: true },
+    { to: '/history/stats', label: 'Estadística', exact: true },
     { to: '/management', label: 'Gestión' },
     { to: '/history/stats', label: 'Estadística' },
   ]
@@ -26,11 +27,12 @@ function AppHeader() {
           <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center lg:w-auto">
             <nav className="tab-nav">
               {links.map((link) => {
-                const active = location.pathname === link.to
+                const active = link.exact ? location.pathname === link.to : location.pathname.startsWith(link.to)
                 return (
                   <Link
                     key={link.to}
                     to={link.to}
+                    aria-current={active ? 'page' : undefined}
                     className={`tab-button ${active ? 'tab-button-active' : ''}`.trim()}
                   >
                     {link.label}

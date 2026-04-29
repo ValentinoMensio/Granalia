@@ -72,7 +72,9 @@ export default function Management() {
           {['customers', 'transports', 'products'].map((t) => (
             <button
               key={t}
+              type="button"
               onClick={() => selectTab(t)}
+              aria-current={tab === t ? 'page' : undefined}
               className={`tab-button ${
                 tab === t ? 'tab-button-active' : ''
               }`}
