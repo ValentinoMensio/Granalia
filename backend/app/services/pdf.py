@@ -28,6 +28,7 @@ TABLE_PAD_X = 0
 TABLE_INNER_PAD_X = 8
 ITEM_FONT_SIZE = 10
 ITEM_ROW_HEIGHT = 16
+SUMMARY_FONT_SIZE = 14
 
 def _money(value: int | float) -> str:
     return f"$ {int(round(value or 0)):,}".replace(",", ".")
@@ -202,7 +203,7 @@ def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: in
     )
 
     pdf.drawString(MARGIN + TABLE_INNER_PAD_X, y, label)
-    pdf.drawCentredString(MARGIN + 285, y, format_quantity(item.get("quantity") or 0))
+    pdf.drawRightString(MARGIN + 300, y, format_quantity(item.get("quantity") or 0))
     pdf.drawRightString(MARGIN + 405, y, _money(item.get("unit_price") or 0))
     pdf.drawRightString(width - MARGIN - TABLE_INNER_PAD_X, y, _money(item.get("total") or 0))
 
@@ -220,11 +221,11 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
 
     y -= 14
 
-    pdf.setFont(FONT_BOLD, 14)
+    pdf.setFont(FONT_BOLD, SUMMARY_FONT_SIZE)
     _set_color(pdf, COLOR_TEXT)
 
     pdf.drawString(MARGIN + TABLE_INNER_PAD_X, y, "Bultos")
-    pdf.drawCentredString(MARGIN + 285, y, format_quantity(total_bultos))
+    pdf.drawRightString(MARGIN + 300, y, format_quantity(total_bultos))
 
     y -= 16
     _line(pdf, MARGIN, y, width - MARGIN)
@@ -232,7 +233,7 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
     y -= 30
 
     _set_color(pdf, COLOR_TEXT)
-    pdf.setFont(FONT_BOLD, 15)
+    pdf.setFont(FONT_BOLD, SUMMARY_FONT_SIZE)
     pdf.drawString(totals_label_x, y, "Bruto")
     pdf.drawRightString(totals_value_x, y, _money(invoice.get("gross_total") or 0))
 
@@ -245,16 +246,16 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
             else "Dto."
         )
 
-        pdf.setFont(FONT_REGULAR, 15)
+        pdf.setFont(FONT_REGULAR, SUMMARY_FONT_SIZE)
         _set_color(pdf, COLOR_MUTED)
-        pdf.drawString(totals_label_x, y, _truncate(clean_cell_text(discount_label), FONT_REGULAR, 15, 210))
+        pdf.drawString(totals_label_x, y, _truncate(clean_cell_text(discount_label), FONT_REGULAR, SUMMARY_FONT_SIZE, 210))
         pdf.drawRightString(totals_value_x, y, _money(invoice.get("discount_total") or 0))
 
         y -= 28
     else:
         y -= 10
 
-    pdf.setFont(FONT_BOLD, 15)
+    pdf.setFont(FONT_BOLD, SUMMARY_FONT_SIZE)
     _set_color(pdf, COLOR_TEXT)
     pdf.drawString(totals_label_x, y, "Total")
     pdf.drawRightString(totals_value_x, y, _money(invoice.get("final_total") or 0))
@@ -271,11 +272,11 @@ def _draw_notes(pdf: canvas.Canvas, invoice: dict, y: float) -> float:
     y -= 22
 
     if transport:
-        pdf.setFont(FONT_BOLD, 12)
+        pdf.setFont(FONT_BOLD, 14)
         _set_color(pdf, COLOR_TEXT)
         pdf.drawString(MARGIN, y, "Transporte")
         y -= 15
-        pdf.setFont(FONT_REGULAR, 12)
+        pdf.setFont(FONT_REGULAR, 14)
         _set_color(pdf, COLOR_MUTED)
         pdf.drawString(MARGIN, y, transport)
         y -= 18
@@ -284,11 +285,11 @@ def _draw_notes(pdf: canvas.Canvas, invoice: dict, y: float) -> float:
         _set_color(pdf, COLOR_TEXT)
         return y
 
-    pdf.setFont(FONT_BOLD, 10)
+    pdf.setFont(FONT_BOLD, 14)
     _set_color(pdf, COLOR_TEXT)
     pdf.drawString(MARGIN, y, "Observaciones")
 
-    pdf.setFont(FONT_REGULAR, 10)
+    pdf.setFont(FONT_REGULAR, 14)
     _set_color(pdf, COLOR_MUTED)
 
     for note in notes:
