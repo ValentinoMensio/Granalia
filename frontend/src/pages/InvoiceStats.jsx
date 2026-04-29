@@ -231,7 +231,7 @@ function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false
           <button
             key={row.label}
             type="button"
-            className={`mobile-card w-full text-left ${onRowClick ? 'cursor-pointer' : 'cursor-default'} ${selectedLabel === row.label ? 'border-brand-red bg-brand-sand/40' : ''}`.trim()}
+            className={`mobile-card w-full text-left ${onRowClick ? 'cursor-pointer' : 'cursor-default'} ${selectedLabel === row.label ? 'border-brand-red bg-blue-100 shadow-sm ring-1 ring-brand-red/30' : ''}`.trim()}
             onClick={onRowClick ? () => onRowClick(row) : undefined}
           >
             <div className="flex items-start justify-between gap-3">
@@ -297,7 +297,7 @@ function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false
             {sortedRows.map((row) => (
               <tr
                 key={row.label}
-                className={`table-row ${onRowClick ? 'cursor-pointer' : ''} ${selectedLabel === row.label ? 'bg-brand-sand/40' : ''}`.trim()}
+                className={`table-row ${onRowClick ? 'cursor-pointer' : ''} ${selectedLabel === row.label ? '!bg-blue-100 ring-1 ring-inset ring-brand-red/30' : ''}`.trim()}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
               >
                 <td className="table-cell break-words !px-2 font-medium leading-snug">{row.label}</td>
