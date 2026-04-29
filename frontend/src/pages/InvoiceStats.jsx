@@ -77,9 +77,6 @@ function buildYearMonthlyRows(rows, year) {
 }
 
 function itemOfferingLabel(item) {
-  const explicit = String(item.offering_label || '').trim()
-  if (explicit) return explicit
-
   const label = String(item.label || '').trim()
   const product = String(item.product_name || '').trim()
 
@@ -89,7 +86,10 @@ function itemOfferingLabel(item) {
   }
 
   const formatMatch = label.match(/(?:16x300|12x300|12x350|12x400|10x500|12x500|10x\s*1\s*kg|10x1000|x\s*(?:4|5|25|30)\s*kg)\b/i)
-  return formatMatch ? formatMatch[0].replace(/\s+/g, ' ') : 'Sin formato'
+  if (formatMatch) return formatMatch[0].replace(/\s+/g, ' ')
+
+  const explicit = String(item.offering_label || '').trim()
+  return explicit || 'Sin formato'
 }
 
 function itemProductLabel(item) {
@@ -475,6 +475,10 @@ export default function InvoiceStats() {
     }),
     [activeProductLines, filteredInvoiceIds, invoiceItems]
   )
+  const totalWeight = useMemo(
+    () => filteredItems.reduce((sum, item) => sum + itemWeight(item), 0),
+    [filteredItems]
+  )
   const hasProductFilter = activeProductLines.length > 0
   const byCustomer = useMemo(
     () => hasProductFilter
@@ -626,9 +630,10 @@ export default function InvoiceStats() {
           <div className="h-px flex-1 bg-stone-200" />
         </div>
 
-        <section className="grid gap-3 md:grid-cols-5">
+        <section className="grid gap-3 md:grid-cols-6">
           <Metric label="Facturas" value={money(filteredInvoices.length)} />
           <Metric label="Bultos" value={money(summary.bultos)} />
+          <Metric label="Kilos" value={`${weight(totalWeight)} kg`} />
           <Metric label="Bruto" value={`$${money(summary.gross)}`} />
           <Metric label="Descuentos" value={`$${money(summary.discount)}`} />
           <Metric label="Total" value={`$${money(summary.total)}`} />
