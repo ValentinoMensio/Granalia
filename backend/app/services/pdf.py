@@ -14,7 +14,7 @@ from ..dependencies import BASE_DIR
 
 
 PAGE_SIZE = A4
-MARGIN = 36
+MARGIN = 57
 
 FONT_REGULAR = "Helvetica"
 FONT_BOLD = "Helvetica-Bold"
@@ -23,9 +23,8 @@ COLOR_TEXT = (0.02, 0.02, 0.02)
 COLOR_MUTED = (0.28, 0.28, 0.28)
 COLOR_LINE = (0.25, 0.25, 0.25)
 COLOR_HEADER_BG = (0.78, 0.81, 0.86)
-COLOR_ROW_BG = (0.86, 0.89, 0.94)
 TABLE_PAD_X = 0
-ITEM_FONT_SIZE = 10
+ITEM_FONT_SIZE = 12
 ITEM_ROW_HEIGHT = 16
 
 def _money(value: int | float) -> str:
@@ -124,11 +123,11 @@ def _draw_header(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
 
     pdf.setFont(FONT_REGULAR, 12)
     _set_color(pdf, COLOR_MUTED)
-    pdf.drawRightString(width - MARGIN, y - 25, str(invoice["order_date"]))
+    pdf.drawRightString(width - MARGIN, y - 25, f"Fecha de Emisión: {invoice['order_date']}")
 
     _set_color(pdf, COLOR_TEXT)
 
-    return y - 112
+    return y - 130
 
 
 def _draw_invoice_info(pdf: canvas.Canvas, invoice: dict, y: float) -> float:
@@ -151,9 +150,6 @@ def _draw_invoice_info(pdf: canvas.Canvas, invoice: dict, y: float) -> float:
         pdf.drawString(MARGIN, y, f"{label}: {text}")
         y -= 18
 
-    transport = invoice.get("transport") or "Sin transporte"
-    pdf.drawString(MARGIN, y, f"Transporte: {transport}")
-
     secondary_line = str(invoice.get("secondary_line") or "").strip()
     if secondary_line:
         y -= 18
@@ -161,7 +157,7 @@ def _draw_invoice_info(pdf: canvas.Canvas, invoice: dict, y: float) -> float:
         pdf.drawString(MARGIN, y, secondary_line)
         _set_color(pdf, COLOR_TEXT)
 
-    return y - 28
+    return y - 40
 
 
 def _draw_items_header(pdf: canvas.Canvas, width: float, y: float) -> float:
@@ -186,17 +182,6 @@ def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: in
     font_size = ITEM_FONT_SIZE
     row_height = ITEM_ROW_HEIGHT
 
-    if index % 2:
-        pdf.setFillColorRGB(*COLOR_ROW_BG)
-        pdf.rect(
-            MARGIN - TABLE_PAD_X,
-            y - 4,
-            width - (MARGIN * 2) + (TABLE_PAD_X * 2),
-            row_height,
-            stroke=0,
-            fill=1,
-        )
-
     pdf.setFont(FONT_REGULAR, font_size)
     _set_color(pdf, COLOR_TEXT)
 
@@ -204,7 +189,7 @@ def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: in
         str(item.get("label") or ""),
         FONT_REGULAR,
         font_size,
-        max_width=280,
+        max_width=250,
     )
 
     pdf.drawString(MARGIN, y, label)
@@ -241,7 +226,7 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
     pdf.drawString(totals_label_x, y, "Bruto")
     pdf.drawRightString(width - MARGIN, y, _money(invoice.get("gross_total") or 0))
 
-    y -= 24
+    y -= 18
 
     if int(invoice.get("discount_total") or 0) > 0:
         discount_label = (
@@ -250,14 +235,16 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
             else "Descuento"
         )
 
-        pdf.setFont(FONT_REGULAR, 13)
+        pdf.setFont(FONT_REGULAR, 15)
         _set_color(pdf, COLOR_MUTED)
-        pdf.drawString(totals_label_x, y, _truncate(clean_cell_text(discount_label), FONT_REGULAR, 13, 210))
+        pdf.drawString(totals_label_x, y, _truncate(clean_cell_text(discount_label), FONT_REGULAR, 15, 210))
         pdf.drawRightString(width - MARGIN, y, _money(invoice.get("discount_total") or 0))
 
-        y -= 20
+        y -= 28
+    else:
+        y -= 10
 
-    pdf.setFont(FONT_BOLD, 17)
+    pdf.setFont(FONT_BOLD, 15)
     _set_color(pdf, COLOR_TEXT)
     pdf.drawString(totals_label_x, y, "Total")
     pdf.drawRightString(width - MARGIN, y, _money(invoice.get("final_total") or 0))
@@ -266,11 +253,26 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
 
 def _draw_notes(pdf: canvas.Canvas, invoice: dict, y: float) -> float:
     notes = invoice.get("notes") or []
+    transport = str(invoice.get("transport") or "").strip()
 
-    if not notes:
+    if not notes and not transport:
         return y
 
     y -= 22
+
+    if transport:
+        pdf.setFont(FONT_BOLD, 10)
+        _set_color(pdf, COLOR_TEXT)
+        pdf.drawString(MARGIN, y, "Transporte")
+        y -= 15
+        pdf.setFont(FONT_REGULAR, 10)
+        _set_color(pdf, COLOR_MUTED)
+        pdf.drawString(MARGIN, y, transport)
+        y -= 18
+
+    if not notes:
+        _set_color(pdf, COLOR_TEXT)
+        return y
 
     pdf.setFont(FONT_BOLD, 10)
     _set_color(pdf, COLOR_TEXT)
