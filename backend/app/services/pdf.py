@@ -23,7 +23,7 @@ COLOR_TEXT = (0.05, 0.05, 0.05)
 COLOR_MUTED = (0.42, 0.42, 0.42)
 COLOR_LINE = (0.78, 0.78, 0.78)
 COLOR_HEADER_BG = (0.9, 0.91, 0.93)
-COLOR_ROW_BG = (0.97, 0.975, 0.985)
+COLOR_ROW_BG = (0.92, 0.94, 0.97)
 
 
 def _money(value: int | float) -> str:
@@ -164,7 +164,7 @@ def _draw_invoice_info(pdf: canvas.Canvas, invoice: dict, y: float) -> float:
 
 def _draw_items_header(pdf: canvas.Canvas, width: float, y: float) -> float:
     pdf.setFillColorRGB(*COLOR_HEADER_BG)
-    pdf.rect(MARGIN - 6, y - 7, width - (MARGIN * 2) + 12, 25, stroke=0, fill=1)
+    pdf.rect(MARGIN - 6, y - 12, width - (MARGIN * 2) + 12, 30, stroke=0, fill=1)
 
     pdf.setFont(FONT_BOLD, 16)
     _set_color(pdf, COLOR_TEXT)
@@ -243,7 +243,7 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
 
         pdf.setFont(FONT_REGULAR, 13)
         _set_color(pdf, COLOR_MUTED)
-        pdf.drawString(width - 200, y, clean_cell_text(discount_label))
+        pdf.drawRightString(width - 120, y, _truncate(clean_cell_text(discount_label), FONT_REGULAR, 13, 210))
         pdf.drawRightString(width - MARGIN, y, _money(invoice.get("discount_total") or 0))
 
         y -= 20
