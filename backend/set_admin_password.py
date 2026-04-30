@@ -19,8 +19,8 @@ def main() -> None:
 
     if password != confirm:
         raise SystemExit("Las contraseñas no coinciden")
-    if len(password) < 12:
-        raise SystemExit("La contraseña debe tener al menos 12 caracteres")
+    if len(password) < 6:
+        raise SystemExit("La contraseña debe tener al menos 6 caracteres")
 
     auth_manager.upsert_user(username, password_hash=auth_manager.hash_password(password), role=role, is_active=True)
     print(f"Credenciales actualizadas en PostgreSQL para el usuario {username} con rol {role}")
