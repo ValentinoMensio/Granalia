@@ -312,7 +312,7 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
     y -= 24
     section_top_y = y
 
-    pdf.setFont(FONT_BOLD, 14)
+    pdf.setFont(FONT_BOLD, 12)
     _set_color(pdf, COLOR_MUTED)
     pdf.drawString(shipment_label_x, section_top_y, "DATOS DEL ENVÍO")
 
