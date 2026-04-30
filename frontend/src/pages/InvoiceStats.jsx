@@ -587,12 +587,7 @@ export default function InvoiceStats() {
     [filteredInvoices, filteredItems, filters, hasProductFilter]
   )
   const monthlyChartRows = useMemo(() => buildYearMonthlyRows(byMonth, chartYear), [byMonth, chartYear])
-  const byCustomer = useMemo(
-    () => hasProductFilter
-      ? buildCustomerProductRanking(filteredItems)
-      : buildRanking(filteredInvoices, (invoice) => invoice.client_name || 'Sin cliente'),
-    [filteredInvoices, filteredItems, hasProductFilter]
-  )
+  const byCustomer = useMemo(() => buildCustomerProductRanking(filteredItems), [filteredItems])
   const byProduct = useMemo(() => buildProductRanking(filteredItems), [filteredItems])
   const byProductTotal = useMemo(() => buildProductTotalRanking(filteredItems), [filteredItems])
   const selectedProductFormats = useMemo(
@@ -763,7 +758,7 @@ export default function InvoiceStats() {
       </section>
 
       <div className="space-y-6">
-        <RankingTable title="Ranking por cliente" rows={byCustomer} showWeight={hasProductFilter} />
+        <RankingTable title={loadingItems ? 'Ranking por cliente (cargando...)' : 'Ranking por cliente'} rows={byCustomer} showWeight />
 
         <section className="surface p-4 pr-5 sm:p-6 sm:pr-8">
           <div className="grid gap-6 xl:grid-cols-2">
