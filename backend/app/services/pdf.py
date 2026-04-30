@@ -89,6 +89,25 @@ def _truncate(text: str, font: str, size: float, max_width: float) -> str:
     return f"{text}..."
 
 
+def _wrap_text(text: str, font: str, size: float, max_width: float) -> list[str]:
+    words = str(text or "").split()
+    lines: list[str] = []
+    current = ""
+
+    for word in words:
+        candidate = f"{current} {word}".strip()
+        if not current or stringWidth(candidate, font, size) <= max_width:
+            current = candidate
+        else:
+            lines.append(current)
+            current = word
+
+    if current:
+        lines.append(current)
+
+    return lines or [""]
+
+
 def _kilograms_per_unit(label: str) -> float:
     text = str(label or "").lower().replace(" ", "")
     pack_match = re.search(r"(\d+)x(\d+(?:[.,]\d+)?)(kg|gr|g)?", text)
@@ -271,11 +290,11 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
     y -= 30
     section_top_y = y
 
-    shipment_lines = [("Peso Neto", _weight(total_weight))]
+    shipment_lines = [("Peso Neto:", _weight(total_weight))]
     if transport:
-        shipment_lines.append(("Transporte", transport))
+        shipment_lines.append(("Transporte:", transport))
     if notes:
-        shipment_lines.append(("Observaciones", " / ".join(notes)))
+        shipment_lines.append(("Observaciones:", " / ".join(notes)))
 
     shipment_y = section_top_y
     shipment_max_width = totals_label_x - shipment_value_x - 20
@@ -285,8 +304,10 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
         pdf.drawString(shipment_label_x, shipment_y, label)
         pdf.setFont(FONT_REGULAR, SUMMARY_FONT_SIZE)
         _set_color(pdf, COLOR_MUTED)
-        pdf.drawString(shipment_value_x, shipment_y, _truncate(value, FONT_REGULAR, SUMMARY_FONT_SIZE, shipment_max_width))
-        shipment_y -= 18
+        value_lines = _wrap_text(value, FONT_REGULAR, SUMMARY_FONT_SIZE, shipment_max_width)
+        for index, line in enumerate(value_lines):
+            pdf.drawString(shipment_value_x, shipment_y - (index * 15), line)
+        shipment_y -= max(18, len(value_lines) * 15)
 
     if has_discount:
         _set_color(pdf, COLOR_TEXT)
