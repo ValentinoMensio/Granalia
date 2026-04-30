@@ -248,15 +248,15 @@ export default function InvoiceHistory() {
         </div>
 
         <div className="table-shell mt-6 hidden lg:block">
-          <table className="table-base min-w-[1080px] table-fixed">
+          <table className="table-base min-w-[960px] table-fixed">
             <colgroup>
-              <col className="w-[8%]" />
-              <col className="w-[22%]" />
+              <col className="w-[7%]" />
+              <col className="w-[21%]" />
               <col className="w-[11%]" />
-              <col className="w-[20%]" />
+              <col className="w-[16%]" />
               <col className="w-[12%]" />
               <col className="w-[13%]" />
-              <col className="w-[14%]" />
+              <col className="w-[20%]" />
             </colgroup>
             <thead className="table-head">
               <tr>
@@ -282,7 +282,7 @@ export default function InvoiceHistory() {
                     <td className="table-cell text-center">{invoice.declared ? 'Declarada' : 'No declarada'}</td>
                     <td className="table-cell whitespace-nowrap text-right font-medium">${money(invoice.final_total)}</td>
                     <td className="table-cell">
-                      <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-0.5 text-xs leading-tight">
+                      <div className="flex items-center justify-center gap-x-2 whitespace-nowrap text-xs leading-tight">
                         <Button variant="ghost" className="px-0 py-0 text-brand-red" onClick={() => handleSelectInvoice(invoice.invoice_id)}>
                           Ver detalle
                         </Button>
