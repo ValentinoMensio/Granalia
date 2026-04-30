@@ -335,6 +335,16 @@ function useGranaliaData() {
     }
   }
 
+  async function mergeCustomers(targetCustomerId, sourceCustomerIds) {
+    await request(`/api/customers/${targetCustomerId}/merge`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source_customer_ids: sourceCustomerIds.map(Number) }),
+    })
+    await loadAll()
+    setStatus('Clientes fusionados correctamente.')
+  }
+
   async function uploadPriceList() {
     if (!pdfFile) {
       setStatus('Elegí un PDF primero.')
@@ -475,6 +485,7 @@ function useGranaliaData() {
     removeItemRow,
     saveCustomer,
     updateCustomer,
+    mergeCustomers,
     uploadPriceList,
     deletePriceList,
     renamePriceList,

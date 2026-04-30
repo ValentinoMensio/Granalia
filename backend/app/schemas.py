@@ -135,6 +135,10 @@ class CustomerUpsert(BaseModel):
         return normalized
 
 
+class CustomerMerge(BaseModel):
+    source_customer_ids: list[int] = Field(min_length=1, max_length=50)
+
+
 class InvoiceRequest(BaseModel):
     order: InvoiceCreate
     profile: CustomerUpsert

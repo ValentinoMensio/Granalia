@@ -8,7 +8,7 @@ import PageSectionHeader from '../components/ui/PageSectionHeader'
 import PriceListPanel from '../components/sidebar/PriceListPanel'
 
 export default function Management() {
-  const { setStatus, customers, bootstrap, catalog, priceListUploadName, priceListUploadTargetId, uploading, setPdfFile, setPriceListUploadName, setPriceListUploadTargetId, uploadPriceList, deletePriceList, renamePriceList, refreshAll } = useGranalia()
+  const { setStatus, customers, bootstrap, catalog, priceListUploadName, priceListUploadTargetId, uploading, setPdfFile, setPriceListUploadName, setPriceListUploadTargetId, uploadPriceList, deletePriceList, renamePriceList, mergeCustomers, refreshAll } = useGranalia()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const requestedTab = searchParams.get('tab')
@@ -66,6 +66,32 @@ export default function Management() {
       await deletePriceList(priceList.id)
     } catch (e) {
       setStatus(`Error al eliminar lista: ${e.message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleMergeCustomer(targetCustomer) {
+    const rawIds = window.prompt(`IDs de clientes a fusionar dentro de "${targetCustomer.name}". Separalos con coma.`)
+    if (!rawIds) return
+    const sourceIds = rawIds
+      .split(',')
+      .map((value) => Number(value.trim()))
+      .filter((value) => Number.isInteger(value) && value > 0 && value !== targetCustomer.id)
+    if (!sourceIds.length) {
+      setStatus('Ingresá al menos un ID válido distinto al cliente destino.')
+      return
+    }
+    const sourceNames = customers
+      .filter((customer) => sourceIds.includes(customer.id))
+      .map((customer) => customer.name)
+      .join(', ')
+    if (!window.confirm(`¿Fusionar ${sourceNames || rawIds} dentro de "${targetCustomer.name}"? Las facturas históricas pasarán a este cliente y se actualizará el nombre visible.`)) return
+    setLoading(true)
+    try {
+      await mergeCustomers(targetCustomer.id, sourceIds)
+    } catch (e) {
+      setStatus(`Error al fusionar clientes: ${e.message}`)
     } finally {
       setLoading(false)
     }
@@ -156,6 +182,9 @@ export default function Management() {
                     <Button variant="secondary" className="w-full" onClick={() => navigate(`/customers/${c.id}`)}>
                       Editar
                     </Button>
+                    <Button variant="secondary" className="w-full" onClick={() => handleMergeCustomer(c)} disabled={loading}>
+                      Fusionar
+                    </Button>
                     <Button variant="danger" className="w-full" onClick={() => handleDelete('customer', c.id)} disabled={loading}>
                       Eliminar
                     </Button>
@@ -193,6 +222,9 @@ export default function Management() {
                         <div className="flex items-center justify-end gap-2">
                           <Button variant="ghost" onClick={() => navigate(`/customers/${c.id}`)}>
                             Editar
+                          </Button>
+                          <Button variant="secondary" onClick={() => handleMergeCustomer(c)} disabled={loading}>
+                            Fusionar
                           </Button>
                           <Button variant="danger" onClick={() => handleDelete('customer', c.id)} disabled={loading}>
                             Eliminar
