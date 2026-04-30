@@ -312,16 +312,16 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
     y -= 24
     section_top_y = y
 
-    pdf.setFont(FONT_BOLD, 14)
+    pdf.setFont(FONT_BOLD, 11)
     _set_color(pdf, COLOR_MUTED)
     pdf.drawString(shipment_label_x, section_top_y, "DATOS DEL ENVÍO")
 
     shipment_y = section_top_y - 18
-    shipment_lines = [("Peso neto:", _weight(total_weight))]
+    shipment_lines = [("Peso neto", _weight(total_weight))]
     if transport:
-        shipment_lines.append(("Transporte:", transport))
+        shipment_lines.append(("Transporte", transport))
     if notes:
-        shipment_lines.append(("Observaciones:", " / ".join(notes)))
+        shipment_lines.append(("Observaciones", " / ".join(notes)))
 
     shipment_max_width = totals_label_x - shipment_value_x - 20
     for label, value in shipment_lines:
