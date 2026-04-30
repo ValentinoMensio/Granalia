@@ -250,13 +250,13 @@ export default function InvoiceHistory() {
         <div className="table-shell mt-6 hidden lg:block">
           <table className="table-base table-fixed">
             <colgroup>
-              <col className="w-[8%]" />
-              <col className="w-[22%]" />
-              <col className="w-[11%]" />
-              <col className="w-[16%]" />
+              <col className="w-[7%]" />
+              <col className="w-[20%]" />
+              <col className="w-[10%]" />
               <col className="w-[13%]" />
+              <col className="w-[11%]" />
               <col className="w-[14%]" />
-              <col className="w-[16%]" />
+              <col className="w-[25%]" />
             </colgroup>
             <thead className="table-head">
               <tr>
@@ -280,9 +280,9 @@ export default function InvoiceHistory() {
                     <td className={`table-cell truncate ${isUpcoming ? 'text-slate-800' : 'text-slate-600'}`}>{invoice.order_date}</td>
                     <td className={`table-cell truncate ${isUpcoming ? 'text-slate-800' : 'text-slate-600'}`} title={invoice.transport || 'Sin transporte'}>{invoice.transport || 'Sin transporte'}</td>
                     <td className="table-cell truncate">{invoice.declared ? 'Declarada' : 'No declarada'}</td>
-                    <td className="table-cell whitespace-nowrap text-right font-medium">${money(invoice.final_total)}</td>
+                    <td className="table-cell min-w-[110px] whitespace-nowrap pr-5 text-right font-medium">${money(invoice.final_total)}</td>
                     <td className="table-cell">
-                      <div className="flex items-center justify-end gap-x-2 text-xs">
+                      <div className="flex min-w-[240px] items-center justify-end gap-x-3 text-xs">
                         <Button variant="ghost" className="px-0 py-0 text-brand-red" onClick={() => handleSelectInvoice(invoice.invoice_id)}>
                           Ver detalle
                         </Button>
