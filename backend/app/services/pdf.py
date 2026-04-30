@@ -205,7 +205,7 @@ def _draw_items_header(pdf: canvas.Canvas, width: float, y: float) -> float:
     _set_color(pdf, COLOR_TEXT)
 
     pdf.drawString(MARGIN + TABLE_INNER_PAD_X, y, "Producto")
-    pdf.drawRightString(MARGIN + 250, y, "Cant.")
+    pdf.drawRightString(MARGIN + 255, y, "Cant.")
     pdf.drawRightString(MARGIN + 390, y, "Precio")
     pdf.drawRightString(width - MARGIN - TABLE_INNER_PAD_X, y, "Total")
 
