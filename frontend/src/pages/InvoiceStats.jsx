@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useGranalia } from '../context/GranaliaContext'
 import { request } from '../lib/api'
 import { money } from '../lib/format'
@@ -383,7 +382,6 @@ function MonthlyBarChart({ rows, year, embedded = false }) {
 }
 
 export default function InvoiceStats() {
-  const navigate = useNavigate()
   const { bootstrap, customers, invoices } = useGranalia()
   const [filters, setFilters] = useState(EMPTY_FILTERS)
   const [productFilters, setProductFilters] = useState(EMPTY_PRODUCT_FILTERS)
@@ -550,7 +548,6 @@ export default function InvoiceStats() {
         eyebrow="Facturas"
         title="Estadística"
         description="Analizá ventas, bultos, descuentos y rankings usando las facturas emitidas."
-        aside={<Button variant="ghost" onClick={() => navigate('/history')}>Volver a facturas</Button>}
       />
 
       <section className="surface p-4 sm:p-6">
