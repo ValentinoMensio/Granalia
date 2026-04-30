@@ -120,6 +120,61 @@ function itemWeight(item) {
   return Number(item.quantity || 0) * kilogramsPerUnit(itemOfferingLabel(item))
 }
 
+function allocateIntegerAmount(total, weights) {
+  const numericTotal = Math.round(Number(total || 0))
+  const sign = numericTotal < 0 ? -1 : 1
+  const absoluteTotal = Math.abs(numericTotal)
+  const weightTotal = weights.reduce((sum, value) => sum + Math.max(0, Number(value || 0)), 0)
+
+  if (!absoluteTotal || !weightTotal) return weights.map(() => 0)
+
+  const shares = weights.map((weight, index) => {
+    const raw = (absoluteTotal * Math.max(0, Number(weight || 0))) / weightTotal
+    const base = Math.floor(raw)
+    return { index, base, remainder: raw - base }
+  })
+  let assigned = shares.reduce((sum, item) => sum + item.base, 0)
+  shares.sort((a, b) => b.remainder - a.remainder || a.index - b.index)
+
+  for (let index = 0; assigned < absoluteTotal && index < shares.length; index += 1) {
+    shares[index].base += 1
+    assigned += 1
+  }
+
+  return shares
+    .sort((a, b) => a.index - b.index)
+    .map((item) => item.base * sign)
+}
+
+function applyExactItemDiscounts(items) {
+  const grouped = new Map()
+  for (const item of items) {
+    const key = String(item.invoice_id || '')
+    if (!grouped.has(key)) grouped.set(key, [])
+    grouped.get(key).push(item)
+  }
+
+  const adjusted = []
+  for (const invoiceItems of grouped.values()) {
+    const currentDiscount = invoiceItems.reduce((sum, item) => sum + Number(item.discount || 0), 0)
+    const invoiceDiscount = Number(invoiceItems[0]?.invoice_discount_total ?? currentDiscount)
+    const delta = Math.round(invoiceDiscount - currentDiscount)
+    const weights = invoiceItems.map((item) => Number(item.gross || 0))
+    const allocatedDelta = allocateIntegerAmount(delta, weights)
+
+    invoiceItems.forEach((item, index) => {
+      const discount = Number(item.discount || 0) + allocatedDelta[index]
+      adjusted.push({
+        ...item,
+        discount,
+        total: Number(item.gross || 0) - discount,
+      })
+    })
+  }
+
+  return adjusted
+}
+
 function buildProductRanking(items) {
   const grouped = new Map()
   for (const item of items) {
@@ -422,23 +477,25 @@ export default function InvoiceStats() {
     return { gross, discount, total, bultos, average }
   }, [filteredInvoices])
 
+  const exactInvoiceItems = useMemo(() => applyExactItemDiscounts(invoiceItems), [invoiceItems])
+
   const byMonth = useMemo(() => buildMonthlyRanking(filteredInvoices), [filteredInvoices])
   const chartYear = useMemo(() => yearFromFilters(filters, filteredInvoices), [filters, filteredInvoices])
   const monthlyChartRows = useMemo(() => buildYearMonthlyRows(byMonth, chartYear), [byMonth, chartYear])
   const filteredInvoiceIds = useMemo(() => new Set(filteredInvoices.map((invoice) => String(invoice.invoice_id))), [filteredInvoices])
   const productOptions = useMemo(() => {
     const grouped = new Map()
-    for (const item of invoiceItems) {
+    for (const item of exactInvoiceItems) {
       const id = String(item.product_id || '')
       const label = itemProductLabel(item)
       const key = id || label
       if (!grouped.has(key)) grouped.set(key, { id, label })
     }
     return Array.from(grouped.values()).sort((a, b) => a.label.localeCompare(b.label, 'es'))
-  }, [invoiceItems])
+  }, [exactInvoiceItems])
   const offeringOptionsByProduct = useMemo(() => {
     const grouped = new Map()
-    for (const item of invoiceItems) {
+    for (const item of exactInvoiceItems) {
       const productKey = String(item.product_id || '')
       const id = String(item.offering_id || '')
       const label = itemOfferingLabel(item)
@@ -457,13 +514,13 @@ export default function InvoiceStats() {
         Array.from(offerings.values()).sort((a, b) => a.label.localeCompare(b.label, 'es')),
       ])
     )
-  }, [invoiceItems])
+  }, [exactInvoiceItems])
   const activeProductLines = useMemo(
     () => (productFilters.lines || []).filter((line) => line.productId || line.offeringId),
     [productFilters.lines]
   )
   const filteredItems = useMemo(
-    () => invoiceItems.filter((item) => {
+    () => exactInvoiceItems.filter((item) => {
       const matchesInvoice = filteredInvoiceIds.has(String(item.invoice_id))
       const matchesProductLines = !activeProductLines.length || activeProductLines.some((line) => {
         const matchesProduct = !line.productId || String(item.product_id || '') === String(line.productId)
@@ -474,7 +531,7 @@ export default function InvoiceStats() {
       })
       return matchesInvoice && matchesProductLines
     }),
-    [activeProductLines, filteredInvoiceIds, invoiceItems]
+    [activeProductLines, exactInvoiceItems, filteredInvoiceIds]
   )
   const totalWeight = useMemo(
     () => filteredItems.reduce((sum, item) => sum + itemWeight(item), 0),
