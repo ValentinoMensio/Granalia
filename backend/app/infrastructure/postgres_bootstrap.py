@@ -27,6 +27,7 @@ class PostgresBootstrapMixin(PostgresRepositoryProtocol):
             self._ensure_customer_billing_fields(connection=connection)
             self._ensure_fractional_invoice_quantities(connection=connection)
             self._ensure_price_list_invoice_fields(connection=connection)
+            self._ensure_offering_net_weight(connection=connection)
 
             active_catalog = connection.execute(
                 select(self.catalogs.c.catalog).where(self.catalogs.c.active.is_(True)).order_by(self.catalogs.c.id.desc()).limit(1)
@@ -35,8 +36,6 @@ class PostgresBootstrapMixin(PostgresRepositoryProtocol):
                 self._sync_catalog_tables(active_catalog, connection=connection, now=now)
                 self._ensure_offering_net_weight(connection=connection)
                 self._refresh_active_catalog_snapshot(connection=connection, now=now)
-            else:
-                self._ensure_offering_net_weight(connection=connection)
 
             if not self._table_empty(self.customers):
                 self._sync_customer_references(connection=connection, now=now)
