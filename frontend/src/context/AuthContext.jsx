@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import { request } from '../lib/api'
+import { request, setCsrfToken } from '../lib/api'
 
 const AuthContext = createContext(null)
 
@@ -9,6 +9,7 @@ export function AuthProvider({ children }) {
 
   async function refreshSession() {
     const data = await request('/api/auth/session')
+    setCsrfToken(data.authenticated ? data.csrf_token : '')
     setSession(data.authenticated ? data : null)
     return data
   }
@@ -19,23 +20,32 @@ export function AuthProvider({ children }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password }),
     })
+    setCsrfToken(data.csrf_token)
     setSession(data)
     return data
   }
 
   async function logout() {
-    await request('/api/auth/logout', { method: 'POST' })
-    setSession(null)
+    try {
+      await request('/api/auth/logout', { method: 'POST' })
+    } finally {
+      setCsrfToken('')
+      setSession(null)
+    }
   }
 
   useEffect(() => {
     refreshSession()
-      .catch(() => setSession(null))
+      .catch(() => {
+        setCsrfToken('')
+        setSession(null)
+      })
       .finally(() => setLoading(false))
   }, [])
 
   useEffect(() => {
     function handleUnauthorized() {
+      setCsrfToken('')
       setSession(null)
     }
 

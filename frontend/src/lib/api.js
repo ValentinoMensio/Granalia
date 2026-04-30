@@ -1,4 +1,11 @@
 const API_BASE = import.meta.env.VITE_API_URL || (window.location.port === '5173' ? `${window.location.protocol}//${window.location.hostname}:8000` : '')
+const CSRF_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
+
+let csrfToken = ''
+
+function setCsrfToken(token) {
+  csrfToken = token || ''
+}
 
 function formatErrorDetail(detail) {
   if (Array.isArray(detail)) {
@@ -23,9 +30,17 @@ function formatErrorDetail(detail) {
 }
 
 async function request(path, options = {}) {
+  const method = String(options.method || 'GET').toUpperCase()
+  const headers = new Headers(options.headers || {})
+
+  if (csrfToken && CSRF_METHODS.has(method) && !headers.has('X-CSRF-Token')) {
+    headers.set('X-CSRF-Token', csrfToken)
+  }
+
   const response = await fetch(`${API_BASE}${path}`, {
     credentials: 'include',
     ...options,
+    headers,
   })
   if (!response.ok) {
     if (response.status === 401 && !path.startsWith('/api/auth/')) {
@@ -52,4 +67,4 @@ async function request(path, options = {}) {
   return response
 }
 
-export { API_BASE, request }
+export { API_BASE, request, setCsrfToken }

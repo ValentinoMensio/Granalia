@@ -9,6 +9,9 @@ from .core.security import AuthManager
 from .infrastructure.postgres import PostgresRepository
 
 
+CSRF_PROTECTED_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+
+
 def _resolve_base_dir() -> Path:
     current = Path(__file__).resolve()
     for candidate in current.parents:
@@ -36,4 +39,8 @@ def require_authenticated(request: Request) -> str:
     payload = auth_manager.verify_session_token(token)
     if not payload:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Autenticación requerida")
+    if request.method.upper() in CSRF_PROTECTED_METHODS:
+        csrf_token = request.headers.get("X-CSRF-Token")
+        if not auth_manager.verify_csrf_token(payload, csrf_token):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Token CSRF inválido")
     return str(payload["sub"])

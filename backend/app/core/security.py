@@ -41,6 +41,7 @@ class SessionTokenPayload(TypedDict):
     pwd: str
     exp: int
     nonce: str
+    csrf: str
 
 
 class AuthCookieSettings(TypedDict):
@@ -220,6 +221,7 @@ class AuthManager:
             "pwd": _password_fingerprint(user.password_hash),
             "exp": int(time.time()) + self.session_ttl_seconds,
             "nonce": secrets.token_urlsafe(16),
+            "csrf": secrets.token_urlsafe(32),
         }
         payload_bytes = json.dumps(payload, separators=(",", ":")).encode("utf-8")
         encoded_payload = _b64url_encode(payload_bytes)
@@ -249,12 +251,19 @@ class AuthManager:
             return None
         if payload.get("pwd") != _password_fingerprint(user.password_hash):
             return None
+        if not payload.get("csrf"):
+            return None
         return {
             "sub": user.username,
             "pwd": str(payload.get("pwd")),
             "exp": int(payload.get("exp", 0)),
             "nonce": str(payload.get("nonce", "")),
+            "csrf": str(payload.get("csrf", "")),
         }
+
+    def verify_csrf_token(self, payload: SessionTokenPayload, csrf_token: str | None) -> bool:
+        expected = payload.get("csrf") or ""
+        return bool(expected and csrf_token and hmac.compare_digest(csrf_token, expected))
 
     def auth_cookie_settings(self) -> AuthCookieSettings:
         secure_flag = os.getenv("GRANALIA_SECURE_COOKIES")
