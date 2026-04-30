@@ -205,7 +205,7 @@ def _draw_items_header(pdf: canvas.Canvas, width: float, y: float) -> float:
     _set_color(pdf, COLOR_TEXT)
 
     pdf.drawString(MARGIN + TABLE_INNER_PAD_X, y, "Producto")
-    pdf.drawCentredString(MARGIN + 135, y, "Cant.")
+    pdf.drawRightString(MARGIN + 250, y, "Cant.")
     pdf.drawRightString(MARGIN + 390, y, "Precio")
     pdf.drawRightString(width - MARGIN - TABLE_INNER_PAD_X, y, "Total")
 
@@ -263,7 +263,7 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
     _set_color(pdf, COLOR_TEXT)
 
     pdf.drawString(MARGIN + TABLE_INNER_PAD_X, y, "Bultos")
-    pdf.drawRightString(MARGIN + 300, y, format_quantity(total_bultos))
+    pdf.drawRightString(MARGIN + 250, y, format_quantity(total_bultos))
 
     y -= 16
     _line(pdf, MARGIN, y, width - MARGIN)
