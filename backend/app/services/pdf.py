@@ -26,7 +26,7 @@ COLOR_LINE = (0.25, 0.25, 0.25)
 COLOR_HEADER_BG = (0.78, 0.81, 0.86)
 TABLE_PAD_X = 0
 TABLE_INNER_PAD_X = 8
-ITEM_FONT_SIZE = 10
+ITEM_FONT_SIZE = 12
 ITEM_ROW_HEIGHT = 16
 SUMMARY_FONT_SIZE = 14
 
@@ -223,6 +223,7 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
     )
 
     discount_summary = _discount_summary(invoice)
+    has_discount = float(invoice.get("discount_total") or 0) > 0
 
     y -= 14
 
@@ -237,14 +238,14 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
 
     y -= 30
 
-    _set_color(pdf, COLOR_TEXT)
-    pdf.setFont(FONT_BOLD, SUMMARY_FONT_SIZE)
-    pdf.drawString(totals_label_x, y, "Bruto")
-    pdf.drawRightString(totals_value_x, y, _money(invoice.get("gross_total") or 0))
+    if has_discount:
+        _set_color(pdf, COLOR_TEXT)
+        pdf.setFont(FONT_BOLD, SUMMARY_FONT_SIZE)
+        pdf.drawString(totals_label_x, y, "Bruto")
+        pdf.drawRightString(totals_value_x, y, _money(invoice.get("gross_total") or 0))
 
-    y -= 18
+        y -= 18
 
-    if int(invoice.get("discount_total") or 0) > 0:
         discount_label = (
             f"Dto. ({discount_summary})"
             if discount_summary != "Sin dto."
@@ -257,8 +258,6 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
         pdf.drawRightString(totals_value_x, y, _money(invoice.get("discount_total") or 0))
 
         y -= 28
-    else:
-        y -= 10
 
     pdf.setFont(FONT_BOLD, SUMMARY_FONT_SIZE)
     _set_color(pdf, COLOR_TEXT)
