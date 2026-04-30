@@ -33,6 +33,10 @@ class PostgresBootstrapMixin(PostgresRepositoryProtocol):
             ).scalar_one_or_none()
             if active_catalog:
                 self._sync_catalog_tables(active_catalog, connection=connection, now=now)
+                self._ensure_offering_net_weight(connection=connection)
+                self._refresh_active_catalog_snapshot(connection=connection, now=now)
+            else:
+                self._ensure_offering_net_weight(connection=connection)
 
             if not self._table_empty(self.customers):
                 self._sync_customer_references(connection=connection, now=now)

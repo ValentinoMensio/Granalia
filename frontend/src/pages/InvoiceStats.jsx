@@ -48,6 +48,26 @@ function buildMonthlyRanking(invoices) {
   return Array.from(grouped.values()).sort((a, b) => String(b.monthKey).localeCompare(String(a.monthKey)))
 }
 
+function buildMonthlyItemRanking(items) {
+  const grouped = new Map()
+  const invoiceIdsByMonth = new Map()
+  for (const item of items) {
+    const key = String(item.order_date || '').slice(0, 7) || 'Sin fecha'
+    const current = grouped.get(key) || { label: monthLabel(key), monthKey: key, count: 0, bultos: 0, weight: 0, gross: 0, discount: 0, total: 0 }
+    const invoiceIds = invoiceIdsByMonth.get(key) || new Set()
+    invoiceIds.add(String(item.invoice_id || ''))
+    current.count = invoiceIds.size
+    current.bultos += Number(item.quantity || 0)
+    current.weight += itemWeight(item)
+    current.gross += Number(item.gross || 0)
+    current.discount += Number(item.discount || 0)
+    current.total += Number(item.total || 0)
+    grouped.set(key, current)
+    invoiceIdsByMonth.set(key, invoiceIds)
+  }
+  return Array.from(grouped.values()).sort((a, b) => String(b.monthKey).localeCompare(String(a.monthKey)))
+}
+
 function yearFromFilters(filters, invoices) {
   const filteredYear = String(filters.dateFrom || filters.dateTo || '').slice(0, 4)
   if (filteredYear) return filteredYear
@@ -117,6 +137,9 @@ function kilogramsPerUnit(label) {
 }
 
 function itemWeight(item) {
+  const explicitWeight = Number(item.offering_net_weight_kg || item.net_weight_kg || 0)
+  if (explicitWeight > 0) return Number(item.quantity || 0) * explicitWeight
+
   return Number(item.quantity || 0) * kilogramsPerUnit(itemOfferingLabel(item))
 }
 
@@ -156,6 +179,17 @@ function applyExactItemDiscounts(items) {
 
   const adjusted = []
   for (const invoiceItems of grouped.values()) {
+    if (invoiceItems.every((item) => item.effective_discount !== undefined && item.effective_total !== undefined)) {
+      invoiceItems.forEach((item) => {
+        adjusted.push({
+          ...item,
+          discount: Number(item.effective_discount || 0),
+          total: Number(item.effective_total || 0),
+        })
+      })
+      continue
+    }
+
     const currentDiscount = invoiceItems.reduce((sum, item) => sum + Number(item.discount || 0), 0)
     const invoiceDiscount = Number(invoiceItems[0]?.invoice_discount_total ?? currentDiscount)
     const delta = Math.round(invoiceDiscount - currentDiscount)
@@ -468,20 +502,7 @@ export default function InvoiceStats() {
     })
   }, [filters, statsInvoices])
 
-  const summary = useMemo(() => {
-    const gross = filteredInvoices.reduce((sum, invoice) => sum + Number(invoice.gross_total || 0), 0)
-    const discount = filteredInvoices.reduce((sum, invoice) => sum + Number(invoice.discount_total || 0), 0)
-    const total = filteredInvoices.reduce((sum, invoice) => sum + Number(invoice.final_total || 0), 0)
-    const bultos = filteredInvoices.reduce((sum, invoice) => sum + Number(invoice.total_bultos || 0), 0)
-    const average = filteredInvoices.length ? Math.round(total / filteredInvoices.length) : 0
-    return { gross, discount, total, bultos, average }
-  }, [filteredInvoices])
-
   const exactInvoiceItems = useMemo(() => applyExactItemDiscounts(invoiceItems), [invoiceItems])
-
-  const byMonth = useMemo(() => buildMonthlyRanking(filteredInvoices), [filteredInvoices])
-  const chartYear = useMemo(() => yearFromFilters(filters, filteredInvoices), [filters, filteredInvoices])
-  const monthlyChartRows = useMemo(() => buildYearMonthlyRows(byMonth, chartYear), [byMonth, chartYear])
   const filteredInvoiceIds = useMemo(() => new Set(filteredInvoices.map((invoice) => String(invoice.invoice_id))), [filteredInvoices])
   const productOptions = useMemo(() => {
     const grouped = new Map()
@@ -538,6 +559,34 @@ export default function InvoiceStats() {
     [filteredItems]
   )
   const hasProductFilter = activeProductLines.length > 0
+  const filteredItemInvoiceIds = useMemo(() => new Set(filteredItems.map((item) => String(item.invoice_id || ''))), [filteredItems])
+  const invoiceCount = hasProductFilter ? filteredItemInvoiceIds.size : filteredInvoices.length
+  const summary = useMemo(() => {
+    if (hasProductFilter) {
+      const gross = filteredItems.reduce((sum, item) => sum + Number(item.gross || 0), 0)
+      const discount = filteredItems.reduce((sum, item) => sum + Number(item.discount || 0), 0)
+      const total = filteredItems.reduce((sum, item) => sum + Number(item.total || 0), 0)
+      const bultos = filteredItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0)
+      const average = invoiceCount ? Math.round(total / invoiceCount) : 0
+      return { gross, discount, total, bultos, average }
+    }
+
+    const gross = filteredInvoices.reduce((sum, invoice) => sum + Number(invoice.gross_total || 0), 0)
+    const discount = filteredInvoices.reduce((sum, invoice) => sum + Number(invoice.discount_total || 0), 0)
+    const total = filteredInvoices.reduce((sum, invoice) => sum + Number(invoice.final_total || 0), 0)
+    const bultos = filteredInvoices.reduce((sum, invoice) => sum + Number(invoice.total_bultos || 0), 0)
+    const average = filteredInvoices.length ? Math.round(total / filteredInvoices.length) : 0
+    return { gross, discount, total, bultos, average }
+  }, [filteredInvoices, filteredItems, hasProductFilter, invoiceCount])
+  const byMonth = useMemo(
+    () => hasProductFilter ? buildMonthlyItemRanking(filteredItems) : buildMonthlyRanking(filteredInvoices),
+    [filteredInvoices, filteredItems, hasProductFilter]
+  )
+  const chartYear = useMemo(
+    () => yearFromFilters(filters, hasProductFilter ? filteredItems : filteredInvoices),
+    [filteredInvoices, filteredItems, filters, hasProductFilter]
+  )
+  const monthlyChartRows = useMemo(() => buildYearMonthlyRows(byMonth, chartYear), [byMonth, chartYear])
   const byCustomer = useMemo(
     () => hasProductFilter
       ? buildCustomerProductRanking(filteredItems)
@@ -699,7 +748,7 @@ export default function InvoiceStats() {
         </div>
 
         <section className="grid gap-3 md:grid-cols-6">
-          <Metric label="Facturas" value={money(filteredInvoices.length)} />
+          <Metric label="Facturas" value={money(invoiceCount)} />
           <Metric label="Bultos" value={money(summary.bultos)} />
           <Metric label="Kilos" value={`${weight(totalWeight)} kg`} />
           <Metric label="Bruto" value={`$${money(summary.gross)}`} />
@@ -710,7 +759,7 @@ export default function InvoiceStats() {
 
       <section className="grid gap-3 md:grid-cols-2">
         <Metric label="Promedio por factura" value={`$${money(summary.average)}`} />
-        <Metric label="Clientes con facturas" value={money(new Set(filteredInvoices.map((invoice) => invoice.customer_id || invoice.client_name)).size)} />
+        <Metric label="Clientes con facturas" value={money(new Set((hasProductFilter ? filteredItems : filteredInvoices).map((row) => row.customer_id || row.client_name)).size)} />
       </section>
 
       <div className="space-y-6">

@@ -17,6 +17,22 @@ const BASE_OFFERING_LABELS = [
   'x 5 kg',
 ]
 
+function netWeightForLabel(label) {
+  const text = String(label || '').toLowerCase().replace(/\s+/g, '')
+  const packMatch = text.match(/(\d+)x(\d+(?:[.,]\d+)?)(kg|gr|g)?/)
+  if (packMatch) {
+    const units = Number(packMatch[1] || 0)
+    const size = Number(String(packMatch[2] || 0).replace(',', '.'))
+    const unit = packMatch[3] || 'gr'
+    return units * (unit === 'kg' ? size : size / 1000)
+  }
+
+  const bagMatch = text.match(/x(\d+(?:[.,]\d+)?)kg/)
+  if (bagMatch) return Number(String(bagMatch[1] || 0).replace(',', '.'))
+
+  return 0
+}
+
 export default function ProductEditor() {
   const { id } = useParams()
   const productId = Number(id)
@@ -57,6 +73,7 @@ export default function ProductEditor() {
           ...off,
           label: String(off.label || '').trim(),
           price: Number(off.price || 0),
+          net_weight_kg: Number(off.net_weight_kg || 0),
         }))
         .filter((off) => off.label)
 
@@ -86,12 +103,16 @@ export default function ProductEditor() {
   }
 
   const addOffering = () => {
-    setOfferings([...offerings, { label: '', price: 0 }])
+    setOfferings([...offerings, { label: '', price: 0, net_weight_kg: 0 }])
   }
 
   const updateOffering = (index, field, value) => {
     const next = [...offerings]
-    next[index] = { ...next[index], [field]: value }
+    const updated = { ...next[index], [field]: value }
+    if (field === 'label' && !Number(updated.net_weight_kg || 0)) {
+      updated.net_weight_kg = netWeightForLabel(value)
+    }
+    next[index] = updated
     setOfferings(next)
   }
 
@@ -155,6 +176,17 @@ export default function ProductEditor() {
                       className="input text-right"
                     />
                   </div>
+                  <div>
+                    <label className="field-label">Peso neto por bulto (kg)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.001"
+                      value={off.net_weight_kg || ''}
+                      onChange={(e) => updateOffering(i, 'net_weight_kg', e.target.value)}
+                      className="input text-right"
+                    />
+                  </div>
                   <Button variant="danger" className="w-full" onClick={() => removeOffering(i)}>
                     Eliminar presentación
                   </Button>
@@ -174,6 +206,7 @@ export default function ProductEditor() {
                 <tr>
                   <th>Etiqueta</th>
                   <th>Precio</th>
+                  <th>Peso neto kg</th>
                   <th className="text-right">Acciones</th>
                 </tr>
               </thead>
@@ -203,6 +236,16 @@ export default function ProductEditor() {
                         className="input py-1.5 text-right text-xs"
                       />
                     </td>
+                    <td className="table-cell">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.001"
+                        value={off.net_weight_kg || ''}
+                        onChange={(e) => updateOffering(i, 'net_weight_kg', e.target.value)}
+                        className="input py-1.5 text-right text-xs"
+                      />
+                    </td>
                     <td className="table-cell text-right">
                       <Button variant="danger" onClick={() => removeOffering(i)}>
                         Eliminar
@@ -212,7 +255,7 @@ export default function ProductEditor() {
                 ))}
                 {offerings.length === 0 && (
                   <tr>
-                    <td colSpan="3" className="table-cell py-8 text-center text-slate-400 italic">
+                    <td colSpan="4" className="table-cell py-8 text-center text-slate-400 italic">
                       No hay presentaciones configuradas para este producto.
                     </td>
                   </tr>

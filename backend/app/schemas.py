@@ -173,6 +173,7 @@ class ProductOfferingUpsert(BaseModel):
     id: int | None = None
     label: OfferingLabelStr
     price: NonNegativeInt
+    net_weight_kg: NonNegativeNumber = 0
 
     _normalize_label = field_validator("label")(_strip_required)
 
@@ -193,6 +194,7 @@ class ProductOfferingOut(BaseModel):
     id: int
     label: str
     price: int
+    net_weight_kg: float = 0
 
 
 class ProductCatalogOut(BaseModel):
@@ -309,6 +311,7 @@ class InvoiceItemOut(BaseModel):
     total: int
     product_name: str | None = None
     offering_label: str | None = None
+    offering_net_weight_kg: float = 0
 
 
 class InvoiceDetailOut(BaseModel):

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from sqlalchemy import select, update
 from sqlalchemy.engine import Engine
 from sqlalchemy.dialects.postgresql import insert
@@ -10,6 +12,32 @@ from ..core.utils import canonicalize_discount_config
 from ..types import CatalogOfferingData, CatalogProductData, PriceListMetaData
 from .postgres_protocol import PostgresRepositoryProtocol
 from .postgres_utils import serialize_value, utc_now
+
+
+def _net_weight_kg_for_label(label: str) -> float:
+    text = str(label or "").lower().replace(" ", "")
+    pack_match = re.search(r"(\d+)x(\d+(?:[.,]\d+)?)(kg|gr|g)?", text)
+    if pack_match:
+        units = float(pack_match.group(1) or 0)
+        size = float((pack_match.group(2) or "0").replace(",", "."))
+        unit = pack_match.group(3) or "gr"
+        return units * (size if unit == "kg" else size / 1000)
+
+    bag_match = re.search(r"x(\d+(?:[.,]\d+)?)kg", text)
+    if bag_match:
+        return float((bag_match.group(1) or "0").replace(",", "."))
+
+    return 0
+
+
+def _offering_net_weight(offering: CatalogOfferingData | dict[str, object], label: str, existing: dict[str, object] | None = None) -> float:
+    explicit = float(offering.get("net_weight_kg") or 0)
+    if explicit > 0:
+        return explicit
+    previous = float(existing.get("net_weight_kg") or 0) if existing else 0
+    if previous > 0:
+        return previous
+    return _net_weight_kg_for_label(label)
 
 
 class PostgresCatalogMixin(PostgresRepositoryProtocol):
@@ -39,6 +67,7 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
                     "id": row["id"],
                     "label": row["label"],
                     "price": int(row["price"]),
+                    "net_weight_kg": float(row.get("net_weight_kg") or 0),
                 }
             )
 
@@ -123,6 +152,7 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
                             .where(self.product_offerings.c.id == target_id)
                             .values(
                                 price=int(offering["price"]),
+                                net_weight_kg=_offering_net_weight(offering, offering_label, duplicate),
                                 position=position,
                                 active=True,
                                 updated_at=now,
@@ -139,6 +169,7 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
                             product_id=product_db_id,
                             label=offering_label,
                             price=int(offering["price"]),
+                            net_weight_kg=_offering_net_weight(offering, offering_label),
                             position=position,
                             active=True,
                             updated_at=now,
@@ -162,6 +193,7 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
                             .where(self.product_offerings.c.id == existing_offering_id)
                             .values(
                                 price=int(offering["price"]),
+                                net_weight_kg=_offering_net_weight(offering, offering_label, existing_offering),
                                 position=position,
                                 active=True,
                                 updated_at=now,
@@ -175,6 +207,7 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
                                 product_id=product_db_id,
                                 label=offering_label,
                                 price=int(offering["price"]),
+                                net_weight_kg=_offering_net_weight(offering, offering_label),
                                 position=position,
                                 active=True,
                                 created_at=now,
@@ -289,6 +322,7 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
                             .where(self.product_offerings.c.id == target_id)
                             .values(
                                 price=int(off["price"]),
+                                net_weight_kg=_offering_net_weight(off, offering_label, duplicate),
                                 position=position,
                                 active=True,
                                 updated_at=now,
@@ -304,6 +338,7 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
                         .values(
                             label=offering_label,
                             price=int(off["price"]),
+                            net_weight_kg=_offering_net_weight(off, offering_label),
                             position=position,
                             active=True,
                             updated_at=now,
@@ -327,6 +362,7 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
                             .where(self.product_offerings.c.id == existing_id)
                             .values(
                                 price=int(off["price"]),
+                                net_weight_kg=_offering_net_weight(off, offering_label, existing),
                                 position=position,
                                 active=True,
                                 updated_at=now,
@@ -340,6 +376,7 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
                                 product_id=product_id,
                                 label=offering_label,
                                 price=int(off["price"]),
+                                net_weight_kg=_offering_net_weight(off, offering_label),
                                 position=position,
                                 active=True,
                                 created_at=now,

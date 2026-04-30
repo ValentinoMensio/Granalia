@@ -21,6 +21,7 @@ class CatalogOfferingData(TypedDict):
     id: int | str
     label: str
     price: int
+    net_weight_kg: NotRequired[float]
     format_class: NotRequired[str]
 
 
@@ -139,6 +140,7 @@ class InvoiceItemDetailData(TypedDict):
     total: int
     product_name: str | None
     offering_label: str | None
+    offering_net_weight_kg: NotRequired[float]
 
 
 class InvoiceDetailData(TypedDict):

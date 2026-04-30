@@ -117,6 +117,7 @@ class PostgresMigrationMixin(PostgresRepositoryProtocol):
                             "id": offering_row["id"] if offering_row else offering.get("id"),
                             "label": offering_label,
                             "price": int(offering.get("price", 0)),
+                            "net_weight_kg": float(offering.get("net_weight_kg") or 0),
                         }
                     )
                 normalized_catalog.append(normalized_product)
@@ -481,6 +482,37 @@ class PostgresMigrationMixin(PostgresRepositoryProtocol):
             if not self._column_exists(connection, "invoices", "price_list_name"):
                 connection.execute(text("ALTER TABLE invoices ADD COLUMN price_list_name VARCHAR(255) NOT NULL DEFAULT ''"))
             connection.execute(text("UPDATE invoices i SET price_list_id = p.id, price_list_name = p.name FROM price_lists p WHERE p.active = true AND COALESCE(i.price_list_name, '') = ''"))
+
+    def _ensure_offering_net_weight(self, *, connection) -> None:
+        if not self._table_exists(connection, "product_offerings"):
+            return
+
+        if not self._column_exists(connection, "product_offerings", "net_weight_kg"):
+            connection.execute(text("ALTER TABLE product_offerings ADD COLUMN net_weight_kg NUMERIC(12, 3) NOT NULL DEFAULT 0"))
+
+        connection.execute(
+            text(
+                """
+                UPDATE product_offerings
+                SET net_weight_kg = CASE
+                    WHEN lower(replace(label, ' ', '')) LIKE '12x400%' THEN 4.8
+                    WHEN lower(replace(label, ' ', '')) LIKE '16x300%' THEN 4.8
+                    WHEN lower(replace(label, ' ', '')) LIKE '12x350%' THEN 4.2
+                    WHEN lower(replace(label, ' ', '')) LIKE '10x500%' THEN 5
+                    WHEN lower(replace(label, ' ', '')) LIKE '12x500%' THEN 6
+                    WHEN lower(replace(label, ' ', '')) LIKE '10x1kg%' THEN 10
+                    WHEN lower(replace(label, ' ', '')) LIKE '10x1000%' THEN 10
+                    WHEN lower(replace(label, ' ', '')) LIKE 'x1kg%' THEN 1
+                    WHEN lower(replace(label, ' ', '')) LIKE 'x4kg%' THEN 4
+                    WHEN lower(replace(label, ' ', '')) LIKE 'x5kg%' THEN 5
+                    WHEN lower(replace(label, ' ', '')) LIKE 'x25kg%' THEN 25
+                    WHEN lower(replace(label, ' ', '')) LIKE 'x30kg%' THEN 30
+                    ELSE net_weight_kg
+                END
+                WHERE COALESCE(net_weight_kg, 0) = 0
+                """
+            )
+        )
 
     def _drop_transport_redundancy(self, *, connection) -> None:
         if self._table_exists(connection, "customers"):

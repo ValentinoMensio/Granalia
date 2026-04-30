@@ -58,13 +58,14 @@ class CatalogOffering:
     id: int | str
     label: str
     price: int
+    net_weight_kg: float = 0
 
     @classmethod
     def from_data(cls, data: CatalogOfferingData) -> "CatalogOffering":
-        return cls(id=data["id"], label=str(data["label"]), price=int(data["price"]))
+        return cls(id=data["id"], label=str(data["label"]), price=int(data["price"]), net_weight_kg=float(data.get("net_weight_kg") or 0))
 
     def to_data(self) -> CatalogOfferingData:
-        return {"id": self.id, "label": self.label, "price": self.price}
+        return {"id": self.id, "label": self.label, "price": self.price, "net_weight_kg": self.net_weight_kg}
 
 
 @dataclass(slots=True)

@@ -76,6 +76,22 @@ def _extract_numbers(line: str) -> list[int]:
     return [int(value) for value in re.findall(r"\d+", line)]
 
 
+def _net_weight_kg_for_label(label: str) -> float:
+    text = label.lower().replace(" ", "")
+    pack_match = re.search(r"(\d+)x(\d+(?:[.,]\d+)?)(kg|gr|g)?", text)
+    if pack_match:
+        units = float(pack_match.group(1) or 0)
+        size = float((pack_match.group(2) or "0").replace(",", "."))
+        unit = pack_match.group(3) or "gr"
+        return units * (size if unit == "kg" else size / 1000)
+
+    bag_match = re.search(r"x(\d+(?:[.,]\d+)?)kg", text)
+    if bag_match:
+        return float((bag_match.group(1) or "0").replace(",", "."))
+
+    return 0
+
+
 def _build_offerings(formats: list[str], numbers: list[int]) -> list[CatalogOffering]:
     offerings: list[CatalogOffering] = []
     idx = 0
@@ -83,7 +99,7 @@ def _build_offerings(formats: list[str], numbers: list[int]) -> list[CatalogOffe
 
     def append_offering(id: str, label: str, price: int) -> None:
         if price > 0:
-            offerings.append(CatalogOffering(id=id, label=label, price=price))
+            offerings.append(CatalogOffering(id=id, label=label, price=price, net_weight_kg=_net_weight_kg_for_label(label)))
 
     def set_x1kg_price(price: int, *, preferred: bool = False) -> None:
         nonlocal x1kg_price
@@ -189,6 +205,7 @@ def build_catalog_from_pdf(pdf_bytes: bytes, current_catalog: list[CatalogProduc
                     id=previous.id if previous and isinstance(previous.id, int) else offering.id,
                     label=offering.label,
                     price=offering.price,
+                    net_weight_kg=offering.net_weight_kg or (previous.net_weight_kg if previous else 0),
                 )
             )
         catalog.append(CatalogProduct(id=product.id, name=product.name, aliases=list(product.aliases), offerings=next_offerings))

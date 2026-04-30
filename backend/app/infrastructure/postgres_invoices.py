@@ -73,6 +73,7 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     self.invoice_items.c.total,
                     self.products.c.name.label("product_name"),
                     self.product_offerings.c.label.label("offering_label"),
+                    self.product_offerings.c.net_weight_kg.label("offering_net_weight_kg"),
                 )
                 .select_from(
                     self.invoice_items
@@ -82,7 +83,48 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                 )
                 .order_by(self.invoices.c.order_date.desc(), self.invoices.c.id.desc(), self.invoice_items.c.line_number)
             ).mappings().all()
-        return [{key: serialize_value(value) for key, value in row.items()} for row in rows]
+        items = [{key: serialize_value(value) for key, value in row.items()} for row in rows]
+        items_by_invoice: dict[str, list[dict[str, object]]] = {}
+        for item in items:
+            items_by_invoice.setdefault(str(item.get("invoice_id") or ""), []).append(item)
+
+        for invoice_items in items_by_invoice.values():
+            current_discount = sum(int(item.get("discount") or 0) for item in invoice_items)
+            invoice_discount = int(invoice_items[0].get("invoice_discount_total") or current_discount)
+            delta = invoice_discount - current_discount
+            allocations = self._allocate_integer_amount(delta, [int(item.get("gross") or 0) for item in invoice_items])
+            for item, allocation in zip(invoice_items, allocations):
+                effective_discount = int(item.get("discount") or 0) + allocation
+                item["effective_discount"] = effective_discount
+                item["effective_total"] = int(item.get("gross") or 0) - effective_discount
+
+        return items
+
+    def _allocate_integer_amount(self, total: int, weights: list[int]) -> list[int]:
+        sign = -1 if total < 0 else 1
+        absolute_total = abs(int(total or 0))
+        positive_weights = [max(0, int(weight or 0)) for weight in weights]
+        weight_total = sum(positive_weights)
+
+        if not absolute_total or not weight_total:
+            return [0 for _ in weights]
+
+        shares = []
+        for index, weight in enumerate(positive_weights):
+            raw = absolute_total * weight / weight_total
+            base = int(raw)
+            shares.append({"index": index, "base": base, "remainder": raw - base})
+
+        assigned = sum(item["base"] for item in shares)
+        shares.sort(key=lambda item: (-float(item["remainder"]), int(item["index"])))
+        for item in shares:
+            if assigned >= absolute_total:
+                break
+            item["base"] += 1
+            assigned += 1
+
+        shares.sort(key=lambda item: int(item["index"]))
+        return [int(item["base"]) * sign for item in shares]
 
     def get_invoice_detail(self, invoice_id: int) -> InvoiceDetailData | None:
         with self.engine.connect() as connection:
@@ -130,6 +172,7 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     self.invoice_items,
                     self.products.c.name.label("product_name"),
                     self.product_offerings.c.label.label("offering_label"),
+                    self.product_offerings.c.net_weight_kg.label("offering_net_weight_kg"),
                 )
                 .select_from(
                     self.invoice_items

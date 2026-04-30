@@ -146,6 +146,10 @@ def _kilograms_per_unit(label: str) -> float:
 
 
 def _item_weight(item: dict) -> float:
+    explicit_weight = item.get("offering_net_weight_kg") or item.get("net_weight_kg")
+    if explicit_weight:
+        return float(item.get("quantity") or 0) * float(explicit_weight)
+
     label = item.get("offering_label") or item.get("label") or ""
     return float(item.get("quantity") or 0) * _kilograms_per_unit(str(label))
 
