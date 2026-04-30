@@ -307,6 +307,16 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
         pdf.setFont(FONT_BOLD, shipment_font_size)
         _set_color(pdf, COLOR_TEXT)
         pdf.drawString(shipment_label_x, shipment_y, label)
+
+        if label == "Observaciones":
+            pdf.setFont(FONT_REGULAR, shipment_font_size)
+            _set_color(pdf, COLOR_MUTED)
+            value_lines = _wrap_text(value, FONT_REGULAR, shipment_font_size, totals_label_x - shipment_label_x - 20)
+            for index, line in enumerate(value_lines):
+                pdf.drawString(shipment_label_x, shipment_y - 14 - (index * 14), line)
+            shipment_y -= 17 + (len(value_lines) * 14)
+            continue
+
         pdf.setFont(FONT_REGULAR, shipment_font_size)
         _set_color(pdf, COLOR_MUTED)
         value_lines = _wrap_text(value, FONT_REGULAR, shipment_font_size, shipment_max_width)
