@@ -32,9 +32,9 @@ function PriceListPanel({ bootstrap, priceListUploadName, priceListUploadTargetI
       <div className="mt-3 space-y-1 text-xs text-slate-500">
         <div className="font-bold uppercase tracking-[0.12em] text-slate-400">Listas</div>
         {(bootstrap?.price_lists || []).map((priceList) => (
-          <div key={priceList.id} className="flex items-center gap-2">
+          <div key={priceList.id} className="flex items-center gap-3">
             <span className="min-w-0 truncate text-slate-700">{priceList.name}</span>
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex shrink-0 items-center gap-4">
               {priceList.active ? <span className="font-semibold text-brand-red">Activa</span> : null}
               <button
                 type="button"
