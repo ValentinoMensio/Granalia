@@ -248,25 +248,25 @@ export default function InvoiceHistory() {
         </div>
 
         <div className="table-shell mt-6 hidden lg:block">
-          <table className="table-base table-fixed">
+          <table className="table-base min-w-[1080px] table-fixed">
             <colgroup>
-              <col className="w-[7%]" />
-              <col className="w-[20%]" />
-              <col className="w-[10%]" />
-              <col className="w-[13%]" />
+              <col className="w-[8%]" />
+              <col className="w-[22%]" />
               <col className="w-[11%]" />
+              <col className="w-[20%]" />
+              <col className="w-[12%]" />
+              <col className="w-[13%]" />
               <col className="w-[14%]" />
-              <col className="w-[25%]" />
             </colgroup>
             <thead className="table-head">
               <tr>
-                <th>Factura</th>
+                <th className="text-center">Factura</th>
                 <th>Cliente</th>
-                <th>Fecha</th>
+                <th className="text-center">Fecha</th>
                 <th>Transporte</th>
-                <th>Tipo</th>
+                <th className="text-center">Tipo</th>
                 <th className="text-right">Total</th>
-                <th className="text-right">Acciones</th>
+                <th className="text-center">Acciones</th>
               </tr>
             </thead>
             <tbody className="bg-white">
@@ -275,14 +275,14 @@ export default function InvoiceHistory() {
 
                 return (
                   <tr key={invoice.invoice_id} className={`table-row ${isUpcoming ? 'bg-stone-100 text-brand-ink' : ''}`}>
-                    <td className="table-cell truncate font-mono text-xs">#{invoice.invoice_id}</td>
-                    <td className="table-cell truncate font-medium" title={invoice.client_name}>{invoice.client_name}</td>
-                    <td className={`table-cell truncate ${isUpcoming ? 'text-slate-800' : 'text-slate-600'}`}>{invoice.order_date}</td>
-                    <td className={`table-cell truncate ${isUpcoming ? 'text-slate-800' : 'text-slate-600'}`} title={invoice.transport || 'Sin transporte'}>{invoice.transport || 'Sin transporte'}</td>
-                    <td className="table-cell truncate">{invoice.declared ? 'Declarada' : 'No declarada'}</td>
-                    <td className="table-cell min-w-[110px] whitespace-nowrap pr-5 text-right font-medium">${money(invoice.final_total)}</td>
+                    <td className="table-cell text-center font-mono text-xs">#{invoice.invoice_id}</td>
+                    <td className="table-cell break-words font-medium leading-snug" title={invoice.client_name}>{invoice.client_name}</td>
+                    <td className={`table-cell whitespace-nowrap text-center ${isUpcoming ? 'text-slate-800' : 'text-slate-600'}`}>{invoice.order_date}</td>
+                    <td className={`table-cell break-words leading-snug ${isUpcoming ? 'text-slate-800' : 'text-slate-600'}`} title={invoice.transport || 'Sin transporte'}>{invoice.transport || 'Sin transporte'}</td>
+                    <td className="table-cell text-center">{invoice.declared ? 'Declarada' : 'No declarada'}</td>
+                    <td className="table-cell whitespace-nowrap text-right font-medium">${money(invoice.final_total)}</td>
                     <td className="table-cell">
-                      <div className="flex min-w-[240px] items-center justify-end gap-x-3 text-xs">
+                      <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs">
                         <Button variant="ghost" className="px-0 py-0 text-brand-red" onClick={() => handleSelectInvoice(invoice.invoice_id)}>
                           Ver detalle
                         </Button>

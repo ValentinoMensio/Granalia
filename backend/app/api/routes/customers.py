@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
 from ...dependencies import get_repository
-from ...schemas import CustomerMerge, CustomerMutationOut, CustomerOut, CustomerUpsert, StatusResponse
+from ...schemas import CustomerMutationOut, CustomerOut, CustomerUpsert, StatusResponse
 
 
 router = APIRouter(prefix="/api/customers", tags=["customers"])
@@ -31,15 +31,6 @@ def update_customer(customer_id: int, payload: CustomerUpsert) -> CustomerMutati
     data["name"] = payload.name
     saved = repository.save_profile(data)
     return CustomerMutationOut.model_validate({"customer": saved, "bootstrap": repository.bootstrap_payload()})
-
-
-@router.post("/{customer_id}/merge", response_model=StatusResponse)
-def merge_customer(customer_id: int, payload: CustomerMerge) -> StatusResponse:
-    try:
-        get_repository().merge_customers(customer_id, payload.source_customer_ids)
-    except ValueError as error:
-        raise HTTPException(status_code=400, detail=str(error)) from error
-    return StatusResponse(status="merged")
 
 
 @router.delete("/{customer_id}", response_model=StatusResponse)

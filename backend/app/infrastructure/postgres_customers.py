@@ -90,48 +90,6 @@ class PostgresCustomerMixin(PostgresRepositoryProtocol):
         )
         return cast(CustomerProfileData, payload)
 
-    def merge_customers(self, target_customer_id: int, source_customer_ids: list[int]) -> None:
-        source_ids = sorted({int(source_id) for source_id in source_customer_ids if int(source_id) != int(target_customer_id)})
-        if not source_ids:
-            raise ValueError("Seleccioná al menos un cliente distinto para fusionar")
-
-        now = utc_now()
-        with self.engine.begin() as connection:
-            target = connection.execute(
-                select(self.customers.c.id, self.customers.c.name, self.customers.c.source_count)
-                .where(self.customers.c.id == target_customer_id)
-            ).mappings().first()
-            if not target:
-                raise ValueError("Cliente destino no encontrado")
-
-            sources = connection.execute(
-                select(self.customers.c.id, self.customers.c.name, self.customers.c.source_count)
-                .where(self.customers.c.id.in_(source_ids))
-            ).mappings().all()
-            if len(sources) != len(source_ids):
-                raise ValueError("Uno o más clientes a fusionar no existen")
-
-            source_names = [str(source["name"]) for source in sources]
-            target_name = str(target["name"])
-            merged_source_count = int(target["source_count"] or 0) + sum(int(source["source_count"] or 0) for source in sources)
-
-            connection.execute(
-                update(self.invoices)
-                .where(self.invoices.c.customer_id.in_(source_ids))
-                .values(customer_id=target_customer_id, client_name=target_name)
-            )
-            connection.execute(
-                update(self.invoices)
-                .where(self.invoices.c.customer_id.is_(None), self.invoices.c.client_name.in_(source_names))
-                .values(customer_id=target_customer_id, client_name=target_name)
-            )
-            connection.execute(
-                update(self.customers)
-                .where(self.customers.c.id == target_customer_id)
-                .values(source_count=merged_source_count, updated_at=now)
-            )
-            connection.execute(self.customers.delete().where(self.customers.c.id.in_(source_ids)))
-
     def save_profile(self, profile: CustomerProfileData | dict[str, object]) -> CustomerProfileData:
         now = utc_now()
         customer_id = profile.get("id")
