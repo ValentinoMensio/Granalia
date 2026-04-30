@@ -282,7 +282,7 @@ export default function InvoiceHistory() {
                     <td className="table-cell text-center">{invoice.declared ? 'Declarada' : 'No declarada'}</td>
                     <td className="table-cell whitespace-nowrap text-right font-medium">${money(invoice.final_total)}</td>
                     <td className="table-cell">
-                      <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs">
+                      <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-0.5 text-xs leading-tight">
                         <Button variant="ghost" className="px-0 py-0 text-brand-red" onClick={() => handleSelectInvoice(invoice.invoice_id)}>
                           Ver detalle
                         </Button>
@@ -290,24 +290,16 @@ export default function InvoiceHistory() {
                           Editar
                         </Button>
                         <a
-                          href={invoiceDownloadUrl(invoice.invoice_id)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="font-semibold text-brand-ink hover:text-brand-red"
-                        >
-                          XLSX
-                        </a>
-                        <a
                           href={invoicePdfUrl(invoice.invoice_id)}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-sm font-semibold text-brand-ink hover:text-brand-red"
+                          className="font-semibold text-brand-ink hover:text-brand-red"
                         >
                           PDF
                         </a>
                         <Button
                           variant="ghost"
-                          className="px-0 py-0 text-sm text-red-600"
+                          className="px-0 py-0 text-xs text-red-600"
                           onClick={() => handleDeleteInvoice(invoice.invoice_id)}
                           disabled={deletingInvoiceId === invoice.invoice_id}
                         >
