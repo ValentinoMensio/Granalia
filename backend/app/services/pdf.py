@@ -262,9 +262,10 @@ def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: in
 
 def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> float:
     shipment_label_x = MARGIN + TABLE_INNER_PAD_X
-    shipment_value_x = MARGIN + 115
+    shipment_value_x = MARGIN + 105
     totals_label_x = width - 240
     totals_value_x = width - MARGIN - TABLE_INNER_PAD_X
+    shipment_font_size = 12
     total_bultos = sum(
         float(item.get("quantity") or 0)
         for item in invoice.get("items", [])
@@ -287,27 +288,31 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
     y -= 16
     _line(pdf, MARGIN, y, width - MARGIN)
 
-    y -= 30
+    y -= 24
     section_top_y = y
 
-    shipment_lines = [("Peso Neto:", _weight(total_weight))]
-    if transport:
-        shipment_lines.append(("Transporte:", transport))
-    if notes:
-        shipment_lines.append(("Observaciones:", " / ".join(notes)))
+    pdf.setFont(FONT_BOLD, 11)
+    _set_color(pdf, COLOR_MUTED)
+    pdf.drawString(shipment_label_x, section_top_y, "DATOS DEL ENVÍO")
 
-    shipment_y = section_top_y
+    shipment_y = section_top_y - 18
+    shipment_lines = [("Peso neto", _weight(total_weight))]
+    if transport:
+        shipment_lines.append(("Transporte", transport))
+    if notes:
+        shipment_lines.append(("Observaciones", " / ".join(notes)))
+
     shipment_max_width = totals_label_x - shipment_value_x - 20
     for label, value in shipment_lines:
-        pdf.setFont(FONT_BOLD, SUMMARY_FONT_SIZE)
+        pdf.setFont(FONT_BOLD, shipment_font_size)
         _set_color(pdf, COLOR_TEXT)
         pdf.drawString(shipment_label_x, shipment_y, label)
-        pdf.setFont(FONT_REGULAR, SUMMARY_FONT_SIZE)
+        pdf.setFont(FONT_REGULAR, shipment_font_size)
         _set_color(pdf, COLOR_MUTED)
-        value_lines = _wrap_text(value, FONT_REGULAR, SUMMARY_FONT_SIZE, shipment_max_width)
+        value_lines = _wrap_text(value, FONT_REGULAR, shipment_font_size, shipment_max_width)
         for index, line in enumerate(value_lines):
-            pdf.drawString(shipment_value_x, shipment_y - (index * 15), line)
-        shipment_y -= max(18, len(value_lines) * 15)
+            pdf.drawString(shipment_value_x, shipment_y - (index * 14), line)
+        shipment_y -= max(17, len(value_lines) * 14)
 
     if has_discount:
         _set_color(pdf, COLOR_TEXT)
