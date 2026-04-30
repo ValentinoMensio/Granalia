@@ -108,6 +108,27 @@ def _wrap_text(text: str, font: str, size: float, max_width: float) -> list[str]
     return lines or [""]
 
 
+def _wrap_text_with_first_width(text: str, font: str, size: float, first_width: float, next_width: float) -> list[str]:
+    words = str(text or "").split()
+    lines: list[str] = []
+    current = ""
+    max_width = first_width
+
+    for word in words:
+        candidate = f"{current} {word}".strip()
+        if not current or stringWidth(candidate, font, size) <= max_width:
+            current = candidate
+        else:
+            lines.append(current)
+            current = word
+            max_width = next_width
+
+    if current:
+        lines.append(current)
+
+    return lines or [""]
+
+
 def _kilograms_per_unit(label: str) -> float:
     text = str(label or "").lower().replace(" ", "")
     pack_match = re.search(r"(\d+)x(\d+(?:[.,]\d+)?)(kg|gr|g)?", text)
@@ -311,10 +332,18 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
         if label == "Observaciones":
             pdf.setFont(FONT_REGULAR, shipment_font_size)
             _set_color(pdf, COLOR_MUTED)
-            value_lines = _wrap_text(value, FONT_REGULAR, shipment_font_size, totals_label_x - shipment_label_x - 20)
+            value_lines = _wrap_text_with_first_width(
+                value,
+                FONT_REGULAR,
+                shipment_font_size,
+                shipment_max_width,
+                totals_label_x - shipment_label_x - 20,
+            )
             for index, line in enumerate(value_lines):
-                pdf.drawString(shipment_label_x, shipment_y - 14 - (index * 14), line)
-            shipment_y -= 17 + (len(value_lines) * 14)
+                x = shipment_value_x if index == 0 else shipment_label_x
+                y_offset = 0 if index == 0 else index * 14
+                pdf.drawString(x, shipment_y - y_offset, line)
+            shipment_y -= max(17, len(value_lines) * 14)
             continue
 
         pdf.setFont(FONT_REGULAR, shipment_font_size)
