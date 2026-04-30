@@ -2,9 +2,12 @@ import InvoiceFormCard from '../components/invoices/InvoiceFormCard'
 import ProductRowsCard from '../components/invoices/ProductRowsCard'
 import { useGranalia } from '../context/GranaliaContext'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 
 export default function OrderCreator() {
   const navigate = useNavigate()
+  const { session } = useAuth()
+  const isAdmin = session?.role === 'admin'
   const {
     bootstrap,
     customers,
@@ -72,7 +75,7 @@ export default function OrderCreator() {
           onGenerate={handleGenerateInvoice}
           onRemoveFooterDiscount={removeFooterDiscountRow}
           onRemoveAutomaticBonusRule={removeAutomaticBonusRule}
-          onSave={saveCustomer}
+          onSave={isAdmin ? saveCustomer : null}
           onCancelEdit={handleCancelInvoiceEdit}
         />
 

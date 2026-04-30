@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import cast
 
 from sqlalchemy import select, update
@@ -23,9 +23,9 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
     product_offerings: Table
     price_lists: Table
 
-    def list_invoices(self, limit: int = 50) -> list[InvoiceListItemData]:
+    def list_invoices(self, limit: int = 50, date_from: date | None = None) -> list[InvoiceListItemData]:
         with self.engine.connect() as connection:
-            rows = connection.execute(
+            query = (
                 select(
                     self.invoices.c.id.label("invoice_id"),
                     self.invoices.c.customer_id,
@@ -46,7 +46,10 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                 )
                 .order_by(self.invoices.c.order_date.desc(), self.invoices.c.id.desc())
                 .limit(limit)
-            ).mappings().all()
+            )
+            if date_from is not None:
+                query = query.where(self.invoices.c.order_date >= date_from)
+            rows = connection.execute(query).mappings().all()
         payload: list[InvoiceListItemData] = cast(list[InvoiceListItemData], [{key: serialize_value(value) for key, value in row.items()} for row in rows])
         return payload
 

@@ -149,6 +149,7 @@ cp .env.example .env
 - `POSTGRES_PASSWORD` fuerte
 - `GRANALIA_POSTGRES_URL` apuntando al contenedor `postgres`
 - `GRANALIA_ALLOWED_ORIGINS` con tu dominio real
+- `GRANALIA_AUTH_ROLE` como `admin` u `operator` para el usuario inicial
 - opcionalmente `GRANALIA_AUTH_PASSWORD_HASH` para no guardar password plano en `.env`
 
 3. construir frontend:

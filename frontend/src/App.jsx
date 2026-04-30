@@ -1,5 +1,5 @@
 import { Component } from 'react'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Navigate, Routes, Route } from 'react-router-dom'
 import Login from './pages/Login'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { GranaliaProvider } from './context/GranaliaContext'
@@ -37,6 +37,9 @@ class AppErrorBoundary extends Component {
 }
 
 function AppLayout() {
+  const { session } = useAuth()
+  const isAdmin = session?.role === 'admin'
+
   return (
     <div className="app-shell">
       <AppHeader />
@@ -44,14 +47,14 @@ function AppLayout() {
       <Routes>
         <Route path="/" element={<OrderCreator />} />
         <Route path="/history" element={<InvoiceHistory />} />
-        <Route path="/history/stats" element={<InvoiceStats />} />
-        <Route path="/management" element={<Management />} />
-        <Route path="/customers/new" element={<CustomerEditor />} />
-        <Route path="/customers/:id" element={<CustomerEditor />} />
-        <Route path="/products/new" element={<ProductEditor />} />
-        <Route path="/products/:id" element={<ProductEditor />} />
-        <Route path="/transports/new" element={<TransportEditor />} />
-        <Route path="/transports/:id" element={<TransportEditor />} />
+        <Route path="/history/stats" element={isAdmin ? <InvoiceStats /> : <Navigate to="/history" replace />} />
+        <Route path="/management" element={isAdmin ? <Management /> : <Navigate to="/history" replace />} />
+        <Route path="/customers/new" element={isAdmin ? <CustomerEditor /> : <Navigate to="/history" replace />} />
+        <Route path="/customers/:id" element={isAdmin ? <CustomerEditor /> : <Navigate to="/history" replace />} />
+        <Route path="/products/new" element={isAdmin ? <ProductEditor /> : <Navigate to="/history" replace />} />
+        <Route path="/products/:id" element={isAdmin ? <ProductEditor /> : <Navigate to="/history" replace />} />
+        <Route path="/transports/new" element={isAdmin ? <TransportEditor /> : <Navigate to="/history" replace />} />
+        <Route path="/transports/:id" element={isAdmin ? <TransportEditor /> : <Navigate to="/history" replace />} />
       </Routes>
 
       <StatusBar />

@@ -6,6 +6,7 @@ from pathlib import Path
 from fastapi import HTTPException, Request, status
 
 from .core.security import AuthManager
+from .core.security import SessionTokenPayload
 from .infrastructure.postgres import PostgresRepository
 
 
@@ -33,7 +34,11 @@ def get_auth_manager() -> AuthManager:
     return AuthManager(BASE_DIR)
 
 
-def require_authenticated(request: Request) -> str:
+def require_session_payload(request: Request) -> SessionTokenPayload:
+    cached_payload = getattr(request.state, "auth_payload", None)
+    if cached_payload:
+        return cached_payload
+
     auth_manager = get_auth_manager()
     token = request.cookies.get(auth_manager.cookie_name)
     payload = auth_manager.verify_session_token(token)
@@ -43,4 +48,21 @@ def require_authenticated(request: Request) -> str:
         csrf_token = request.headers.get("X-CSRF-Token")
         if not auth_manager.verify_csrf_token(payload, csrf_token):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Token CSRF inválido")
+    request.state.auth_payload = payload
+    return payload
+
+
+def require_authenticated(request: Request) -> str:
+    payload = require_session_payload(request)
     return str(payload["sub"])
+
+
+def require_admin(request: Request) -> str:
+    payload = require_session_payload(request)
+    if payload.get("role") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permisos de administrador requeridos")
+    return str(payload["sub"])
+
+
+def current_role(request: Request) -> str:
+    return str(require_session_payload(request).get("role") or "operator")

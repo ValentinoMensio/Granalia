@@ -354,6 +354,7 @@ class InvoiceCreateOut(BaseModel):
 class AuthSessionOut(BaseModel):
     authenticated: bool
     username: str | None = None
+    role: str | None = None
     csrf_token: str | None = None
 
 

@@ -191,11 +191,13 @@ def build_metadata() -> tuple[MetaData, dict[str, Table]]:
             Column("id", BigInteger, primary_key=True, autoincrement=True),
             Column("username", String(120), nullable=False, unique=True),
             Column("password_hash", String(255), nullable=False),
+            Column("role", String(20), nullable=False, server_default="admin"),
             Column("is_active", Boolean, nullable=False, server_default="true"),
             Column("created_at", DateTime(timezone=True), nullable=False),
             Column("updated_at", DateTime(timezone=True), nullable=False),
             CheckConstraint("char_length(btrim(username)) > 0", name="ck_app_users_username_not_blank"),
             CheckConstraint("char_length(btrim(password_hash)) > 0", name="ck_app_users_password_hash_not_blank"),
+            CheckConstraint("role IN ('admin', 'operator')", name="ck_app_users_role_valid"),
         ),
     }
     return metadata, tables

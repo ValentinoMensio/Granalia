@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
-from ...dependencies import get_repository
+from ...dependencies import get_repository, require_admin
 from ...schemas import (
     MAX_PRODUCT_OFFERINGS,
     ProductCatalogOut,
@@ -23,7 +23,7 @@ def transports() -> list[TransportOut]:
 
 
 @router.post("/api/transports", response_model=TransportOut)
-def create_transport(payload: TransportUpsert) -> TransportOut:
+def create_transport(payload: TransportUpsert, _: str = Depends(require_admin)) -> TransportOut:
     return get_repository().save_transport(
         name=payload.name,
         notes=payload.notes,
@@ -31,7 +31,7 @@ def create_transport(payload: TransportUpsert) -> TransportOut:
 
 
 @router.put("/api/transports/{transport_id}", response_model=TransportOut)
-def update_transport(transport_id: int, payload: TransportUpsert) -> TransportOut:
+def update_transport(transport_id: int, payload: TransportUpsert, _: str = Depends(require_admin)) -> TransportOut:
     return get_repository().save_transport(
         name=payload.name,
         notes=payload.notes,
@@ -40,7 +40,7 @@ def update_transport(transport_id: int, payload: TransportUpsert) -> TransportOu
 
 
 @router.delete("/api/transports/{transport_id}", response_model=StatusResponse)
-def delete_transport(transport_id: int) -> StatusResponse:
+def delete_transport(transport_id: int, _: str = Depends(require_admin)) -> StatusResponse:
     get_repository().delete_transport(transport_id)
     return {"status": "deleted"}
 
@@ -51,12 +51,12 @@ def products() -> list[ProductCatalogOut]:
 
 
 @router.post("/api/products", response_model=ProductOut)
-def upsert_product(payload: ProductUpsert) -> ProductOut:
+def upsert_product(payload: ProductUpsert, _: str = Depends(require_admin)) -> ProductOut:
     return get_repository().save_product(payload.model_dump())
 
 
 @router.post("/api/products/{product_id}/offerings", response_model=StatusResponse)
-def update_product_offerings(product_id: int, payload: list[ProductOfferingUpsert]) -> StatusResponse:
+def update_product_offerings(product_id: int, payload: list[ProductOfferingUpsert], _: str = Depends(require_admin)) -> StatusResponse:
     if len(payload) > MAX_PRODUCT_OFFERINGS:
         raise HTTPException(status_code=400, detail=f"Máximo {MAX_PRODUCT_OFFERINGS} presentaciones por producto")
     get_repository().save_product_offerings(
@@ -67,6 +67,6 @@ def update_product_offerings(product_id: int, payload: list[ProductOfferingUpser
 
 
 @router.delete("/api/products/{product_id}", response_model=StatusResponse)
-def delete_product(product_id: int) -> StatusResponse:
+def delete_product(product_id: int, _: str = Depends(require_admin)) -> StatusResponse:
     get_repository().delete_product(product_id)
     return {"status": "deleted"}

@@ -33,11 +33,13 @@ class AuthUser:
     id: int
     username: str
     password_hash: str
+    role: str
     is_active: bool
 
 
 class SessionTokenPayload(TypedDict):
     sub: str
+    role: str
     pwd: str
     exp: int
     nonce: str
@@ -115,7 +117,7 @@ class AuthManager:
             row = connection.execute(
                 text(
                     """
-                    SELECT id, username, password_hash, is_active
+                    SELECT id, username, password_hash, role, is_active
                     FROM app_users
                     WHERE username = :username
                     LIMIT 1
@@ -129,6 +131,7 @@ class AuthManager:
             id=int(row["id"]),
             username=str(row["username"]),
             password_hash=str(row["password_hash"]),
+            role=str(row.get("role") or "operator"),
             is_active=bool(row["is_active"]),
         )
 
@@ -148,6 +151,7 @@ class AuthManager:
         env_username = os.getenv("GRANALIA_AUTH_USERNAME")
         env_password_hash = os.getenv("GRANALIA_AUTH_PASSWORD_HASH")
         env_password = os.getenv("GRANALIA_AUTH_PASSWORD")
+        env_role = os.getenv("GRANALIA_AUTH_ROLE", "admin")
 
         username = env_username or "admin"
         password_hash: str | None = None
@@ -166,7 +170,7 @@ class AuthManager:
         if password_hash is None:
             raise RuntimeError("No se pudo inicializar el password hash del usuario administrador")
 
-        self.upsert_user(username, password_hash=password_hash, is_active=True)
+        self.upsert_user(username, password_hash=password_hash, role=env_role, is_active=True)
 
         if generated_password:
             print(
@@ -180,18 +184,21 @@ class AuthManager:
         username: str,
         *,
         password_hash: str,
+        role: str = "operator",
         is_active: bool = True,
     ) -> None:
         now = int(time.time())
+        normalized_role = role if role in {"admin", "operator"} else "operator"
         with self.engine.begin() as connection:
             connection.execute(
                 text(
                     """
-                    INSERT INTO app_users (username, password_hash, is_active, created_at, updated_at)
-                    VALUES (:username, :password_hash, :is_active, now(), now())
+                    INSERT INTO app_users (username, password_hash, role, is_active, created_at, updated_at)
+                    VALUES (:username, :password_hash, :role, :is_active, now(), now())
                     ON CONFLICT (username)
                     DO UPDATE SET
                         password_hash = EXCLUDED.password_hash,
+                        role = EXCLUDED.role,
                         is_active = EXCLUDED.is_active,
                         updated_at = now()
                     """
@@ -199,6 +206,7 @@ class AuthManager:
                 {
                     "username": username,
                     "password_hash": password_hash,
+                    "role": normalized_role,
                     "is_active": is_active,
                     "now": now,
                 },
@@ -218,6 +226,7 @@ class AuthManager:
     def create_session_token(self, user: AuthUser) -> str:
         payload = {
             "sub": user.username,
+            "role": user.role,
             "pwd": _password_fingerprint(user.password_hash),
             "exp": int(time.time()) + self.session_ttl_seconds,
             "nonce": secrets.token_urlsafe(16),
@@ -255,6 +264,7 @@ class AuthManager:
             return None
         return {
             "sub": user.username,
+            "role": user.role,
             "pwd": str(payload.get("pwd")),
             "exp": int(payload.get("exp", 0)),
             "nonce": str(payload.get("nonce", "")),

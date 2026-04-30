@@ -4,12 +4,15 @@ import { useGranalia } from '../context/GranaliaContext'
 import { money } from '../lib/format'
 import Button from '../components/ui/Button'
 import PageSectionHeader from '../components/ui/PageSectionHeader'
+import { useAuth } from '../context/AuthContext'
 
 const PAGE_SIZE = 10
 const EMPTY_FILTERS = { customerId: '', dateFrom: '', dateTo: '', transport: '', minTotal: '', maxTotal: '' }
 
 export default function InvoiceHistory() {
   const navigate = useNavigate()
+  const { session } = useAuth()
+  const isAdmin = session?.role === 'admin'
   const { bootstrap, invoices, customers, invoiceDetail, loadInvoiceDetail, clearInvoiceDetail, invoiceDownloadUrl, invoicePdfUrl, startInvoiceEdit, deleteInvoice } = useGranalia()
   const [filters, setFilters] = useState(EMPTY_FILTERS)
   const [loadingDetail, setLoadingDetail] = useState(false)
@@ -209,9 +212,11 @@ export default function InvoiceHistory() {
                   <Button variant="secondary" className="w-full" onClick={() => handleSelectInvoice(invoice.invoice_id)}>
                     Detalle
                   </Button>
-                  <Button variant="secondary" className="w-full" onClick={() => handleEditInvoice(invoice.invoice_id)}>
-                    Editar
-                  </Button>
+                  {isAdmin && (
+                    <Button variant="secondary" className="w-full" onClick={() => handleEditInvoice(invoice.invoice_id)}>
+                      Editar
+                    </Button>
+                  )}
                   <a
                     href={invoiceDownloadUrl(invoice.invoice_id)}
                     target="_blank"
@@ -228,14 +233,16 @@ export default function InvoiceHistory() {
                   >
                     PDF
                   </a>
-                  <Button
-                    variant="danger"
-                    className="col-span-2"
-                    onClick={() => handleDeleteInvoice(invoice.invoice_id)}
-                    disabled={deletingInvoiceId === invoice.invoice_id}
-                  >
-                    {deletingInvoiceId === invoice.invoice_id ? 'Eliminando...' : 'Eliminar'}
-                  </Button>
+                  {isAdmin && (
+                    <Button
+                      variant="danger"
+                      className="col-span-2"
+                      onClick={() => handleDeleteInvoice(invoice.invoice_id)}
+                      disabled={deletingInvoiceId === invoice.invoice_id}
+                    >
+                      {deletingInvoiceId === invoice.invoice_id ? 'Eliminando...' : 'Eliminar'}
+                    </Button>
+                  )}
                 </div>
               </article>
             )
@@ -286,9 +293,11 @@ export default function InvoiceHistory() {
                         <Button variant="ghost" className="px-0 py-0 text-brand-red" onClick={() => handleSelectInvoice(invoice.invoice_id)}>
                           Ver detalle
                         </Button>
-                        <Button variant="ghost" className="px-0 py-0 text-brand-ink" onClick={() => handleEditInvoice(invoice.invoice_id)}>
-                          Editar
-                        </Button>
+                        {isAdmin && (
+                          <Button variant="ghost" className="px-0 py-0 text-brand-ink" onClick={() => handleEditInvoice(invoice.invoice_id)}>
+                            Editar
+                          </Button>
+                        )}
                         <a
                           href={invoicePdfUrl(invoice.invoice_id)}
                           target="_blank"
@@ -297,14 +306,16 @@ export default function InvoiceHistory() {
                         >
                           PDF
                         </a>
-                        <Button
-                          variant="ghost"
-                          className="px-0 py-0 text-xs text-red-600"
-                          onClick={() => handleDeleteInvoice(invoice.invoice_id)}
-                          disabled={deletingInvoiceId === invoice.invoice_id}
-                        >
-                          {deletingInvoiceId === invoice.invoice_id ? 'Eliminando...' : 'Eliminar'}
-                        </Button>
+                        {isAdmin && (
+                          <Button
+                            variant="ghost"
+                            className="px-0 py-0 text-xs text-red-600"
+                            onClick={() => handleDeleteInvoice(invoice.invoice_id)}
+                            disabled={deletingInvoiceId === invoice.invoice_id}
+                          >
+                            {deletingInvoiceId === invoice.invoice_id ? 'Eliminando...' : 'Eliminar'}
+                          </Button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -469,9 +480,11 @@ export default function InvoiceHistory() {
             </div>
 
             <div className="flex flex-col gap-3 border-t border-stone-200 pt-4 sm:flex-row sm:flex-wrap sm:justify-end">
-              <Button variant="secondary" className="w-full sm:w-auto" onClick={() => handleEditInvoice(invoiceDetail.id)}>
-                Editar factura
-              </Button>
+              {isAdmin && (
+                <Button variant="secondary" className="w-full sm:w-auto" onClick={() => handleEditInvoice(invoiceDetail.id)}>
+                  Editar factura
+                </Button>
+              )}
               <a
                 href={invoiceDownloadUrl(invoiceDetail.id)}
                 target="_blank"
@@ -488,14 +501,16 @@ export default function InvoiceHistory() {
               >
                 Descargar PDF
               </a>
-              <Button
-                variant="danger"
-                className="w-full sm:w-auto"
-                onClick={() => handleDeleteInvoice(invoiceDetail.id)}
-                disabled={deletingInvoiceId === invoiceDetail.id}
-              >
-                {deletingInvoiceId === invoiceDetail.id ? 'Eliminando...' : 'Eliminar factura'}
-              </Button>
+              {isAdmin && (
+                <Button
+                  variant="danger"
+                  className="w-full sm:w-auto"
+                  onClick={() => handleDeleteInvoice(invoiceDetail.id)}
+                  disabled={deletingInvoiceId === invoiceDetail.id}
+                >
+                  {deletingInvoiceId === invoiceDetail.id ? 'Eliminando...' : 'Eliminar factura'}
+                </Button>
+              )}
             </div>
           </div>
         )}

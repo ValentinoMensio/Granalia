@@ -5,12 +5,15 @@ import { useAuth } from '../../context/AuthContext'
 
 function AppHeader() {
   const location = useLocation()
-  const { logout } = useAuth()
+  const { logout, session } = useAuth()
+  const isAdmin = session?.role === 'admin'
   const links = [
     { to: '/', label: 'Creador', exact: true },
     { to: '/history', label: 'Facturas', exact: true },
-    { to: '/history/stats', label: 'Estadística', exact: true },
-    { to: '/management', label: 'Gestión' },
+    ...(isAdmin ? [
+      { to: '/history/stats', label: 'Estadística', exact: true },
+      { to: '/management', label: 'Gestión' },
+    ] : []),
   ]
 
   return (

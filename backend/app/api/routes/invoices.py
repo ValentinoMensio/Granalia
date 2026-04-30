@@ -1,15 +1,29 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from datetime import date, timedelta
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 
-from ...dependencies import get_repository
+from ...dependencies import current_role, get_repository, require_admin
 from ...schemas import InvoiceCreateOut, InvoiceDetailOut, InvoiceListItemOut, InvoiceRequest, StatusResponse
 from ...services.pdf import build_invoice_pdf
 from ...services.invoicing import generate_invoice_document
 
 
 router = APIRouter(prefix="/api/invoices", tags=["invoices"])
+OPERATOR_HISTORY_DAYS = 7
+
+
+def operator_min_order_date() -> date:
+    return date.today() - timedelta(days=OPERATOR_HISTORY_DAYS - 1)
+
+
+def ensure_invoice_visible_for_role(invoice: dict, role: str) -> None:
+    if role != "operator":
+        return
+    if str(invoice.get("order_date") or "") < operator_min_order_date().isoformat():
+        raise HTTPException(status_code=403, detail="Los operadores solo pueden ver facturas de los últimos 7 días")
 
 
 def catalog_with_invoice_history(catalog: list[dict], invoice: dict) -> list[dict]:
@@ -48,26 +62,33 @@ def catalog_with_invoice_history(catalog: list[dict], invoice: dict) -> list[dic
 
 
 @router.get("", response_model=list[InvoiceListItemOut])
-def invoices(limit: int = 500) -> list[InvoiceListItemOut]:
-    return [InvoiceListItemOut.model_validate(item) for item in get_repository().list_invoices(limit=limit)]
+def invoices(limit: int = Query(default=500, ge=1, le=500), role: str = Depends(current_role)) -> list[InvoiceListItemOut]:
+    date_from = operator_min_order_date() if role == "operator" else None
+    return [InvoiceListItemOut.model_validate(item) for item in get_repository().list_invoices(limit=limit, date_from=date_from)]
 
 
 @router.get("/stats/items")
-def invoice_item_stats() -> list[dict[str, object]]:
+def invoice_item_stats(_: str = Depends(require_admin)) -> list[dict[str, object]]:
     return get_repository().list_invoice_item_stats()
 
 
 @router.get("/{invoice_id}", response_model=InvoiceDetailOut)
-def invoice_detail(invoice_id: int) -> InvoiceDetailOut:
+def invoice_detail(invoice_id: int, role: str = Depends(current_role)) -> InvoiceDetailOut:
     invoice = get_repository().get_invoice_detail(invoice_id)
     if not invoice:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
+    ensure_invoice_visible_for_role(invoice, role)
     return InvoiceDetailOut.model_validate(invoice)
 
 
 @router.get("/{invoice_id}/xlsx")
-def download_invoice(invoice_id: int) -> Response:
-    invoice = get_repository().get_invoice_file(invoice_id)
+def download_invoice(invoice_id: int, role: str = Depends(current_role)) -> Response:
+    repository = get_repository()
+    invoice_detail_data = repository.get_invoice_detail(invoice_id)
+    if not invoice_detail_data:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+    ensure_invoice_visible_for_role(invoice_detail_data, role)
+    invoice = repository.get_invoice_file(invoice_id)
     if not invoice:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
     return Response(
@@ -78,10 +99,11 @@ def download_invoice(invoice_id: int) -> Response:
 
 
 @router.get("/{invoice_id}/pdf")
-def download_invoice_pdf(invoice_id: int) -> Response:
+def download_invoice_pdf(invoice_id: int, role: str = Depends(current_role)) -> Response:
     invoice = get_repository().get_invoice_detail(invoice_id)
     if not invoice:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
+    ensure_invoice_visible_for_role(invoice, role)
     pdf_bytes = build_invoice_pdf(invoice)
     return Response(
         content=pdf_bytes,
@@ -110,7 +132,7 @@ def create_invoice(payload: InvoiceRequest) -> InvoiceCreateOut:
 
 
 @router.put("/{invoice_id}", response_model=InvoiceCreateOut)
-def update_invoice(invoice_id: int, payload: InvoiceRequest) -> InvoiceCreateOut:
+def update_invoice(invoice_id: int, payload: InvoiceRequest, _: str = Depends(require_admin)) -> InvoiceCreateOut:
     repository = get_repository()
     invoice = repository.get_invoice_detail(invoice_id)
     if not invoice:
@@ -133,7 +155,7 @@ def update_invoice(invoice_id: int, payload: InvoiceRequest) -> InvoiceCreateOut
 
 
 @router.delete("/{invoice_id}", response_model=StatusResponse)
-def delete_invoice(invoice_id: int) -> StatusResponse:
+def delete_invoice(invoice_id: int, _: str = Depends(require_admin)) -> StatusResponse:
     repository = get_repository()
     if not repository.get_invoice_detail(invoice_id):
         raise HTTPException(status_code=404, detail="Factura no encontrada")
