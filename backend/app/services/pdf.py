@@ -230,7 +230,7 @@ def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: in
     )
 
     pdf.drawString(MARGIN + TABLE_INNER_PAD_X, y, label)
-    pdf.drawRightString(MARGIN + 300, y, format_quantity(item.get("quantity") or 0))
+    pdf.drawRightString(MARGIN + 200, y, format_quantity(item.get("quantity") or 0))
     pdf.drawRightString(MARGIN + 390, y, _money(item.get("unit_price") or 0))
     pdf.drawRightString(width - MARGIN - TABLE_INNER_PAD_X, y, _money(item.get("total") or 0))
 
