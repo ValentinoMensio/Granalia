@@ -38,7 +38,7 @@ def style_sheet(ws) -> None:
 
 
 def add_logo(ws, base_dir: Path) -> None:
-    logo_path = base_dir / "img" / "logo.png"
+    logo_path = base_dir / "img" / "logof.png"
     if not logo_path.exists():
         return
     image = XLImage(str(logo_path))

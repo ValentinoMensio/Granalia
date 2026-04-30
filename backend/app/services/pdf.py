@@ -190,7 +190,7 @@ def _draw_logo(pdf: canvas.Canvas, *, margin: int, y: float, logo_path: Path) ->
 
 
 def _draw_header(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> float:
-    logo_path = BASE_DIR / "img" / "logo-bw.png"
+    logo_path = BASE_DIR / "img" / "logof-bw.png"
 
     _draw_logo(pdf, margin=MARGIN, y=y, logo_path=logo_path)
 

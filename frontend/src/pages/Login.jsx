@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import Button from '../components/ui/Button'
 import { useAuth } from '../context/AuthContext'
-import logoImage from '../../../img/logo.png'
+import logoImage from '../../../img/logof.png'
 
 export default function Login() {
   const { login } = useAuth()
