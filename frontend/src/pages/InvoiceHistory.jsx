@@ -248,15 +248,15 @@ export default function InvoiceHistory() {
         </div>
 
         <div className="table-shell mt-6 hidden lg:block">
-          <table className="table-base min-w-[960px] table-fixed">
+          <table className="table-base invoice-history-table min-w-[900px] table-fixed text-[13px]">
             <colgroup>
               <col className="w-[7%]" />
-              <col className="w-[21%]" />
+              <col className="w-[22%]" />
               <col className="w-[11%]" />
-              <col className="w-[16%]" />
-              <col className="w-[12%]" />
+              <col className="w-[17%]" />
+              <col className="w-[15%]" />
               <col className="w-[13%]" />
-              <col className="w-[20%]" />
+              <col className="w-[15%]" />
             </colgroup>
             <thead className="table-head">
               <tr>
@@ -279,7 +279,7 @@ export default function InvoiceHistory() {
                     <td className="table-cell break-words font-medium leading-snug" title={invoice.client_name}>{invoice.client_name}</td>
                     <td className={`table-cell whitespace-nowrap text-center ${isUpcoming ? 'text-slate-800' : 'text-slate-600'}`}>{invoice.order_date}</td>
                     <td className={`table-cell break-words leading-snug ${isUpcoming ? 'text-slate-800' : 'text-slate-600'}`} title={invoice.transport || 'Sin transporte'}>{invoice.transport || 'Sin transporte'}</td>
-                    <td className="table-cell text-center">{invoice.declared ? 'Declarada' : 'No declarada'}</td>
+                    <td className="table-cell whitespace-nowrap text-center">{invoice.declared ? 'Declarada' : 'No declarada'}</td>
                     <td className="table-cell whitespace-nowrap text-right font-medium">${money(invoice.final_total)}</td>
                     <td className="table-cell">
                       <div className="flex items-center justify-center gap-x-2 whitespace-nowrap text-xs leading-tight">
