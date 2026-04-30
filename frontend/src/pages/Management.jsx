@@ -8,7 +8,7 @@ import PageSectionHeader from '../components/ui/PageSectionHeader'
 import PriceListPanel from '../components/sidebar/PriceListPanel'
 
 export default function Management() {
-  const { setStatus, customers, bootstrap, catalog, priceListUploadName, priceListUploadTargetId, uploading, setPdfFile, setPriceListUploadName, setPriceListUploadTargetId, uploadPriceList, deletePriceList, refreshAll } = useGranalia()
+  const { setStatus, customers, bootstrap, catalog, priceListUploadName, priceListUploadTargetId, uploading, setPdfFile, setPriceListUploadName, setPriceListUploadTargetId, uploadPriceList, deletePriceList, renamePriceList, refreshAll } = useGranalia()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const requestedTab = searchParams.get('tab')
@@ -66,6 +66,19 @@ export default function Management() {
       await deletePriceList(priceList.id)
     } catch (e) {
       setStatus(`Error al eliminar lista: ${e.message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleRenamePriceList(priceList) {
+    const nextName = window.prompt('Nuevo nombre de la lista de precios', priceList.name)?.trim()
+    if (!nextName || nextName === priceList.name) return
+    setLoading(true)
+    try {
+      await renamePriceList(priceList.id, nextName)
+    } catch (e) {
+      setStatus(`Error al renombrar lista: ${e.message}`)
     } finally {
       setLoading(false)
     }
@@ -373,6 +386,7 @@ export default function Management() {
               priceListUploadTargetId={priceListUploadTargetId}
               uploading={uploading}
               onDelete={handleDeletePriceList}
+              onRename={handleRenamePriceList}
               onFileChange={setPdfFile}
               onUploadNameChange={setPriceListUploadName}
               onUploadTargetChange={setPriceListUploadTargetId}

@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from ...dependencies import get_repository
-from ...schemas import MAX_NAME_LENGTH, PriceListMetaOut, PriceListUploadOut, ProductCatalogOut, StatusResponse
+from ...schemas import MAX_NAME_LENGTH, PriceListMetaOut, PriceListRename, PriceListUploadOut, ProductCatalogOut, StatusResponse
 from ...services.catalog import build_catalog_snapshot_from_pdf
 
 
@@ -25,7 +25,7 @@ async def upload_price_list(file: UploadFile = File(...), name: str = Form(defau
         raise HTTPException(status_code=413, detail="El PDF no puede superar 20 MB")
     repository = get_repository()
     list_name = name.strip() or filename
-    price_list = repository.save_price_list(filename, pdf_bytes, activate=activate, source="upload", name=list_name if price_list_id is None else None, price_list_id=price_list_id)
+    price_list = repository.save_price_list(filename, pdf_bytes, activate=activate, source="upload", name=list_name, price_list_id=price_list_id)
     base_catalog = repository.get_catalog_for_price_list(price_list_id) if price_list_id is not None else repository.get_active_catalog()
     updated_catalog = build_catalog_snapshot_from_pdf(pdf_bytes, base_catalog)
     repository.replace_active_catalog(updated_catalog, name=f"Catalogo desde {list_name}", price_list_id=int(price_list["id"]), active=activate)
@@ -35,6 +35,15 @@ async def upload_price_list(file: UploadFile = File(...), name: str = Form(defau
 @router.get("", response_model=list[PriceListMetaOut])
 def list_price_lists() -> list[PriceListMetaOut]:
     return [PriceListMetaOut.model_validate(item) for item in get_repository().list_price_lists()]
+
+
+@router.patch("/{price_list_id}", response_model=StatusResponse)
+def rename_price_list(price_list_id: int, payload: PriceListRename) -> StatusResponse:
+    try:
+        get_repository().rename_price_list(price_list_id, payload.name)
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    return StatusResponse(status="updated")
 
 
 @router.get("/{price_list_id}/catalog", response_model=list[ProductCatalogOut])

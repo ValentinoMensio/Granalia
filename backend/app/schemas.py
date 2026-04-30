@@ -243,6 +243,12 @@ class PriceListMetaOut(BaseModel):
     updated_at: str
 
 
+class PriceListRename(BaseModel):
+    name: NonEmptyStr
+
+    _normalize_name = field_validator("name")(_strip_required)
+
+
 class DatabaseInfoOut(BaseModel):
     type: str
     url: str

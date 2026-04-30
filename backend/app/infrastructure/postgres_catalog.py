@@ -438,6 +438,17 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
                         .values(active=True, updated_at=now)
                     )
 
+    def rename_price_list(self, price_list_id: int, name: str) -> None:
+        now = utc_now()
+        with self.engine.begin() as connection:
+            result = connection.execute(
+                update(self.price_lists)
+                .where(self.price_lists.c.id == price_list_id)
+                .values(name=name, updated_at=now)
+            )
+            if result.rowcount == 0:
+                raise ValueError("Lista de precios no encontrada")
+
     def get_active_price_list_meta(self) -> PriceListMetaData | None:
         with self.engine.connect() as connection:
             row = connection.execute(

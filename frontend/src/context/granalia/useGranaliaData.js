@@ -376,6 +376,18 @@ function useGranaliaData() {
     setStatus('Lista de precios eliminada.')
   }
 
+  async function renamePriceList(priceListId, name) {
+    if (!priceListId) return
+    await request(`/api/price-lists/${priceListId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    })
+    const nextBootstrap = await request('/api/bootstrap')
+    applyBootstrap(nextBootstrap)
+    setStatus('Lista de precios renombrada.')
+  }
+
   async function generateInvoice() {
     if (!form.clientName.trim()) {
       setStatus('Ingresá un cliente.')
@@ -465,6 +477,7 @@ function useGranaliaData() {
     updateCustomer,
     uploadPriceList,
     deletePriceList,
+    renamePriceList,
     generateInvoice,
     refreshAll: loadAll,
   }
