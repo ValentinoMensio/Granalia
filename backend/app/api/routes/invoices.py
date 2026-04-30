@@ -62,7 +62,7 @@ def catalog_with_invoice_history(catalog: list[dict], invoice: dict) -> list[dic
 
 
 @router.get("", response_model=list[InvoiceListItemOut])
-def invoices(limit: int = Query(default=500, ge=1, le=500), role: str = Depends(current_role)) -> list[InvoiceListItemOut]:
+def invoices(limit: int = Query(default=500, ge=1, le=10000), role: str = Depends(current_role)) -> list[InvoiceListItemOut]:
     date_from = operator_min_order_date() if role == "operator" else None
     return [InvoiceListItemOut.model_validate(item) for item in get_repository().list_invoices(limit=limit, date_from=date_from)]
 
