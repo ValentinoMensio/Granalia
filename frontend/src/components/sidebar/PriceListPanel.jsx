@@ -6,15 +6,6 @@ function PriceListPanel({ bootstrap, priceListUploadName, priceListUploadTargetI
     <Panel title="Lista de precios">
       <input className="input text-xs file:mr-3 file:rounded-lg file:border-0 file:bg-brand-red file:px-3 file:py-2 file:text-sm file:font-medium file:text-white file:cursor-pointer sm:text-sm" type="file" accept="application/pdf" onChange={(event) => onFileChange(event.target.files?.[0] || null)} />
       <label className="mt-3 block text-xs font-bold uppercase tracking-[0.12em] text-slate-400">
-        Nombre de lista
-      </label>
-      <input
-        className="input mt-1"
-        value={priceListUploadName}
-        onChange={(event) => onUploadNameChange(event.target.value)}
-        placeholder={priceListUploadTargetId ? 'Mantener nombre actual' : 'Ej: Mayorista Abril'}
-      />
-      <label className="mt-3 block text-xs font-bold uppercase tracking-[0.12em] text-slate-400">
         Reemplazar lista
       </label>
       <select className="input mt-1" value={priceListUploadTargetId} onChange={(event) => onUploadTargetChange(event.target.value)}>
@@ -23,6 +14,15 @@ function PriceListPanel({ bootstrap, priceListUploadName, priceListUploadTargetI
           <option key={priceList.id} value={priceList.id}>Reemplazar: {priceList.name}</option>
         ))}
       </select>
+      <label className="mt-3 block text-xs font-bold uppercase tracking-[0.12em] text-slate-400">
+        Nombre de lista
+      </label>
+      <input
+        className="input mt-1"
+        value={priceListUploadName}
+        onChange={(event) => onUploadNameChange(event.target.value)}
+        placeholder={priceListUploadTargetId ? 'Mantener nombre actual' : 'Ej: Mayorista Abril'}
+      />
       <Button variant="primary" className="mt-3 w-full justify-center" onClick={onUpload} disabled={uploading}>
         {uploading ? 'Procesando...' : priceListUploadTargetId ? 'Subir PDF y reemplazar lista' : 'Subir PDF y crear lista'}
       </Button>
@@ -32,7 +32,7 @@ function PriceListPanel({ bootstrap, priceListUploadName, priceListUploadTargetI
       <div className="mt-3 space-y-1 text-xs text-slate-500">
         <div className="font-bold uppercase tracking-[0.12em] text-slate-400">Listas</div>
         {(bootstrap?.price_lists || []).map((priceList) => (
-          <div key={priceList.id} className="flex items-center justify-between gap-2">
+          <div key={priceList.id} className="flex items-center gap-2">
             <span className="min-w-0 truncate text-slate-700">{priceList.name}</span>
             <div className="flex shrink-0 items-center gap-2">
               {priceList.active ? <span className="font-semibold text-brand-red">Activa</span> : null}
