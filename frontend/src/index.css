@@ -210,14 +210,6 @@
     @apply px-4 py-3 align-middle;
   }
 
-  .invoice-history-table .table-head th {
-    @apply px-2 py-2;
-  }
-
-  .invoice-history-table .table-cell {
-    @apply px-2 py-2;
-  }
-
   .stats-table-scroll {
     scrollbar-color: rgb(var(--border)) rgb(var(--surface));
   }
