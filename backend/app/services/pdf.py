@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
@@ -27,7 +28,7 @@ COLOR_HEADER_BG = (0.78, 0.81, 0.86)
 TABLE_PAD_X = 0
 TABLE_INNER_PAD_X = 8
 ITEM_FONT_SIZE = 12
-ITEM_ROW_HEIGHT = 16
+ITEM_ROW_HEIGHT = 20
 SUMMARY_FONT_SIZE = 14
 
 def _money(value: int | float) -> str:
@@ -86,6 +87,32 @@ def _truncate(text: str, font: str, size: float, max_width: float) -> str:
         text = text[:-1]
 
     return f"{text}..."
+
+
+def _kilograms_per_unit(label: str) -> float:
+    text = str(label or "").lower().replace(" ", "")
+    pack_match = re.search(r"(\d+)x(\d+(?:[.,]\d+)?)(kg|gr|g)?", text)
+    if pack_match:
+        units = float(pack_match.group(1) or 0)
+        size = float((pack_match.group(2) or "0").replace(",", "."))
+        unit = pack_match.group(3) or "gr"
+        return units * (size if unit == "kg" else size / 1000)
+
+    bag_match = re.search(r"x(\d+(?:[.,]\d+)?)kg", text)
+    if bag_match:
+        return float((bag_match.group(1) or "0").replace(",", "."))
+
+    return 0
+
+
+def _item_weight(item: dict) -> float:
+    label = item.get("offering_label") or item.get("label") or ""
+    return float(item.get("quantity") or 0) * _kilograms_per_unit(str(label))
+
+
+def _weight(value: float) -> str:
+    formatted = f"{value:.1f}".rstrip("0").rstrip(".").replace(".", ",")
+    return f"{formatted} kg"
 
 
 def _draw_logo(pdf: canvas.Canvas, *, margin: int, y: float, logo_path: Path) -> float:
@@ -215,12 +242,17 @@ def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: in
     return y - row_height
 
 def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> float:
+    shipment_label_x = MARGIN + TABLE_INNER_PAD_X
+    shipment_value_x = MARGIN + 115
     totals_label_x = width - 240
     totals_value_x = width - MARGIN - TABLE_INNER_PAD_X
     total_bultos = sum(
         float(item.get("quantity") or 0)
         for item in invoice.get("items", [])
     )
+    total_weight = sum(_item_weight(item) for item in invoice.get("items", []))
+    transport = str(invoice.get("transport") or "").strip()
+    notes = [str(note or "").strip() for note in invoice.get("notes", []) if str(note or "").strip()]
 
     discount_summary = _discount_summary(invoice)
     has_discount = float(invoice.get("discount_total") or 0) > 0
@@ -237,14 +269,32 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
     _line(pdf, MARGIN, y, width - MARGIN)
 
     y -= 30
+    section_top_y = y
+
+    shipment_lines = [("Peso Neto", _weight(total_weight))]
+    if transport:
+        shipment_lines.append(("Transporte", transport))
+    if notes:
+        shipment_lines.append(("Observaciones", " / ".join(notes)))
+
+    shipment_y = section_top_y
+    shipment_max_width = totals_label_x - shipment_value_x - 20
+    for label, value in shipment_lines:
+        pdf.setFont(FONT_BOLD, SUMMARY_FONT_SIZE)
+        _set_color(pdf, COLOR_TEXT)
+        pdf.drawString(shipment_label_x, shipment_y, label)
+        pdf.setFont(FONT_REGULAR, SUMMARY_FONT_SIZE)
+        _set_color(pdf, COLOR_MUTED)
+        pdf.drawString(shipment_value_x, shipment_y, _truncate(value, FONT_REGULAR, SUMMARY_FONT_SIZE, shipment_max_width))
+        shipment_y -= 18
 
     if has_discount:
         _set_color(pdf, COLOR_TEXT)
         pdf.setFont(FONT_BOLD, SUMMARY_FONT_SIZE)
-        pdf.drawString(totals_label_x, y, "Bruto")
-        pdf.drawRightString(totals_value_x, y, _money(invoice.get("gross_total") or 0))
+        pdf.drawString(totals_label_x, section_top_y, "Bruto")
+        pdf.drawRightString(totals_value_x, section_top_y, _money(invoice.get("gross_total") or 0))
 
-        y -= 18
+        totals_y = section_top_y - 18
 
         discount_label = (
             f"Dto. ({discount_summary})"
@@ -254,56 +304,19 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
 
         pdf.setFont(FONT_REGULAR, SUMMARY_FONT_SIZE)
         _set_color(pdf, COLOR_MUTED)
-        pdf.drawString(totals_label_x, y, _truncate(clean_cell_text(discount_label), FONT_REGULAR, SUMMARY_FONT_SIZE, 210))
-        pdf.drawRightString(totals_value_x, y, _money(invoice.get("discount_total") or 0))
+        pdf.drawString(totals_label_x, totals_y, _truncate(clean_cell_text(discount_label), FONT_REGULAR, SUMMARY_FONT_SIZE, 210))
+        pdf.drawRightString(totals_value_x, totals_y, _money(invoice.get("discount_total") or 0))
 
-        y -= 28
+        totals_y -= 28
+    else:
+        totals_y = section_top_y
 
     pdf.setFont(FONT_BOLD, SUMMARY_FONT_SIZE)
     _set_color(pdf, COLOR_TEXT)
-    pdf.drawString(totals_label_x, y, "Total")
-    pdf.drawRightString(totals_value_x, y, _money(invoice.get("final_total") or 0))
+    pdf.drawString(totals_label_x, totals_y, "Total")
+    pdf.drawRightString(totals_value_x, totals_y, _money(invoice.get("final_total") or 0))
 
-    return y - 20
-
-def _draw_notes(pdf: canvas.Canvas, invoice: dict, y: float) -> float:
-    notes = invoice.get("notes") or []
-    transport = str(invoice.get("transport") or "").strip()
-
-    if not notes and not transport:
-        return y
-
-    y -= 22
-
-    if transport:
-        pdf.setFont(FONT_BOLD, 14)
-        _set_color(pdf, COLOR_TEXT)
-        pdf.drawString(MARGIN, y, "Transporte")
-        y -= 15
-        pdf.setFont(FONT_REGULAR, 14)
-        _set_color(pdf, COLOR_MUTED)
-        pdf.drawString(MARGIN, y, transport)
-        y -= 18
-
-    if not notes:
-        _set_color(pdf, COLOR_TEXT)
-        return y
-
-    pdf.setFont(FONT_BOLD, 14)
-    _set_color(pdf, COLOR_TEXT)
-    pdf.drawString(MARGIN, y, "Observaciones")
-
-    pdf.setFont(FONT_REGULAR, 14)
-    _set_color(pdf, COLOR_MUTED)
-
-    for note in notes:
-        y -= 15
-        pdf.drawString(MARGIN, y, f"- {note}")
-
-    _set_color(pdf, COLOR_TEXT)
-
-    return y
-
+    return min(shipment_y, totals_y) - 20
 
 def _new_page(pdf: canvas.Canvas, invoice: dict, width: float, height: float) -> float:
     pdf.showPage()
@@ -335,7 +348,6 @@ def build_invoice_pdf(invoice: dict) -> bytes:
         y = _draw_item(pdf, item, width, y, index)
 
     y = _draw_totals(pdf, invoice, width, y)
-    _draw_notes(pdf, invoice, y)
 
     pdf.save()
 
