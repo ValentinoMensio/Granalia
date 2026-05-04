@@ -483,6 +483,82 @@ class PostgresMigrationMixin(PostgresRepositoryProtocol):
                 connection.execute(text("ALTER TABLE invoices ADD COLUMN price_list_name VARCHAR(255) NOT NULL DEFAULT ''"))
             connection.execute(text("UPDATE invoices i SET price_list_id = p.id, price_list_name = p.name FROM price_lists p WHERE p.active = true AND COALESCE(i.price_list_name, '') = ''"))
 
+    def _ensure_invoice_historical_snapshot_fields(self, *, connection) -> None:
+        if self._table_exists(connection, "invoices"):
+            invoice_fields = [
+                ("price_list_effective_date", "TIMESTAMP WITH TIME ZONE"),
+                ("customer_cuit", "VARCHAR(32)"),
+                ("customer_address", "TEXT"),
+                ("customer_business_name", "VARCHAR(255)"),
+                ("customer_email", "VARCHAR(255)"),
+            ]
+            for column_name, definition in invoice_fields:
+                if not self._column_exists(connection, "invoices", column_name):
+                    connection.execute(text(f"ALTER TABLE invoices ADD COLUMN {column_name} {definition}"))
+
+            connection.execute(
+                text(
+                    """
+                    UPDATE invoices i
+                    SET
+                        customer_cuit = COALESCE(NULLIF(i.customer_cuit, ''), c.cuit, ''),
+                        customer_address = COALESCE(NULLIF(i.customer_address, ''), c.address, ''),
+                        customer_business_name = COALESCE(NULLIF(i.customer_business_name, ''), c.business_name, ''),
+                        customer_email = COALESCE(NULLIF(i.customer_email, ''), c.email, '')
+                    FROM customers c
+                    WHERE i.customer_id = c.id
+                    """
+                )
+            )
+            connection.execute(
+                text(
+                    """
+                    UPDATE invoices i
+                    SET price_list_effective_date = COALESCE(i.price_list_effective_date, p.uploaded_at)
+                    FROM price_lists p
+                    WHERE i.price_list_id = p.id
+                    """
+                )
+            )
+
+        if self._table_exists(connection, "invoice_items"):
+            item_fields = [
+                ("product_name", "VARCHAR(255)"),
+                ("offering_label", "VARCHAR(120)"),
+                ("offering_net_weight_kg", "NUMERIC(12, 3)"),
+                ("line_type", "VARCHAR(20)"),
+                ("discount_rate", "NUMERIC(8, 6)"),
+            ]
+            for column_name, definition in item_fields:
+                if not self._column_exists(connection, "invoice_items", column_name):
+                    connection.execute(text(f"ALTER TABLE invoice_items ADD COLUMN {column_name} {definition}"))
+
+            connection.execute(
+                text(
+                    """
+                    UPDATE invoice_items ii
+                    SET
+                        product_name = COALESCE(NULLIF(ii.product_name, ''), p.name, ''),
+                        offering_label = COALESCE(NULLIF(ii.offering_label, ''), po.label, ''),
+                        offering_net_weight_kg = CASE
+                            WHEN ii.offering_net_weight_kg > 0 THEN ii.offering_net_weight_kg
+                            ELSE COALESCE(po.net_weight_kg, 0)
+                        END,
+                        line_type = CASE WHEN ii.unit_price = 0 THEN 'bonus' ELSE COALESCE(NULLIF(ii.line_type, ''), 'sale') END,
+                        discount_rate = CASE
+                            WHEN ii.gross > 0 AND ii.discount > 0 THEN ROUND((ii.discount::numeric / ii.gross::numeric), 6)
+                            ELSE COALESCE(ii.discount_rate, 0)
+                        END
+                    FROM products p, product_offerings po
+                    WHERE ii.product_id = p.id
+                      AND ii.offering_id = po.id
+                    """
+                )
+            )
+            connection.execute(text("UPDATE invoice_items SET line_type = CASE WHEN unit_price = 0 THEN 'bonus' ELSE 'sale' END WHERE line_type IS NULL OR line_type NOT IN ('sale', 'bonus')"))
+            connection.execute(text("ALTER TABLE invoice_items ALTER COLUMN line_type SET DEFAULT 'sale'"))
+            connection.execute(text("ALTER TABLE invoice_items ALTER COLUMN line_type SET NOT NULL"))
+
     def _ensure_offering_net_weight(self, *, connection) -> None:
         if not self._table_exists(connection, "product_offerings"):
             return

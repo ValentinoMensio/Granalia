@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import os
 from datetime import date, datetime
 from typing import cast
 
 from sqlalchemy import select, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.engine import Engine
 from sqlalchemy.sql.schema import Table
 
@@ -22,12 +24,57 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
     products: Table
     product_offerings: Table
     price_lists: Table
+    invoice_sequences: Table
+
+    def _fiscal_scope(self) -> tuple[str, int]:
+        document_type = os.getenv("GRANALIA_DOCUMENT_TYPE", "FACTURA").strip().upper() or "FACTURA"
+        point_of_sale = int(os.getenv("GRANALIA_POINT_OF_SALE", "1") or "1")
+        if point_of_sale <= 0:
+            raise ValueError("GRANALIA_POINT_OF_SALE debe ser positivo")
+        return document_type, point_of_sale
+
+    def _format_fiscal_number(self, document_type: str, point_of_sale: int, invoice_number: int) -> str:
+        return f"{document_type} {point_of_sale:04d}-{invoice_number:08d}"
+
+    def _next_fiscal_number(self, *, connection, document_type: str, point_of_sale: int, now) -> int:
+        stmt = insert(self.invoice_sequences).values(
+            document_type=document_type,
+            point_of_sale=point_of_sale,
+            next_number=1,
+            created_at=now,
+            updated_at=now,
+        )
+        stmt = stmt.on_conflict_do_nothing(index_elements=[self.invoice_sequences.c.document_type, self.invoice_sequences.c.point_of_sale])
+        connection.execute(stmt)
+        row = connection.execute(
+            select(self.invoice_sequences.c.next_number)
+            .where(
+                self.invoice_sequences.c.document_type == document_type,
+                self.invoice_sequences.c.point_of_sale == point_of_sale,
+            )
+            .with_for_update()
+        ).mappings().first()
+        if not row:
+            raise ValueError("No se pudo resolver la secuencia fiscal")
+        invoice_number = int(row["next_number"])
+        connection.execute(
+            update(self.invoice_sequences)
+            .where(
+                self.invoice_sequences.c.document_type == document_type,
+                self.invoice_sequences.c.point_of_sale == point_of_sale,
+            )
+            .values(next_number=invoice_number + 1, updated_at=now)
+        )
+        return invoice_number
 
     def list_invoices(self, limit: int = 50, date_from: date | None = None) -> list[InvoiceListItemData]:
         with self.engine.connect() as connection:
             query = (
                 select(
                     self.invoices.c.id.label("invoice_id"),
+                    self.invoices.c.document_type,
+                    self.invoices.c.point_of_sale,
+                    self.invoices.c.invoice_number,
                     self.invoices.c.customer_id,
                     self.invoices.c.transport_id,
                     self.invoices.c.client_name,
@@ -35,6 +82,7 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     self.invoices.c.order_date,
                     self.invoices.c.price_list_id,
                     self.invoices.c.price_list_name,
+                    self.invoices.c.price_list_effective_date,
                     self.invoices.c.declared,
                     self.invoices.c.total_bultos,
                     self.invoices.c.gross_total,
@@ -51,6 +99,8 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                 query = query.where(self.invoices.c.order_date >= date_from)
             rows = connection.execute(query).mappings().all()
         payload: list[InvoiceListItemData] = cast(list[InvoiceListItemData], [{key: serialize_value(value) for key, value in row.items()} for row in rows])
+        for item in payload:
+            item["fiscal_number"] = self._format_fiscal_number(str(item.get("document_type") or "FACTURA"), int(item.get("point_of_sale") or 1), int(item.get("invoice_number") or 0))
         return payload
 
     def list_invoice_item_stats(self) -> list[dict[str, object]]:
@@ -58,31 +108,35 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
             rows = connection.execute(
                 select(
                     self.invoices.c.id.label("invoice_id"),
+                    self.invoices.c.document_type,
+                    self.invoices.c.point_of_sale,
+                    self.invoices.c.invoice_number,
                     self.invoices.c.customer_id,
                     self.invoices.c.transport_id,
                     self.invoices.c.client_name,
                     self.invoices.c.transport,
                     self.invoices.c.order_date,
+                    self.invoices.c.price_list_effective_date,
                     self.invoices.c.gross_total.label("invoice_gross_total"),
                     self.invoices.c.discount_total.label("invoice_discount_total"),
                     self.invoices.c.final_total.label("invoice_final_total"),
                     self.invoice_items.c.product_id,
                     self.invoice_items.c.offering_id,
+                    self.invoice_items.c.product_name,
+                    self.invoice_items.c.offering_label,
+                    self.invoice_items.c.offering_net_weight_kg,
+                    self.invoice_items.c.line_type,
+                    self.invoice_items.c.discount_rate,
                     self.invoice_items.c.label,
                     self.invoice_items.c.quantity,
                     self.invoice_items.c.unit_price,
                     self.invoice_items.c.gross,
                     self.invoice_items.c.discount,
                     self.invoice_items.c.total,
-                    self.products.c.name.label("product_name"),
-                    self.product_offerings.c.label.label("offering_label"),
-                    self.product_offerings.c.net_weight_kg.label("offering_net_weight_kg"),
                 )
                 .select_from(
                     self.invoice_items
                     .join(self.invoices, self.invoice_items.c.invoice_id == self.invoices.c.id)
-                    .outerjoin(self.products, self.invoice_items.c.product_id == self.products.c.id)
-                    .outerjoin(self.product_offerings, self.invoice_items.c.offering_id == self.product_offerings.c.id)
                 )
                 .order_by(self.invoices.c.order_date.desc(), self.invoices.c.id.desc(), self.invoice_items.c.line_number)
             ).mappings().all()
@@ -134,6 +188,9 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
             invoice_row = connection.execute(
                 select(
                     self.invoices.c.id,
+                    self.invoices.c.document_type,
+                    self.invoices.c.point_of_sale,
+                    self.invoices.c.invoice_number,
                     self.invoices.c.customer_id,
                     self.invoices.c.transport_id,
                     self.invoices.c.legacy_key,
@@ -141,6 +198,11 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     self.invoices.c.order_date,
                     self.invoices.c.price_list_id,
                     self.invoices.c.price_list_name,
+                    self.invoices.c.price_list_effective_date,
+                    self.invoices.c.customer_cuit,
+                    self.invoices.c.customer_address,
+                    self.invoices.c.customer_business_name,
+                    self.invoices.c.customer_email,
                     self.invoices.c.declared,
                     self.invoices.c.secondary_line,
                     self.invoices.c.transport,
@@ -154,17 +216,10 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     self.invoices.c.output_filename,
                     self.invoices.c.xlsx_size,
                     self.invoices.c.created_at,
-                    self.customers.c.name.label("customer_name"),
-                    self.customers.c.cuit.label("customer_cuit"),
-                    self.customers.c.address.label("customer_address"),
-                    self.customers.c.email.label("customer_email"),
-                    self.transports.c.name.label("transport_name"),
+                    self.invoices.c.client_name.label("customer_name"),
+                    self.invoices.c.transport.label("transport_name"),
                 )
-                .select_from(
-                    self.invoices
-                    .outerjoin(self.customers, self.invoices.c.customer_id == self.customers.c.id)
-                    .outerjoin(self.transports, self.invoices.c.transport_id == self.transports.c.transport_id)
-                )
+                .select_from(self.invoices)
                 .where(self.invoices.c.id == invoice_id)
             ).mappings().first()
             if not invoice_row:
@@ -173,20 +228,14 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
             item_rows = connection.execute(
                 select(
                     self.invoice_items,
-                    self.products.c.name.label("product_name"),
-                    self.product_offerings.c.label.label("offering_label"),
-                    self.product_offerings.c.net_weight_kg.label("offering_net_weight_kg"),
                 )
-                .select_from(
-                    self.invoice_items
-                    .outerjoin(self.products, self.invoice_items.c.product_id == self.products.c.id)
-                    .outerjoin(self.product_offerings, self.invoice_items.c.offering_id == self.product_offerings.c.id)
-                )
+                .select_from(self.invoice_items)
                 .where(self.invoice_items.c.invoice_id == invoice_id)
                 .order_by(self.invoice_items.c.line_number)
             ).mappings().all()
 
         invoice = {key: serialize_value(value) for key, value in invoice_row.items()}
+        invoice["fiscal_number"] = self._format_fiscal_number(str(invoice.get("document_type") or "FACTURA"), int(invoice.get("point_of_sale") or 1), int(invoice.get("invoice_number") or 0))
         items = [{key: serialize_value(value) for key, value in row.items()} for row in item_rows]
         invoice["items"] = items
         return cast(InvoiceDetailData, invoice)
@@ -212,9 +261,17 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
             "transport_id": None,
             "price_list_id": order.get("price_list_id"),
             "legacy_key": f"invoice:{int(created_at.timestamp())}:{order['client_name']}",
+            "document_type": "FACTURA",
+            "point_of_sale": 1,
+            "invoice_number": 1,
             "client_name": order["client_name"],
             "declared": bool(order.get("declared", False)),
             "price_list_name": str(order.get("price_list_name") or ""),
+            "price_list_effective_date": None,
+            "customer_cuit": str(profile.get("cuit", "") or ""),
+            "customer_address": str(profile.get("address", "") or ""),
+            "customer_business_name": str(profile.get("business_name", "") or ""),
+            "customer_email": str(profile.get("email", "") or ""),
             "order_date": order_date,
             "secondary_line": order.get("secondary_line") or profile.get("secondary_line") or "",
             "transport": order.get("transport") or profile.get("transport") or "",
@@ -237,6 +294,11 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     "line_number": index,
                     "product_id": item.get("product_id"),
                     "offering_id": item.get("offering_id"),
+                    "product_name": str(item.get("product_name") or ""),
+                    "offering_label": str(item.get("offering_label") or ""),
+                    "offering_net_weight_kg": float(item.get("offering_net_weight_kg") or 0),
+                    "line_type": str(item.get("line_type") or "sale"),
+                    "discount_rate": float(item.get("discount_rate") or 0),
                     "label": item["label"],
                     "quantity": float(item["quantity"]),
                     "unit_price": int(item["unit_price"]),
@@ -246,9 +308,22 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                 }
             )
         with self.engine.begin() as connection:
+            document_type, point_of_sale = self._fiscal_scope()
+            invoice_payload["document_type"] = document_type
+            invoice_payload["point_of_sale"] = point_of_sale
+            invoice_payload["invoice_number"] = self._next_fiscal_number(
+                connection=connection,
+                document_type=document_type,
+                point_of_sale=point_of_sale,
+                now=created_at,
+            )
             if invoice_payload["price_list_id"]:
-                price_list_row = connection.execute(select(self.price_lists.c.name).where(self.price_lists.c.id == invoice_payload["price_list_id"])).scalar_one_or_none()
-                invoice_payload["price_list_name"] = str(price_list_row or invoice_payload["price_list_name"] or "")
+                price_list_row = connection.execute(
+                    select(self.price_lists.c.name, self.price_lists.c.uploaded_at).where(self.price_lists.c.id == invoice_payload["price_list_id"])
+                ).mappings().first()
+                if price_list_row:
+                    invoice_payload["price_list_name"] = str(price_list_row["name"] or invoice_payload["price_list_name"] or "")
+                    invoice_payload["price_list_effective_date"] = price_list_row["uploaded_at"]
             transport_name = order.get("transport") or profile.get("transport") or ""
             transport_id = self._resolve_transport_id(connection=connection, transport_name=transport_name, now=created_at)
             customer_id = None
@@ -315,9 +390,14 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
 
             transport_name = order.get("transport") or profile.get("transport") or ""
             price_list_name = str(order.get("price_list_name") or "")
+            price_list_effective_date = None
             if order.get("price_list_id"):
-                price_list_row = connection.execute(select(self.price_lists.c.name).where(self.price_lists.c.id == order.get("price_list_id"))).scalar_one_or_none()
-                price_list_name = str(price_list_row or price_list_name)
+                price_list_row = connection.execute(
+                    select(self.price_lists.c.name, self.price_lists.c.uploaded_at).where(self.price_lists.c.id == order.get("price_list_id"))
+                ).mappings().first()
+                if price_list_row:
+                    price_list_name = str(price_list_row["name"] or price_list_name)
+                    price_list_effective_date = price_list_row["uploaded_at"]
             transport_id = self._resolve_transport_id(connection=connection, transport_name=transport_name, now=updated_at)
             customer_id = self._upsert_customer(
                 {
@@ -352,6 +432,11 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     client_name=order["client_name"],
                     declared=bool(order.get("declared", False)),
                     price_list_name=price_list_name,
+                    price_list_effective_date=price_list_effective_date,
+                    customer_cuit=str(profile.get("cuit", "") or ""),
+                    customer_address=str(profile.get("address", "") or ""),
+                    customer_business_name=str(profile.get("business_name", "") or ""),
+                    customer_email=str(profile.get("email", "") or ""),
                     order_date=order_date,
                     secondary_line=order.get("secondary_line") or profile.get("secondary_line") or "",
                     transport=transport_name,
@@ -380,6 +465,11 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                         "line_number": index,
                         "product_id": item.get("product_id"),
                         "offering_id": item.get("offering_id"),
+                        "product_name": str(item.get("product_name") or ""),
+                        "offering_label": str(item.get("offering_label") or ""),
+                        "offering_net_weight_kg": float(item.get("offering_net_weight_kg") or 0),
+                        "line_type": str(item.get("line_type") or "sale"),
+                        "discount_rate": float(item.get("discount_rate") or 0),
                         "label": item["label"],
                         "quantity": float(item["quantity"]),
                         "unit_price": int(item["unit_price"]),

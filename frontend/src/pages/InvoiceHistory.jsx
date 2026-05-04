@@ -189,7 +189,7 @@ export default function InvoiceHistory() {
               <article key={invoice.invoice_id} className={`rounded-2xl border p-4 ${isUpcoming ? 'border-slate-300 bg-stone-100' : 'border-slate-200 bg-white'}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="font-mono text-xs text-slate-500">#{invoice.invoice_id}</div>
+                    <div className="font-mono text-xs text-slate-500">{invoice.fiscal_number || `#${invoice.invoice_id}`}</div>
                     <h3 className="mt-1 truncate font-semibold text-brand-ink">{invoice.client_name}</h3>
                   </div>
                   <div className="shrink-0 whitespace-nowrap text-right text-sm font-semibold text-brand-red">${money(invoice.final_total)}</div>
@@ -282,7 +282,7 @@ export default function InvoiceHistory() {
 
                 return (
                   <tr key={invoice.invoice_id} className={`table-row ${isUpcoming ? 'bg-stone-100 text-brand-ink' : ''}`}>
-                    <td className="table-cell text-center font-mono text-xs">#{invoice.invoice_id}</td>
+                    <td className="table-cell text-center font-mono text-xs">{invoice.fiscal_number || `#${invoice.invoice_id}`}</td>
                     <td className="table-cell break-words font-medium leading-snug" title={invoice.client_name}>{invoice.client_name}</td>
                     <td className={`table-cell whitespace-nowrap text-center ${isUpcoming ? 'text-slate-800' : 'text-slate-600'}`}>{invoice.order_date}</td>
                     <td className={`table-cell break-words leading-snug ${isUpcoming ? 'text-slate-800' : 'text-slate-600'}`} title={invoice.transport || 'Sin transporte'}>{invoice.transport || 'Sin transporte'}</td>
@@ -370,7 +370,7 @@ export default function InvoiceHistory() {
             <div className="surface-muted grid gap-4 p-4 text-sm md:grid-cols-3 xl:grid-cols-8">
               <div>
                 <div className="text-xs uppercase tracking-wide text-slate-400">Factura</div>
-                <div className="mt-1 font-mono">#{invoiceDetail.id}</div>
+                <div className="mt-1 font-mono">{invoiceDetail.fiscal_number || `#${invoiceDetail.id}`}</div>
               </div>
               <div>
                 <div className="text-xs uppercase tracking-wide text-slate-400">Fecha</div>

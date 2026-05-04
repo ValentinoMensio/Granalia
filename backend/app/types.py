@@ -85,6 +85,11 @@ class OrderData(TypedDict):
 class InvoiceRowData(TypedDict):
     product_id: int | None
     offering_id: int | None
+    product_name: str
+    offering_label: str
+    offering_net_weight_kg: float
+    line_type: str
+    discount_rate: float
     label: str
     quantity: float
     unit_price: int
@@ -109,6 +114,10 @@ class InvoiceSnapshotData(TypedDict):
 
 class InvoiceListItemData(TypedDict):
     invoice_id: int
+    document_type: str
+    point_of_sale: int
+    invoice_number: int
+    fiscal_number: str
     customer_id: int | None
     transport_id: int | None
     client_name: str
@@ -116,7 +125,12 @@ class InvoiceListItemData(TypedDict):
     order_date: str
     price_list_id: int | None
     price_list_name: str
+    price_list_effective_date: NotRequired[str | datetime | None]
     declared: bool
+    customer_cuit: str
+    customer_address: str
+    customer_business_name: str
+    customer_email: str
     total_bultos: float
     gross_total: int
     discount_total: int
@@ -141,10 +155,16 @@ class InvoiceItemDetailData(TypedDict):
     product_name: str | None
     offering_label: str | None
     offering_net_weight_kg: NotRequired[float]
+    line_type: NotRequired[str]
+    discount_rate: NotRequired[float]
 
 
 class InvoiceDetailData(TypedDict):
     id: int
+    document_type: str
+    point_of_sale: int
+    invoice_number: int
+    fiscal_number: str
     customer_id: int | None
     transport_id: int | None
     legacy_key: str | None
@@ -152,6 +172,7 @@ class InvoiceDetailData(TypedDict):
     order_date: str
     price_list_id: int | None
     price_list_name: str
+    price_list_effective_date: NotRequired[str | datetime | None]
     declared: bool
     secondary_line: str
     transport: str
@@ -168,6 +189,7 @@ class InvoiceDetailData(TypedDict):
     customer_name: str | None
     customer_cuit: str | None
     customer_address: str | None
+    customer_business_name: str | None
     customer_email: str | None
     transport_name: str | None
     items: list[InvoiceItemDetailData]

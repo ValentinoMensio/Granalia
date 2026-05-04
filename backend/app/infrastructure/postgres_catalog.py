@@ -452,7 +452,7 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
             connection.execute(
                 update(self.invoices)
                 .where(self.invoices.c.price_list_id == price_list_id)
-                .values(price_list_id=None, price_list_name="")
+                .values(price_list_id=None)
             )
             connection.execute(self.catalogs.delete().where(self.catalogs.c.price_list_id == price_list_id))
             connection.execute(self.price_lists.delete().where(self.price_lists.c.id == price_list_id))

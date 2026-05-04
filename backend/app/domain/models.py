@@ -190,6 +190,11 @@ class Order:
 class InvoiceRow:
     product_id: int | None
     offering_id: int | None
+    product_name: str
+    offering_label: str
+    offering_net_weight_kg: float
+    line_type: str
+    discount_rate: float
     label: str
     quantity: float
     unit_price: int

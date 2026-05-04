@@ -200,7 +200,8 @@ def _draw_header(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
 
     _set_color(pdf, COLOR_TEXT)
     pdf.setFont(FONT_BOLD, 17)
-    pdf.drawRightString(width - MARGIN, y - 8, f"Factura #{invoice['id']}")
+    fiscal_number = invoice.get("fiscal_number") or f"Factura #{invoice['id']}"
+    pdf.drawRightString(width - MARGIN, y - 8, str(fiscal_number))
 
     pdf.setFont(FONT_REGULAR, 12)
     _set_color(pdf, COLOR_MUTED)

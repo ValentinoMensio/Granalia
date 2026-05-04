@@ -216,7 +216,7 @@ def expand_rows(order: Order, profile: CustomerProfile, catalog: list[CatalogPro
         if bonus_qty > 0 and profile.automatic_bonus_disables_line_discount:
             rate = 0.0
 
-        def append_row(quantity: float, unit_price: int) -> None:
+        def append_row(quantity: float, unit_price: int, line_type: str) -> None:
             gross = round(quantity * unit_price)
             if mode in {"line_discount_net", "line_desc_factor"}:
                 discount = round(gross * rate)
@@ -224,13 +224,29 @@ def expand_rows(order: Order, profile: CustomerProfile, catalog: list[CatalogPro
             else:
                 discount = 0
                 total = gross
-            rows.append(InvoiceRow(item.product_id, item.offering_id, label, quantity, unit_price, gross, discount, total))
+            rows.append(
+                InvoiceRow(
+                    item.product_id,
+                    item.offering_id,
+                    str(product["name"]),
+                    str(offering["label"]),
+                    float(offering.get("net_weight_kg") or 0),
+                    line_type,
+                    float(rate if line_type == "sale" else 0),
+                    label,
+                    quantity,
+                    unit_price,
+                    gross,
+                    discount,
+                    total,
+                )
+            )
 
         if qty > 0:
             unit_price = item.unit_price if item.unit_price is not None else int(offering["price"])
-            append_row(qty, int(unit_price))
+            append_row(qty, int(unit_price), "sale")
         if bonus_qty > 0:
-            append_row(float(bonus_qty), 0)
+            append_row(float(bonus_qty), 0, "bonus")
     return rows
 
 

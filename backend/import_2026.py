@@ -526,6 +526,7 @@ def reset_database(repo) -> None:
                 """
                 TRUNCATE TABLE
                     invoice_items,
+                    invoice_sequences,
                     invoices,
                     catalogs,
                     product_offerings,
@@ -715,6 +716,7 @@ def import_invoices(source_dir: Path, dry_run: bool = False, reset_db: bool = Fa
 
         for invoice_index, invoice in enumerate(parsed):
             invoice_created_at = datetime.combine(invoice.order_date, time.min, tzinfo=timezone.utc) + timedelta(seconds=invoice_index)
+            fiscal_number = invoice_index + 1
             transport_id = None
             if invoice.transport:
                 transport_id = transport_ids.get(invoice.transport)
@@ -734,6 +736,11 @@ def import_invoices(source_dir: Path, dry_run: bool = False, reset_db: bool = Fa
                         "line_number": index,
                         "product_id": product_ids.get(product_name),
                         "offering_id": offering_ids.get((product_name, offering_label)),
+                        "product_name": product_name,
+                        "offering_label": offering_label,
+                        "offering_net_weight_kg": 0,
+                        "line_type": "bonus" if item.unit_price == 0 else "sale",
+                        "discount_rate": float(item.line_discount_rate or 0),
                         "label": item.label,
                         "quantity": item.quantity,
                         "unit_price": item.unit_price,
@@ -755,6 +762,9 @@ def import_invoices(source_dir: Path, dry_run: bool = False, reset_db: bool = Fa
                 "customer_id": customer_ids.get(invoice.client_name),
                 "transport_id": transport_id,
                 "legacy_key": invoice.legacy_key,
+                "document_type": "FACTURA",
+                "point_of_sale": 1,
+                "invoice_number": fiscal_number,
                 "client_name": invoice.client_name,
                 "order_date": invoice.order_date,
                 "secondary_line": invoice.secondary_line,
@@ -783,6 +793,20 @@ def import_invoices(source_dir: Path, dry_run: bool = False, reset_db: bool = Fa
                 item_payload["invoice_id"] = invoice_id
             if item_payloads:
                 connection.execute(repo.invoice_items.insert(), item_payloads)
+
+        connection.execute(
+            insert(repo.invoice_sequences).values(
+                document_type="FACTURA",
+                point_of_sale=1,
+                next_number=len(parsed) + 1,
+                created_at=now,
+                updated_at=now,
+            )
+            .on_conflict_do_update(
+                index_elements=[repo.invoice_sequences.c.document_type, repo.invoice_sequences.c.point_of_sale],
+                set_={"next_number": len(parsed) + 1, "updated_at": now},
+            )
+        )
 
     print(f"Importacion completa. Insertadas: {inserted}; actualizadas: {updated}; omitidas: {skipped}")
     return {"parsed": len(parsed), "skipped": skipped, "inserted": inserted, "updated": updated}

@@ -30,6 +30,7 @@ class PostgresRepository(
     product_offerings: Table
     invoices: Table
     invoice_items: Table
+    invoice_sequences: Table
     app_users: Table
 
     def __init__(self, base_dir: Path) -> None:

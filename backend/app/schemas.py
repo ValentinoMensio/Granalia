@@ -280,6 +280,10 @@ class InvoiceSummaryOut(BaseModel):
 
 class InvoiceListItemOut(BaseModel):
     invoice_id: int
+    document_type: str = "FACTURA"
+    point_of_sale: int = 1
+    invoice_number: int = 0
+    fiscal_number: str = ""
     customer_id: int | None = None
     transport_id: int | None = None
     client_name: str
@@ -287,6 +291,7 @@ class InvoiceListItemOut(BaseModel):
     order_date: str
     price_list_id: int | None = None
     price_list_name: str = ""
+    price_list_effective_date: str | None = None
     declared: bool = False
     total_bultos: float
     gross_total: int
@@ -312,10 +317,16 @@ class InvoiceItemOut(BaseModel):
     product_name: str | None = None
     offering_label: str | None = None
     offering_net_weight_kg: float = 0
+    line_type: str = "sale"
+    discount_rate: float = 0
 
 
 class InvoiceDetailOut(BaseModel):
     id: int
+    document_type: str = "FACTURA"
+    point_of_sale: int = 1
+    invoice_number: int = 0
+    fiscal_number: str = ""
     customer_id: int | None = None
     transport_id: int | None = None
     legacy_key: str | None = None
@@ -323,6 +334,7 @@ class InvoiceDetailOut(BaseModel):
     order_date: str
     price_list_id: int | None = None
     price_list_name: str = ""
+    price_list_effective_date: str | None = None
     declared: bool = False
     secondary_line: str = ""
     transport: str = ""
@@ -339,6 +351,7 @@ class InvoiceDetailOut(BaseModel):
     customer_name: str | None = None
     customer_cuit: str | None = None
     customer_address: str | None = None
+    customer_business_name: str | None = None
     customer_email: str | None = None
     transport_name: str | None = None
     items: list[InvoiceItemOut] = Field(default_factory=list)

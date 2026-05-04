@@ -7,7 +7,7 @@ from sqlalchemy import pool
 from alembic import context
 
 # Import metadata without runtime side effects
-from app.infrastructure.postgres import build_metadata
+from app.infrastructure.postgres_schema import build_metadata
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
