@@ -19,6 +19,11 @@ const MONTHLY_METRICS = [
 
 const weight = (value) => new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(Number(value || 0))
 
+function parseDateRange(value) {
+  const dates = String(value || '').match(/\d{4}-\d{2}-\d{2}/g) || []
+  return { dateFrom: dates[0] || '', dateTo: dates[1] || '' }
+}
+
 function monthLabel(value) {
   if (!value) return 'Sin fecha'
   const [year, month] = String(value).split('-')
@@ -473,6 +478,7 @@ function MonthlyBarChart({ rows, year, metricKey = 'total', metricLabel = 'Total
 export default function InvoiceStats() {
   const { bootstrap, customers, invoices } = useGranalia()
   const [filters, setFilters] = useState(EMPTY_FILTERS)
+  const [dateRangeInput, setDateRangeInput] = useState('')
   const [productFilters, setProductFilters] = useState(EMPTY_PRODUCT_FILTERS)
   const [monthlyMetricKey, setMonthlyMetricKey] = useState('total')
   const [selectedProductLabel, setSelectedProductLabel] = useState('')
@@ -600,6 +606,16 @@ export default function InvoiceStats() {
     setFilters((current) => ({ ...current, [field]: value }))
   }
 
+  function updateDateRange(value) {
+    setDateRangeInput(value)
+    setFilters((current) => ({ ...current, ...parseDateRange(value) }))
+  }
+
+  function resetFilters() {
+    setFilters(EMPTY_FILTERS)
+    setDateRangeInput('')
+  }
+
   function updateCustomerFilter(index, value) {
     setFilters((current) => {
       const customerIds = [...(current.customerIds || [''])]
@@ -655,19 +671,13 @@ export default function InvoiceStats() {
           <h2 className="subsection-title text-xl">Filtros generales</h2>
         </div>
         <div className="grid gap-3 md:grid-cols-4">
-          <div className="rounded-2xl border border-stone-200 bg-white p-3 md:col-span-1">
-            <div className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Fecha</div>
-            <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-1">
-              <label className="text-xs text-slate-500">
-                Inicio
-                <input className="input mt-1" type="date" value={filters.dateFrom} onChange={(event) => updateFilter('dateFrom', event.target.value)} />
-              </label>
-              <label className="text-xs text-slate-500">
-                Fin
-                <input className="input mt-1" type="date" value={filters.dateTo} onChange={(event) => updateFilter('dateTo', event.target.value)} />
-              </label>
-            </div>
-          </div>
+          <input
+            className="input"
+            type="text"
+            value={dateRangeInput}
+            onChange={(event) => updateDateRange(event.target.value)}
+            placeholder="Fecha inicio - fecha fin"
+          />
           <select className="input" value={filters.transport} onChange={(event) => updateFilter('transport', event.target.value)}>
             <option value="">Todos los transportes</option>
             {(bootstrap?.transports || []).map((transport) => (
@@ -704,7 +714,7 @@ export default function InvoiceStats() {
           ))}
           <div className="flex flex-col gap-2 sm:flex-row">
             <Button variant="ghost" onClick={addCustomerFilter}>+ Agregar cliente</Button>
-            <Button variant="secondary" onClick={() => setFilters(EMPTY_FILTERS)}>Limpiar</Button>
+            <Button variant="secondary" onClick={resetFilters}>Limpiar</Button>
           </div>
         </div>
       </section>

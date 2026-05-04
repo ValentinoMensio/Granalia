@@ -132,15 +132,62 @@ function useGranaliaData() {
     setForm((current) => applyCustomerToForm(current, nextProfile))
   }
 
+  function normalizedLookupText(value) {
+    return String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, ' ')
+  }
+
+  function repriceItemsForCatalog(items, nextCatalog) {
+    return (items || []).map((item) => {
+      if (!item.product_id && !item.offering_id) return item
+
+      const currentProduct = catalog.find((entry) => String(entry.id) === String(item.product_id || ''))
+      const productName = item.product_name || currentProduct?.name || ''
+      const nextProduct = nextCatalog.find((entry) => normalizedLookupText(entry.name) === normalizedLookupText(productName))
+        || nextCatalog.find((entry) => String(entry.id) === String(item.product_id || ''))
+      if (!nextProduct) return item
+
+      const currentOffering = currentProduct?.offerings?.find((entry) => String(entry.id) === String(item.offering_id || ''))
+      const offeringLabel = item.offering_label || currentOffering?.label || ''
+      const nextOffering = (nextProduct.offerings || []).find((entry) => normalizedLookupText(entry.label) === normalizedLookupText(offeringLabel))
+        || (nextProduct.offerings || []).find((entry) => String(entry.id) === String(item.offering_id || ''))
+
+      return {
+        ...item,
+        product_id: nextProduct.id,
+        product_name: nextProduct.name,
+        offering_id: nextOffering?.id || item.offering_id,
+        offering_label: nextOffering?.label || item.offering_label,
+        unit_price: nextOffering ? Number(nextOffering.price || 0) : item.unit_price,
+      }
+    })
+  }
+
   function updateFormField(field, value) {
     if (field === 'priceListId') {
-      setForm((current) => ({ ...current, priceListId: value, items: [emptyItem()] }))
       if (value) {
         request(`/api/price-lists/${value}/catalog`)
-          .then((nextCatalog) => setCatalog(nextCatalog))
+          .then((nextCatalog) => {
+            setCatalog(nextCatalog)
+            setForm((current) => ({
+              ...current,
+              priceListId: value,
+              items: applyAutomaticBonusRulesToItems(repriceItemsForCatalog(current.items, nextCatalog), current.automaticBonusRules),
+            }))
+          })
           .catch((error) => setStatus(error.message))
       } else {
-        setCatalog(bootstrap?.catalog || [])
+        const nextCatalog = bootstrap?.catalog || []
+        setCatalog(nextCatalog)
+        setForm((current) => ({
+          ...current,
+          priceListId: value,
+          items: applyAutomaticBonusRulesToItems(repriceItemsForCatalog(current.items, nextCatalog), current.automaticBonusRules),
+        }))
       }
       return
     }

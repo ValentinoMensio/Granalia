@@ -9,6 +9,11 @@ import { useAuth } from '../context/AuthContext'
 const PAGE_SIZE = 10
 const EMPTY_FILTERS = { customerId: '', dateFrom: '', dateTo: '', transport: '', minTotal: '', maxTotal: '' }
 
+function parseDateRange(value) {
+  const dates = String(value || '').match(/\d{4}-\d{2}-\d{2}/g) || []
+  return { dateFrom: dates[0] || '', dateTo: dates[1] || '' }
+}
+
 function shortInvoiceNumber(invoice) {
   if (invoice?.invoice_number) return String(invoice.invoice_number).padStart(8, '0')
   const fiscalNumber = String(invoice?.fiscal_number || '')
@@ -23,6 +28,7 @@ export default function InvoiceHistory() {
   const isAdmin = session?.role === 'admin'
   const { bootstrap, invoices, customers, invoiceDetail, loadInvoiceDetail, clearInvoiceDetail, invoicePdfUrl, startInvoiceEdit, deleteInvoice } = useGranalia()
   const [filters, setFilters] = useState(EMPTY_FILTERS)
+  const [dateRangeInput, setDateRangeInput] = useState('')
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [deletingInvoiceId, setDeletingInvoiceId] = useState(null)
   const [page, setPage] = useState(1)
@@ -56,8 +62,15 @@ export default function InvoiceHistory() {
     setPage(1)
   }
 
+  function updateDateRange(value) {
+    setDateRangeInput(value)
+    setFilters((current) => ({ ...current, ...parseDateRange(value) }))
+    setPage(1)
+  }
+
   function resetFilters() {
     setFilters(EMPTY_FILTERS)
+    setDateRangeInput('')
     setPage(1)
   }
 
@@ -132,29 +145,13 @@ export default function InvoiceHistory() {
                 <option key={customer.id} value={customer.id}>{customer.name}</option>
               ))}
             </select>
-            <div className="rounded-2xl border border-stone-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Fecha</div>
-              <div className="grid gap-2">
-                <label className="text-xs text-slate-500">
-                  Inicio
-                  <input
-                    type="date"
-                    value={filters.dateFrom}
-                    onChange={(event) => updateFilter('dateFrom', event.target.value)}
-                    className="input mt-1"
-                  />
-                </label>
-                <label className="text-xs text-slate-500">
-                  Fin
-                  <input
-                    type="date"
-                    value={filters.dateTo}
-                    onChange={(event) => updateFilter('dateTo', event.target.value)}
-                    className="input mt-1"
-                  />
-                </label>
-              </div>
-            </div>
+            <input
+              type="text"
+              value={dateRangeInput}
+              onChange={(event) => updateDateRange(event.target.value)}
+              placeholder="Fecha inicio - fecha fin"
+              className="input"
+            />
             <select
               value={filters.transport}
               onChange={(event) => updateFilter('transport', event.target.value)}

@@ -164,6 +164,16 @@ export default function ProductEditor() {
       <div className="editor-card grid gap-6">
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2 md:col-span-2">
+            <label className="text-sm font-medium text-slate-700">Nombre Comercial</label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="input"
+            />
+          </div>
+
+          <div className="space-y-2 md:col-span-2">
             <label className="text-sm font-medium text-slate-700">Lista de precios</label>
             <select
               value={selectedPriceListId}
@@ -186,16 +196,6 @@ export default function ProductEditor() {
                 Este producto no existe en la lista seleccionada. Al guardar se agregará con las presentaciones configuradas abajo.
               </p>
             ) : null}
-          </div>
-
-          <div className="space-y-2 md:col-span-2">
-            <label className="text-sm font-medium text-slate-700">Nombre Comercial</label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="input"
-            />
           </div>
         </div>
 
