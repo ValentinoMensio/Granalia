@@ -178,6 +178,11 @@ class ProductOfferingUpsert(BaseModel):
     _normalize_label = field_validator("label")(_strip_required)
 
 
+class PriceListProductUpdate(BaseModel):
+    product: ProductUpsert
+    offerings: list[ProductOfferingUpsert] = Field(default_factory=list, max_length=MAX_PRODUCT_OFFERINGS)
+
+
 class StatusResponse(BaseModel):
     status: str
 

@@ -97,9 +97,16 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
 
         for product in catalog:
             product_name = product["name"]
+            product_id = product.get("id") if isinstance(product.get("id"), int) else None
             existing_product = connection.execute(
-                select(self.products).where(self.products.c.name == product_name)
+                select(self.products).where(self.products.c.id == product_id)
+                if product_id is not None
+                else select(self.products).where(self.products.c.name == product_name)
             ).mappings().first()
+            if not existing_product and product_id is not None:
+                existing_product = connection.execute(
+                    select(self.products).where(self.products.c.name == product_name)
+                ).mappings().first()
             if existing_product:
                 product_db_id = existing_product["id"]
                 connection.execute(
@@ -129,6 +136,13 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
             for position, offering in enumerate(product.get("offerings", []), start=1):
                 offering_label = offering["label"]
                 offering_id = offering.get("id") if isinstance(offering.get("id"), int) else None
+                if offering_id:
+                    existing_by_id = connection.execute(
+                        select(self.product_offerings).where(self.product_offerings.c.id == offering_id)
+                    ).mappings().first()
+                    if not existing_by_id or existing_by_id["product_id"] != product_db_id:
+                        offering_id = None
+
                 if offering_id:
                     duplicate = connection.execute(
                         select(self.product_offerings)
@@ -395,6 +409,102 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
                     )
             self._refresh_active_catalog_snapshot(connection=connection, now=now)
 
+    def update_price_list_product(self, price_list_id: int, product: CatalogProductData, offerings: list[CatalogOfferingData]) -> CatalogProductData:
+        now = utc_now()
+        product_id = product.get("id") if isinstance(product.get("id"), int) else None
+        product_name = str(product.get("name") or "").strip()
+        if not product_name:
+            raise ValueError("El producto debe tener nombre")
+
+        normalized_offerings = [
+            {
+                "id": offering.get("id") if isinstance(offering.get("id"), int) else None,
+                "label": str(offering.get("label") or "").strip(),
+                "price": int(offering.get("price") or 0),
+                "net_weight_kg": float(offering.get("net_weight_kg") or 0),
+            }
+            for offering in offerings
+            if str(offering.get("label") or "").strip()
+        ]
+
+        with self.engine.begin() as connection:
+            price_list = connection.execute(
+                select(self.price_lists.c.id, self.price_lists.c.active).where(self.price_lists.c.id == price_list_id)
+            ).mappings().first()
+            if not price_list:
+                raise ValueError("Lista de precios no encontrada")
+
+            catalog_row = connection.execute(
+                select(self.catalogs.c.id, self.catalogs.c.catalog)
+                .where(self.catalogs.c.price_list_id == price_list_id)
+                .order_by(self.catalogs.c.active.desc(), self.catalogs.c.id.desc())
+                .limit(1)
+                .with_for_update()
+            ).mappings().first()
+            if not catalog_row:
+                raise ValueError("Catalogo de lista no encontrado")
+
+            catalog = cast(list[CatalogProductData], serialize_value(catalog_row["catalog"] or []))
+            numeric_product_ids = [int(item["id"]) for item in catalog if isinstance(item.get("id"), int)]
+            numeric_offering_ids = [
+                int(offering["id"])
+                for item in catalog
+                for offering in item.get("offerings", [])
+                if isinstance(offering.get("id"), int)
+            ]
+            next_product_id = (min(numeric_product_ids) - 1) if numeric_product_ids else -1
+            next_offering_id = (min(numeric_offering_ids) - 1) if numeric_offering_ids else -1
+
+            target_index = next((index for index, item in enumerate(catalog) if product_id is not None and item.get("id") == product_id), None)
+            if target_index is None:
+                target_index = next((index for index, item in enumerate(catalog) if item.get("name") == product_name), None)
+
+            if product_id is None:
+                product_id = int(catalog[target_index]["id"]) if target_index is not None and isinstance(catalog[target_index].get("id"), int) else (next_product_id if not price_list["active"] else None)
+
+            next_offerings: list[CatalogOfferingData] = []
+            for offering in normalized_offerings:
+                offering_id = offering.get("id")
+                if not isinstance(offering_id, int):
+                    offering_id = next_offering_id if not price_list["active"] else None
+                    next_offering_id -= 1
+                next_offerings.append(
+                    {
+                        "id": offering_id,
+                        "label": offering["label"],
+                        "price": int(offering["price"]),
+                        "net_weight_kg": float(offering.get("net_weight_kg") or 0),
+                    }
+                )
+
+            updated_product: CatalogProductData = {
+                "id": product_id,
+                "name": product_name,
+                "aliases": product.get("aliases", []),
+                "offerings": next_offerings,
+            }
+            if target_index is None:
+                catalog.append(updated_product)
+            else:
+                catalog[target_index] = updated_product
+
+            if price_list["active"]:
+                self._sync_catalog_tables(catalog, connection=connection, now=now)
+                catalog = self._catalog_snapshot(connection=connection)
+                updated_product = next(
+                    (item for item in catalog if item.get("name") == product_name),
+                    updated_product,
+                )
+
+            connection.execute(
+                update(self.catalogs)
+                .where(self.catalogs.c.id == catalog_row["id"])
+                .values(catalog=catalog, updated_at=now)
+            )
+            connection.execute(update(self.price_lists).where(self.price_lists.c.id == price_list_id).values(updated_at=now))
+
+        return cast(CatalogProductData, serialize_value(updated_product))
+
     def delete_product(self, product_id: int) -> None:
         now = utc_now()
         with self.engine.begin() as connection:
@@ -406,8 +516,10 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
         with self.engine.begin() as connection:
             if active:
                 connection.execute(update(self.catalogs).where(self.catalogs.c.active.is_(True)).values(active=False, updated_at=now))
-            self._sync_catalog_tables(catalog, connection=connection, now=now)
-            normalized_catalog = self._catalog_snapshot(connection=connection)
+                self._sync_catalog_tables(catalog, connection=connection, now=now)
+                normalized_catalog = self._catalog_snapshot(connection=connection)
+            else:
+                normalized_catalog = catalog
             payload = {
                 "price_list_id": price_list_id,
                 "name": name,
@@ -419,6 +531,71 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
             }
             connection.execute(self.catalogs.insert().values(**payload))
         return cast(dict[str, object], serialize_value(payload))
+
+    def save_price_list_with_catalog(
+        self,
+        *,
+        filename: str,
+        pdf_bytes: bytes,
+        catalog: list[CatalogProductData],
+        activate: bool = True,
+        source: str = "upload",
+        name: str | None = None,
+        price_list_id: int | None = None,
+    ) -> PriceListMetaData:
+        now = utc_now()
+        with self.engine.begin() as connection:
+            existing_name = None
+            if price_list_id is not None:
+                existing_name = connection.execute(
+                    select(self.price_lists.c.name).where(self.price_lists.c.id == price_list_id)
+                ).scalar_one_or_none()
+                if existing_name is None:
+                    raise RuntimeError("Lista de precios no encontrada")
+
+            if activate:
+                connection.execute(update(self.price_lists).where(self.price_lists.c.active.is_(True)).values(active=False, updated_at=now))
+                connection.execute(update(self.catalogs).where(self.catalogs.c.active.is_(True)).values(active=False, updated_at=now))
+            elif price_list_id is not None:
+                connection.execute(update(self.catalogs).where(self.catalogs.c.price_list_id == price_list_id).values(active=False, updated_at=now))
+
+            price_list_payload = {
+                "name": name or existing_name or filename,
+                "filename": filename,
+                "content_type": "application/pdf",
+                "size": len(pdf_bytes),
+                "pdf_data": pdf_bytes,
+                "active": activate,
+                "source": source,
+                "uploaded_at": now,
+                "updated_at": now,
+            }
+            if price_list_id is not None:
+                connection.execute(update(self.price_lists).where(self.price_lists.c.id == price_list_id).values(**price_list_payload))
+                saved_price_list_id = price_list_id
+            else:
+                saved_price_list_id = int(connection.execute(self.price_lists.insert().values(**price_list_payload).returning(self.price_lists.c.id)).scalar_one())
+
+            if activate:
+                self._sync_catalog_tables(catalog, connection=connection, now=now)
+                normalized_catalog = self._catalog_snapshot(connection=connection)
+            else:
+                normalized_catalog = catalog
+
+            catalog_payload = {
+                "price_list_id": saved_price_list_id,
+                "name": f"Catalogo desde {price_list_payload['name']}",
+                "active": activate,
+                "source": source,
+                "catalog": normalized_catalog,
+                "created_at": now,
+                "updated_at": now,
+            }
+            connection.execute(self.catalogs.insert().values(**catalog_payload))
+
+        price_list_payload["id"] = saved_price_list_id
+        price_list_payload.pop("pdf_data", None)
+        return cast(PriceListMetaData, serialize_value(price_list_payload))
 
     def list_price_lists(self) -> list[PriceListMetaData]:
         with self.engine.connect() as connection:

@@ -23,6 +23,8 @@ function InvoiceFormCard({
   onSave,
   onCancelEdit,
 }) {
+  const defaultPriceListName = bootstrap?.price_list?.name || 'sin lista activa'
+
   return (
     <div className="surface p-4 sm:p-6 lg:p-7">
       <div className="mb-5 flex items-center justify-between gap-4 border-b border-stone-200 pb-5 sm:mb-6">
@@ -47,11 +49,12 @@ function InvoiceFormCard({
 
         <Field label="Lista de precios">
           <select className="input" value={form.priceListId} onChange={(event) => onFieldChange('priceListId', event.target.value)}>
-            <option value="">Lista predeterminada</option>
+            <option value="">Lista predeterminada ({defaultPriceListName})</option>
             {(bootstrap?.price_lists || []).map((priceList) => (
               <option key={priceList.id} value={priceList.id}>{priceList.name}</option>
             ))}
           </select>
+          <p className="mt-1 text-xs text-slate-500">Si no elegís otra, se usa la lista activa: {defaultPriceListName}.</p>
         </Field>
 
         <Field label="Declaración">

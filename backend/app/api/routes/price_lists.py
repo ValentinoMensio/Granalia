@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
 from ...dependencies import get_repository, require_admin
-from ...schemas import MAX_NAME_LENGTH, PriceListMetaOut, PriceListRename, PriceListUploadOut, ProductCatalogOut, StatusResponse
+from ...schemas import MAX_NAME_LENGTH, PriceListMetaOut, PriceListProductUpdate, PriceListRename, PriceListUploadOut, ProductCatalogOut, StatusResponse
 from ...services.catalog import build_catalog_snapshot_from_pdf
 
 
@@ -25,10 +25,20 @@ async def upload_price_list(file: UploadFile = File(...), name: str = Form(defau
         raise HTTPException(status_code=413, detail="El PDF no puede superar 20 MB")
     repository = get_repository()
     list_name = name.strip() or filename
-    price_list = repository.save_price_list(filename, pdf_bytes, activate=activate, source="upload", name=list_name, price_list_id=price_list_id)
-    base_catalog = repository.get_catalog_for_price_list(price_list_id) if price_list_id is not None else repository.get_active_catalog()
-    updated_catalog = build_catalog_snapshot_from_pdf(pdf_bytes, base_catalog)
-    repository.replace_active_catalog(updated_catalog, name=f"Catalogo desde {list_name}", price_list_id=int(price_list["id"]), active=activate)
+    try:
+        base_catalog = repository.get_catalog_for_price_list(price_list_id) if price_list_id is not None else repository.get_active_catalog()
+        updated_catalog = build_catalog_snapshot_from_pdf(pdf_bytes, base_catalog)
+        repository.save_price_list_with_catalog(
+            filename=filename,
+            pdf_bytes=pdf_bytes,
+            catalog=updated_catalog,
+            activate=activate,
+            source="upload",
+            name=list_name,
+            price_list_id=price_list_id,
+        )
+    except (RuntimeError, ValueError) as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
     return PriceListUploadOut.model_validate({"bootstrap": repository.bootstrap_payload()})
 
 
@@ -41,7 +51,7 @@ def list_price_lists(_: str = Depends(require_admin)) -> list[PriceListMetaOut]:
 def rename_price_list(price_list_id: int, payload: PriceListRename, _: str = Depends(require_admin)) -> StatusResponse:
     try:
         get_repository().rename_price_list(price_list_id, payload.name)
-    except ValueError as error:
+    except (RuntimeError, ValueError) as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
     return StatusResponse(status="updated")
 
@@ -53,6 +63,19 @@ def price_list_catalog(price_list_id: int) -> list[ProductCatalogOut]:
     except RuntimeError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
     return [ProductCatalogOut.model_validate(item) for item in catalog]
+
+
+@router.put("/{price_list_id}/products", response_model=ProductCatalogOut)
+def update_price_list_product(price_list_id: int, payload: PriceListProductUpdate, _: str = Depends(require_admin)) -> ProductCatalogOut:
+    try:
+        product = get_repository().update_price_list_product(
+            price_list_id,
+            payload.product.model_dump(),
+            [offering.model_dump() for offering in payload.offerings],
+        )
+    except (RuntimeError, ValueError) as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    return ProductCatalogOut.model_validate(product)
 
 
 @router.delete("/{price_list_id}", response_model=StatusResponse)

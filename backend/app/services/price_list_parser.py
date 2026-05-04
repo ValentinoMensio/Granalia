@@ -198,8 +198,10 @@ def build_catalog_from_pdf(pdf_bytes: bytes, current_catalog: list[CatalogProduc
         used_spec_ids.add(spec["id"])
         existing_by_label = {offering.label: offering for offering in product.offerings}
         next_offerings: list[CatalogOffering] = []
+        updated_labels: set[str] = set()
         for offering in _build_offerings(spec["formats"], numbers):
             previous = existing_by_label.get(offering.label)
+            updated_labels.add(offering.label)
             next_offerings.append(
                 CatalogOffering(
                     id=previous.id if previous and isinstance(previous.id, int) else offering.id,
@@ -208,6 +210,9 @@ def build_catalog_from_pdf(pdf_bytes: bytes, current_catalog: list[CatalogProduc
                     net_weight_kg=offering.net_weight_kg or (previous.net_weight_kg if previous else 0),
                 )
             )
+        for previous in product.offerings:
+            if previous.label not in updated_labels:
+                next_offerings.append(previous)
         catalog.append(CatalogProduct(id=product.id, name=product.name, aliases=list(product.aliases), offerings=next_offerings))
 
     for product_name, spec in PRODUCT_SPECS.items():

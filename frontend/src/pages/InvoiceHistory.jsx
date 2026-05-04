@@ -9,11 +9,19 @@ import { useAuth } from '../context/AuthContext'
 const PAGE_SIZE = 10
 const EMPTY_FILTERS = { customerId: '', dateFrom: '', dateTo: '', transport: '', minTotal: '', maxTotal: '' }
 
+function shortInvoiceNumber(invoice) {
+  if (invoice?.invoice_number) return String(invoice.invoice_number).padStart(8, '0')
+  const fiscalNumber = String(invoice?.fiscal_number || '')
+  const match = fiscalNumber.match(/(\d+)$/)
+  if (match) return match[1]
+  return `#${invoice?.invoice_id || invoice?.id}`
+}
+
 export default function InvoiceHistory() {
   const navigate = useNavigate()
   const { session } = useAuth()
   const isAdmin = session?.role === 'admin'
-  const { bootstrap, invoices, customers, invoiceDetail, loadInvoiceDetail, clearInvoiceDetail, invoiceDownloadUrl, invoicePdfUrl, startInvoiceEdit, deleteInvoice } = useGranalia()
+  const { bootstrap, invoices, customers, invoiceDetail, loadInvoiceDetail, clearInvoiceDetail, invoicePdfUrl, startInvoiceEdit, deleteInvoice } = useGranalia()
   const [filters, setFilters] = useState(EMPTY_FILTERS)
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [deletingInvoiceId, setDeletingInvoiceId] = useState(null)
@@ -124,18 +132,29 @@ export default function InvoiceHistory() {
                 <option key={customer.id} value={customer.id}>{customer.name}</option>
               ))}
             </select>
-            <input
-              type="date"
-              value={filters.dateFrom}
-              onChange={(event) => updateFilter('dateFrom', event.target.value)}
-              className="input"
-            />
-            <input
-              type="date"
-              value={filters.dateTo}
-              onChange={(event) => updateFilter('dateTo', event.target.value)}
-              className="input"
-            />
+            <div className="rounded-2xl border border-stone-200 bg-white p-3">
+              <div className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Fecha</div>
+              <div className="grid gap-2">
+                <label className="text-xs text-slate-500">
+                  Inicio
+                  <input
+                    type="date"
+                    value={filters.dateFrom}
+                    onChange={(event) => updateFilter('dateFrom', event.target.value)}
+                    className="input mt-1"
+                  />
+                </label>
+                <label className="text-xs text-slate-500">
+                  Fin
+                  <input
+                    type="date"
+                    value={filters.dateTo}
+                    onChange={(event) => updateFilter('dateTo', event.target.value)}
+                    className="input mt-1"
+                  />
+                </label>
+              </div>
+            </div>
             <select
               value={filters.transport}
               onChange={(event) => updateFilter('transport', event.target.value)}
@@ -189,7 +208,7 @@ export default function InvoiceHistory() {
               <article key={invoice.invoice_id} className={`rounded-2xl border p-4 ${isUpcoming ? 'border-slate-300 bg-stone-100' : 'border-slate-200 bg-white'}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="font-mono text-xs text-slate-500">{invoice.fiscal_number || `#${invoice.invoice_id}`}</div>
+                    <div className="font-mono text-xs text-slate-500">{shortInvoiceNumber(invoice)}</div>
                     <h3 className="mt-1 truncate font-semibold text-brand-ink">{invoice.client_name}</h3>
                   </div>
                   <div className="shrink-0 whitespace-nowrap text-right text-sm font-semibold text-brand-red">${money(invoice.final_total)}</div>
@@ -217,14 +236,7 @@ export default function InvoiceHistory() {
                       Editar
                     </Button>
                   )}
-                  <a
-                    href={invoiceDownloadUrl(invoice.invoice_id)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="btn-secondary w-full"
-                  >
-                    XLSX
-                  </a>
+                  <span className="btn-secondary w-full cursor-not-allowed opacity-50" aria-disabled="true">XLSX</span>
                   <a
                     href={invoicePdfUrl(invoice.invoice_id)}
                     target="_blank"
@@ -282,7 +294,7 @@ export default function InvoiceHistory() {
 
                 return (
                   <tr key={invoice.invoice_id} className={`table-row ${isUpcoming ? 'bg-stone-100 text-brand-ink' : ''}`}>
-                    <td className="table-cell text-center font-mono text-xs">{invoice.fiscal_number || `#${invoice.invoice_id}`}</td>
+                    <td className="table-cell text-center font-mono text-xs">{shortInvoiceNumber(invoice)}</td>
                     <td className="table-cell break-words font-medium leading-snug" title={invoice.client_name}>{invoice.client_name}</td>
                     <td className={`table-cell whitespace-nowrap text-center ${isUpcoming ? 'text-slate-800' : 'text-slate-600'}`}>{invoice.order_date}</td>
                     <td className={`table-cell break-words leading-snug ${isUpcoming ? 'text-slate-800' : 'text-slate-600'}`} title={invoice.transport || 'Sin transporte'}>{invoice.transport || 'Sin transporte'}</td>
@@ -370,7 +382,7 @@ export default function InvoiceHistory() {
             <div className="surface-muted grid gap-4 p-4 text-sm md:grid-cols-3 xl:grid-cols-8">
               <div>
                 <div className="text-xs uppercase tracking-wide text-slate-400">Factura</div>
-                <div className="mt-1 font-mono">{invoiceDetail.fiscal_number || `#${invoiceDetail.id}`}</div>
+                <div className="mt-1 font-mono">{shortInvoiceNumber(invoiceDetail)}</div>
               </div>
               <div>
                 <div className="text-xs uppercase tracking-wide text-slate-400">Fecha</div>
@@ -485,14 +497,7 @@ export default function InvoiceHistory() {
                   Editar factura
                 </Button>
               )}
-              <a
-                href={invoiceDownloadUrl(invoiceDetail.id)}
-                target="_blank"
-                rel="noreferrer"
-                className="btn-secondary w-full sm:w-auto"
-              >
-                Descargar XLSX
-              </a>
+              <span className="btn-secondary w-full cursor-not-allowed opacity-50 sm:w-auto" aria-disabled="true">Descargar XLSX</span>
               <a
                 href={invoicePdfUrl(invoiceDetail.id)}
                 target="_blank"

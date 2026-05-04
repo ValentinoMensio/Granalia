@@ -38,16 +38,53 @@ export default function ProductEditor() {
   const productId = Number(id)
   const isNewProduct = !id || id === 'new' || Number.isNaN(productId)
   const navigate = useNavigate()
-  const { catalog, setStatus, saving, refreshAll } = useGranalia()
+  const { bootstrap, catalog, setStatus, saving, refreshAll } = useGranalia()
   const managementPath = '/management?tab=products'
-  
-  const product = catalog.find((p) => p.id === productId)
+  const priceLists = bootstrap?.price_lists || []
+  const activePriceListId = bootstrap?.price_list?.id ? String(bootstrap.price_list.id) : ''
+  const [selectedPriceListId, setSelectedPriceListId] = useState('')
+  const [selectedCatalog, setSelectedCatalog] = useState(catalog)
+  const [loadingCatalog, setLoadingCatalog] = useState(false)
+
+  const product = selectedCatalog.find((p) => String(p.id) === String(productId))
   const [formData, setFormData] = useState(null)
   const [offerings, setOfferings] = useState([])
   const availableOfferingLabels = Array.from(new Set([
     ...BASE_OFFERING_LABELS,
-    ...catalog.flatMap((entry) => (entry.offerings || []).map((offering) => offering.label)),
+    ...selectedCatalog.flatMap((entry) => (entry.offerings || []).map((offering) => offering.label)),
   ])).sort()
+
+  useEffect(() => {
+    if (!selectedPriceListId && activePriceListId) {
+      setSelectedPriceListId(activePriceListId)
+    }
+  }, [activePriceListId, selectedPriceListId])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadSelectedCatalog() {
+      if (!selectedPriceListId || selectedPriceListId === activePriceListId) {
+        setSelectedCatalog(catalog)
+        return
+      }
+
+      setLoadingCatalog(true)
+      try {
+        const nextCatalog = await request(`/api/price-lists/${selectedPriceListId}/catalog`)
+        if (!cancelled) setSelectedCatalog(nextCatalog)
+      } catch (error) {
+        if (!cancelled) setStatus(`Error al cargar lista: ${error.message}`)
+      } finally {
+        if (!cancelled) setLoadingCatalog(false)
+      }
+    }
+
+    loadSelectedCatalog()
+    return () => {
+      cancelled = true
+    }
+  }, [activePriceListId, catalog, selectedPriceListId, setStatus])
 
   useEffect(() => {
     if (isNewProduct) {
@@ -63,7 +100,9 @@ export default function ProductEditor() {
     }
   }, [product, isNewProduct])
 
-  if (!isNewProduct && !product) return <div className="mt-8 p-4 text-center">Producto no encontrado.</div>
+  const missingSelectedProduct = !isNewProduct && !loadingCatalog && !product
+
+  if (!isNewProduct && !product && loadingCatalog) return <div className="mt-8 p-4 text-center">Cargando catálogo...</div>
   if (!formData) return null
 
   async function handleSave() {
@@ -77,22 +116,16 @@ export default function ProductEditor() {
         }))
         .filter((off) => off.label)
 
-      // 1. Save basic product info
-      const savedProduct = await request('/api/products', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      })
-
-      // 2. Save offerings
-      const targetProductId = isNewProduct ? savedProduct.id : product?.id
-      if (targetProductId) {
-        await request(`/api/products/${targetProductId}/offerings`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(normalizedOfferings),
-        })
+      if (!selectedPriceListId) {
+        setStatus('Seleccioná una lista de precios para guardar el producto.')
+        return
       }
+
+      await request(`/api/price-lists/${selectedPriceListId}/products`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product: formData, offerings: normalizedOfferings }),
+      })
 
       await refreshAll()
       setStatus(isNewProduct ? 'Producto creado correctamente.' : 'Producto y presentaciones actualizados.')
@@ -123,13 +156,38 @@ export default function ProductEditor() {
   return (
     <div className="editor-shell">
       <PageSectionHeader
-        title={isNewProduct ? 'Nuevo producto' : `Editar producto: ${product.name}`}
+        title={isNewProduct ? 'Nuevo producto' : `Editar producto: ${product?.name || formData.name}`}
         description="Organizá el nombre comercial y las presentaciones con una estructura simple y consistente."
         aside={<Button variant="ghost" onClick={() => navigate(managementPath)}>Volver a gestión</Button>}
       />
 
       <div className="editor-card grid gap-6">
         <div className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-2 md:col-span-2">
+            <label className="text-sm font-medium text-slate-700">Lista de precios</label>
+            <select
+              value={selectedPriceListId}
+              onChange={(event) => setSelectedPriceListId(event.target.value)}
+              className="input"
+              disabled={!priceLists.length || loadingCatalog}
+            >
+              {!priceLists.length ? <option value="">Sin listas disponibles</option> : null}
+              {priceLists.map((priceList) => (
+                <option key={priceList.id} value={String(priceList.id)}>
+                  {priceList.name}{priceList.active ? ' (activa)' : ''}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-slate-500">
+              Los cambios se guardan en esta lista. Si no está activa, no modifican el catálogo global.
+            </p>
+            {missingSelectedProduct ? (
+              <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                Este producto no existe en la lista seleccionada. Al guardar se agregará con las presentaciones configuradas abajo.
+              </p>
+            ) : null}
+          </div>
+
           <div className="space-y-2 md:col-span-2">
             <label className="text-sm font-medium text-slate-700">Nombre Comercial</label>
             <input
@@ -168,15 +226,6 @@ export default function ProductEditor() {
                     </select>
                   </div>
                   <div>
-                    <label className="field-label">Precio</label>
-                    <input
-                      type="number"
-                      value={off.price}
-                      onChange={(e) => updateOffering(i, 'price', e.target.value)}
-                      className="input text-right"
-                    />
-                  </div>
-                  <div>
                     <label className="field-label">Peso neto por bulto (kg)</label>
                     <input
                       type="number"
@@ -184,6 +233,15 @@ export default function ProductEditor() {
                       step="0.001"
                       value={off.net_weight_kg || ''}
                       onChange={(e) => updateOffering(i, 'net_weight_kg', e.target.value)}
+                      className="input text-right"
+                    />
+                  </div>
+                  <div>
+                    <label className="field-label">Precio</label>
+                    <input
+                      type="number"
+                      value={off.price}
+                      onChange={(e) => updateOffering(i, 'price', e.target.value)}
                       className="input text-right"
                     />
                   </div>
@@ -205,8 +263,8 @@ export default function ProductEditor() {
               <thead className="table-head">
                 <tr>
                   <th>Etiqueta</th>
-                  <th>Precio</th>
                   <th>Peso neto kg</th>
+                  <th>Precio</th>
                   <th className="text-right">Acciones</th>
                 </tr>
               </thead>
@@ -231,18 +289,18 @@ export default function ProductEditor() {
                     <td className="table-cell">
                       <input
                         type="number"
-                        value={off.price}
-                        onChange={(e) => updateOffering(i, 'price', e.target.value)}
+                        min="0"
+                        step="0.001"
+                        value={off.net_weight_kg || ''}
+                        onChange={(e) => updateOffering(i, 'net_weight_kg', e.target.value)}
                         className="input py-1.5 text-right text-xs"
                       />
                     </td>
                     <td className="table-cell">
                       <input
                         type="number"
-                        min="0"
-                        step="0.001"
-                        value={off.net_weight_kg || ''}
-                        onChange={(e) => updateOffering(i, 'net_weight_kg', e.target.value)}
+                        value={off.price}
+                        onChange={(e) => updateOffering(i, 'price', e.target.value)}
                         className="input py-1.5 text-right text-xs"
                       />
                     </td>

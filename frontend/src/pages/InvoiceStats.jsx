@@ -654,9 +654,20 @@ export default function InvoiceStats() {
         <div className="mb-4 border-b border-stone-200 pb-3">
           <h2 className="subsection-title text-xl">Filtros generales</h2>
         </div>
-        <div className="grid gap-3 md:grid-cols-5">
-          <input className="input" type="date" value={filters.dateFrom} onChange={(event) => updateFilter('dateFrom', event.target.value)} />
-          <input className="input" type="date" value={filters.dateTo} onChange={(event) => updateFilter('dateTo', event.target.value)} />
+        <div className="grid gap-3 md:grid-cols-4">
+          <div className="rounded-2xl border border-stone-200 bg-white p-3 md:col-span-1">
+            <div className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Fecha</div>
+            <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-1">
+              <label className="text-xs text-slate-500">
+                Inicio
+                <input className="input mt-1" type="date" value={filters.dateFrom} onChange={(event) => updateFilter('dateFrom', event.target.value)} />
+              </label>
+              <label className="text-xs text-slate-500">
+                Fin
+                <input className="input mt-1" type="date" value={filters.dateTo} onChange={(event) => updateFilter('dateTo', event.target.value)} />
+              </label>
+            </div>
+          </div>
           <select className="input" value={filters.transport} onChange={(event) => updateFilter('transport', event.target.value)}>
             <option value="">Todos los transportes</option>
             {(bootstrap?.transports || []).map((transport) => (
