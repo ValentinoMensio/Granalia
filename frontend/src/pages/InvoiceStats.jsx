@@ -3,6 +3,7 @@ import { useGranalia } from '../context/GranaliaContext'
 import { request } from '../lib/api'
 import { money } from '../lib/format'
 import Button from '../components/ui/Button'
+import DateRangePicker from '../components/ui/DateRangePicker'
 import Metric from '../components/ui/Metric'
 import PageSectionHeader from '../components/ui/PageSectionHeader'
 
@@ -18,11 +19,6 @@ const MONTHLY_METRICS = [
 ]
 
 const weight = (value) => new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(Number(value || 0))
-
-function parseDateRange(value) {
-  const dates = String(value || '').match(/\d{4}-\d{2}-\d{2}/g) || []
-  return { dateFrom: dates[0] || '', dateTo: dates[1] || '' }
-}
 
 function monthLabel(value) {
   if (!value) return 'Sin fecha'
@@ -478,7 +474,6 @@ function MonthlyBarChart({ rows, year, metricKey = 'total', metricLabel = 'Total
 export default function InvoiceStats() {
   const { bootstrap, customers, invoices } = useGranalia()
   const [filters, setFilters] = useState(EMPTY_FILTERS)
-  const [dateRangeInput, setDateRangeInput] = useState('')
   const [productFilters, setProductFilters] = useState(EMPTY_PRODUCT_FILTERS)
   const [monthlyMetricKey, setMonthlyMetricKey] = useState('total')
   const [selectedProductLabel, setSelectedProductLabel] = useState('')
@@ -606,14 +601,12 @@ export default function InvoiceStats() {
     setFilters((current) => ({ ...current, [field]: value }))
   }
 
-  function updateDateRange(value) {
-    setDateRangeInput(value)
-    setFilters((current) => ({ ...current, ...parseDateRange(value) }))
+  function updateDateRange(range) {
+    setFilters((current) => ({ ...current, ...range }))
   }
 
   function resetFilters() {
     setFilters(EMPTY_FILTERS)
-    setDateRangeInput('')
   }
 
   function updateCustomerFilter(index, value) {
@@ -671,13 +664,7 @@ export default function InvoiceStats() {
           <h2 className="subsection-title text-xl">Filtros generales</h2>
         </div>
         <div className="grid gap-3 md:grid-cols-4">
-          <input
-            className="input"
-            type="text"
-            value={dateRangeInput}
-            onChange={(event) => updateDateRange(event.target.value)}
-            placeholder="Fecha inicio - fecha fin"
-          />
+          <DateRangePicker dateFrom={filters.dateFrom} dateTo={filters.dateTo} onChange={updateDateRange} />
           <select className="input" value={filters.transport} onChange={(event) => updateFilter('transport', event.target.value)}>
             <option value="">Todos los transportes</option>
             {(bootstrap?.transports || []).map((transport) => (

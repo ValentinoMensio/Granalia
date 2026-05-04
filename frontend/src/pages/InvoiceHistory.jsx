@@ -4,15 +4,11 @@ import { useGranalia } from '../context/GranaliaContext'
 import { money } from '../lib/format'
 import Button from '../components/ui/Button'
 import PageSectionHeader from '../components/ui/PageSectionHeader'
+import DateRangePicker from '../components/ui/DateRangePicker'
 import { useAuth } from '../context/AuthContext'
 
 const PAGE_SIZE = 10
 const EMPTY_FILTERS = { customerId: '', dateFrom: '', dateTo: '', transport: '', minTotal: '', maxTotal: '' }
-
-function parseDateRange(value) {
-  const dates = String(value || '').match(/\d{4}-\d{2}-\d{2}/g) || []
-  return { dateFrom: dates[0] || '', dateTo: dates[1] || '' }
-}
 
 function shortInvoiceNumber(invoice) {
   if (invoice?.invoice_number) return String(invoice.invoice_number).padStart(8, '0')
@@ -28,7 +24,6 @@ export default function InvoiceHistory() {
   const isAdmin = session?.role === 'admin'
   const { bootstrap, invoices, customers, invoiceDetail, loadInvoiceDetail, clearInvoiceDetail, invoicePdfUrl, startInvoiceEdit, deleteInvoice } = useGranalia()
   const [filters, setFilters] = useState(EMPTY_FILTERS)
-  const [dateRangeInput, setDateRangeInput] = useState('')
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [deletingInvoiceId, setDeletingInvoiceId] = useState(null)
   const [page, setPage] = useState(1)
@@ -62,15 +57,13 @@ export default function InvoiceHistory() {
     setPage(1)
   }
 
-  function updateDateRange(value) {
-    setDateRangeInput(value)
-    setFilters((current) => ({ ...current, ...parseDateRange(value) }))
+  function updateDateRange(range) {
+    setFilters((current) => ({ ...current, ...range }))
     setPage(1)
   }
 
   function resetFilters() {
     setFilters(EMPTY_FILTERS)
-    setDateRangeInput('')
     setPage(1)
   }
 
@@ -145,13 +138,7 @@ export default function InvoiceHistory() {
                 <option key={customer.id} value={customer.id}>{customer.name}</option>
               ))}
             </select>
-            <input
-              type="text"
-              value={dateRangeInput}
-              onChange={(event) => updateDateRange(event.target.value)}
-              placeholder="Fecha inicio - fecha fin"
-              className="input"
-            />
+            <DateRangePicker dateFrom={filters.dateFrom} dateTo={filters.dateTo} onChange={updateDateRange} />
             <select
               value={filters.transport}
               onChange={(event) => updateFilter('transport', event.target.value)}
