@@ -89,117 +89,15 @@ function buildYearMonthlyRows(rows, year) {
 }
 
 function itemOfferingLabel(item) {
-  const label = String(item.label || '').trim()
-  const product = String(item.product_name || '').trim()
-
-  if (label && product && label.toLowerCase().startsWith(product.toLowerCase())) {
-    const suffix = label.slice(product.length).trim()
-    if (suffix) return suffix
-  }
-
-  const formatMatch = label.match(/(?:16x300|12x300|12x350|12x400|10x500|12x500|10x\s*1\s*kg|10x1000|x\s*(?:4|5|25|30)\s*kg)\b/i)
-  if (formatMatch) return formatMatch[0].replace(/\s+/g, ' ')
-
-  const explicit = String(item.offering_label || '').trim()
-  return explicit || 'Sin formato'
+  return String(item.offering_label || '').trim() || 'Sin formato'
 }
 
 function itemProductLabel(item) {
-  const explicit = String(item.product_name || '').trim()
-  if (explicit) return explicit
-
-  const label = String(item.label || '').trim()
-  const offering = itemOfferingLabel(item)
-  return offering !== 'Sin formato' ? label.replace(offering, '').trim() || label : label || 'Sin producto'
-}
-
-function kilogramsPerUnit(label) {
-  const text = String(label || '').toLowerCase().replace(/\s+/g, '')
-  const packMatch = text.match(/(\d+)x(\d+(?:[.,]\d+)?)(kg|gr|g)?/)
-  if (packMatch) {
-    const units = Number(packMatch[1] || 0)
-    const size = Number(String(packMatch[2] || 0).replace(',', '.'))
-    const unit = packMatch[3] || 'gr'
-    return units * (unit === 'kg' ? size : size / 1000)
-  }
-
-  const bagMatch = text.match(/x(\d+(?:[.,]\d+)?)kg/)
-  if (bagMatch) return Number(String(bagMatch[1] || 0).replace(',', '.'))
-
-  return 0
+  return String(item.product_name || '').trim() || 'Sin producto'
 }
 
 function itemWeight(item) {
-  const explicitWeight = Number(item.offering_net_weight_kg || item.net_weight_kg || 0)
-  if (explicitWeight > 0) return Number(item.quantity || 0) * explicitWeight
-
-  return Number(item.quantity || 0) * kilogramsPerUnit(itemOfferingLabel(item))
-}
-
-function allocateIntegerAmount(total, weights) {
-  const numericTotal = Math.round(Number(total || 0))
-  const sign = numericTotal < 0 ? -1 : 1
-  const absoluteTotal = Math.abs(numericTotal)
-  const weightTotal = weights.reduce((sum, value) => sum + Math.max(0, Number(value || 0)), 0)
-
-  if (!absoluteTotal || !weightTotal) return weights.map(() => 0)
-
-  const shares = weights.map((weight, index) => {
-    const raw = (absoluteTotal * Math.max(0, Number(weight || 0))) / weightTotal
-    const base = Math.floor(raw)
-    return { index, base, remainder: raw - base }
-  })
-  let assigned = shares.reduce((sum, item) => sum + item.base, 0)
-  shares.sort((a, b) => b.remainder - a.remainder || a.index - b.index)
-
-  for (let index = 0; assigned < absoluteTotal && index < shares.length; index += 1) {
-    shares[index].base += 1
-    assigned += 1
-  }
-
-  return shares
-    .sort((a, b) => a.index - b.index)
-    .map((item) => item.base * sign)
-}
-
-function applyExactItemDiscounts(items) {
-  const grouped = new Map()
-  for (const item of items) {
-    const key = String(item.invoice_id || '')
-    if (!grouped.has(key)) grouped.set(key, [])
-    grouped.get(key).push(item)
-  }
-
-  const adjusted = []
-  for (const invoiceItems of grouped.values()) {
-    if (invoiceItems.every((item) => item.effective_discount !== undefined && item.effective_total !== undefined)) {
-      invoiceItems.forEach((item) => {
-        adjusted.push({
-          ...item,
-          discount: Number(item.effective_discount || 0),
-          total: Number(item.effective_total || 0),
-        })
-      })
-      continue
-    }
-
-    const currentDiscount = invoiceItems.reduce((sum, item) => sum + Number(item.discount || 0), 0)
-    const invoiceDiscount = Number(invoiceItems[0]?.invoice_discount_total ?? currentDiscount)
-    const delta = Math.round(invoiceDiscount - currentDiscount)
-    const weights = invoiceItems.map((item) => Number(item.gross || 0))
-    const allocatedDelta = allocateIntegerAmount(delta, weights)
-
-    invoiceItems.forEach((item, index) => {
-      const discount = Number(item.discount || 0) + allocatedDelta[index]
-      adjusted.push({
-        ...item,
-        discount,
-        total: Number(item.gross || 0) - discount,
-      })
-    })
-  }
-
-  return adjusted
+  return Number(item.quantity || 0) * Number(item.offering_net_weight_kg || 0)
 }
 
 function buildProductRanking(items) {
@@ -486,7 +384,11 @@ export default function InvoiceStats() {
     Promise.all([request('/api/invoices?limit=10000'), request('/api/invoices/stats/items')])
       .then(([nextInvoices, nextItems]) => {
         setStatsInvoices(nextInvoices)
-        setInvoiceItems(nextItems)
+        setInvoiceItems(nextItems.map((item) => ({
+          ...item,
+          discount: Number(item.effective_discount ?? item.discount ?? 0),
+          total: Number(item.effective_total ?? item.total ?? 0),
+        })))
       })
       .finally(() => setLoadingItems(false))
   }, [])
@@ -504,27 +406,22 @@ export default function InvoiceStats() {
     })
   }, [filters, statsInvoices])
 
-  const exactInvoiceItems = useMemo(() => applyExactItemDiscounts(invoiceItems), [invoiceItems])
   const filteredInvoiceIds = useMemo(() => new Set(filteredInvoices.map((invoice) => String(invoice.invoice_id))), [filteredInvoices])
   const productOptions = useMemo(() => {
     const grouped = new Map()
-    for (const item of exactInvoiceItems) {
-      const id = String(item.product_id || '')
+    for (const item of invoiceItems) {
       const label = itemProductLabel(item)
-      const key = id || label
-      if (!grouped.has(key)) grouped.set(key, { id, label })
+      if (!grouped.has(label)) grouped.set(label, { id: label, label })
     }
     return Array.from(grouped.values()).sort((a, b) => a.label.localeCompare(b.label, 'es'))
-  }, [exactInvoiceItems])
+  }, [invoiceItems])
   const offeringOptionsByProduct = useMemo(() => {
     const grouped = new Map()
-    for (const item of exactInvoiceItems) {
-      const productKey = String(item.product_id || '')
-      const id = String(item.offering_id || '')
+    for (const item of invoiceItems) {
+      const productKey = itemProductLabel(item)
       const label = itemOfferingLabel(item)
       const productMap = grouped.get(productKey) || new Map()
-      const productKeyValue = id || label
-      if (!productMap.has(productKeyValue)) productMap.set(productKeyValue, { id, label })
+      if (!productMap.has(label)) productMap.set(label, { id: label, label })
       grouped.set(productKey, productMap)
 
       const allMap = grouped.get('') || new Map()
@@ -537,24 +434,22 @@ export default function InvoiceStats() {
         Array.from(offerings.values()).sort((a, b) => a.label.localeCompare(b.label, 'es')),
       ])
     )
-  }, [exactInvoiceItems])
+  }, [invoiceItems])
   const activeProductLines = useMemo(
     () => (productFilters.lines || []).filter((line) => line.productId || line.offeringId),
     [productFilters.lines]
   )
   const filteredItems = useMemo(
-    () => exactInvoiceItems.filter((item) => {
+    () => invoiceItems.filter((item) => {
       const matchesInvoice = filteredInvoiceIds.has(String(item.invoice_id))
       const matchesProductLines = !activeProductLines.length || activeProductLines.some((line) => {
-        const matchesProduct = !line.productId || String(item.product_id || '') === String(line.productId)
-        const matchesOffering = !line.offeringId || (line.productId
-          ? String(item.offering_id || '') === String(line.offeringId)
-          : itemOfferingLabel(item) === String(line.offeringId))
+        const matchesProduct = !line.productId || itemProductLabel(item) === String(line.productId)
+        const matchesOffering = !line.offeringId || itemOfferingLabel(item) === String(line.offeringId)
         return matchesProduct && matchesOffering
       })
       return matchesInvoice && matchesProductLines
     }),
-    [activeProductLines, exactInvoiceItems, filteredInvoiceIds]
+    [activeProductLines, invoiceItems, filteredInvoiceIds]
   )
   const totalWeight = useMemo(
     () => filteredItems.reduce((sum, item) => sum + itemWeight(item), 0),

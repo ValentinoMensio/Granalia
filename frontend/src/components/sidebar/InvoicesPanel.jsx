@@ -3,8 +3,6 @@ import { money } from '../../lib/format'
 
 function shortInvoiceNumber(invoice) {
   if (invoice?.invoice_number) return String(invoice.invoice_number).padStart(8, '0')
-  const match = String(invoice?.fiscal_number || '').match(/(\d+)$/)
-  if (match) return match[1]
   return `#${invoice?.invoice_id}`
 }
 

@@ -12,9 +12,6 @@ const EMPTY_FILTERS = { customerId: '', dateFrom: '', dateTo: '', transport: '',
 
 function shortInvoiceNumber(invoice) {
   if (invoice?.invoice_number) return String(invoice.invoice_number).padStart(8, '0')
-  const fiscalNumber = String(invoice?.fiscal_number || '')
-  const match = fiscalNumber.match(/(\d+)$/)
-  if (match) return match[1]
   return `#${invoice?.invoice_id || invoice?.id}`
 }
 

@@ -85,13 +85,13 @@ function ProductRowsCard({
             <tbody>
               {form.items.map((item, index) => {
                 const product = productsById[item.product_id]
-                const offeringOptions = optionsWithHistoricalSelection(product?.offerings || [], item.offering_id, item.offering_label)
+                const offeringOptions = editingInvoiceId ? optionsWithHistoricalSelection(product?.offerings || [], item.offering_id, item.offering_label) : (product?.offerings || [])
                 const offering = offeringOptions.find((entry) => String(entry.id) === String(item.offering_id))
                 const allowsFractionalQuantity = isX1KgLabel(offering?.label || item.offering_label)
                 const price = item.unit_price === '' || item.unit_price === undefined ? Number(offering?.price || 0) : Number(item.unit_price || 0)
                 const quantity = Number(item.quantity || 0)
                 const rowTotal = quantity * price
-                const productOptions = productsWithHistoricalSelection(catalog, item.product_id, item.product_name)
+                const productOptions = editingInvoiceId ? productsWithHistoricalSelection(catalog, item.product_id, item.product_name) : catalog
 
                 return (
                     <tr key={index} className="table-row">
@@ -198,13 +198,13 @@ function ProductRowsCard({
         <div className="grid gap-4 p-4 lg:hidden">
           {form.items.map((item, index) => {
             const product = productsById[item.product_id]
-            const offeringOptions = optionsWithHistoricalSelection(product?.offerings || [], item.offering_id, item.offering_label)
+            const offeringOptions = editingInvoiceId ? optionsWithHistoricalSelection(product?.offerings || [], item.offering_id, item.offering_label) : (product?.offerings || [])
             const offering = offeringOptions.find((entry) => String(entry.id) === String(item.offering_id))
             const allowsFractionalQuantity = isX1KgLabel(offering?.label || item.offering_label)
             const price = item.unit_price === '' || item.unit_price === undefined ? Number(offering?.price || 0) : Number(item.unit_price || 0)
             const quantity = Number(item.quantity || 0)
             const rowTotal = quantity * price
-            const productOptions = productsWithHistoricalSelection(catalog, item.product_id, item.product_name)
+            const productOptions = editingInvoiceId ? productsWithHistoricalSelection(catalog, item.product_id, item.product_name) : catalog
 
             return (
               <div key={index} className="surface-muted p-4">
