@@ -1,36 +1,39 @@
 import InvoiceFormCard from '../components/invoices/InvoiceFormCard'
 import ProductRowsCard from '../components/invoices/ProductRowsCard'
-import PriceListPanel from '../components/sidebar/PriceListPanel'
 import { useGranalia } from '../context/GranaliaContext'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 
 export default function OrderCreator() {
   const navigate = useNavigate()
+  const { session } = useAuth()
+  const isAdmin = session?.role === 'admin'
   const {
     bootstrap,
     customers,
     catalog,
     availableDiscountGroups,
     editingInvoiceId,
-    uploading,
     saving,
     generating,
     form,
     productsById,
     totals,
-    setPdfFile,
+    addAutomaticBonusRule,
     addFooterDiscountRow,
     applyCustomer,
+    updateAutomaticBonusRule,
     updateFooterDiscountRow,
     updateLineDiscountGroup,
     updateFormField,
     updateItem,
     addItemRow,
     removeItemRow,
+    removeAutomaticBonusRule,
     removeFooterDiscountRow,
     saveCustomer,
-    uploadPriceList,
     generateInvoice,
+    clearCurrentInvoice,
     clearInvoiceEditing,
   } = useGranalia()
 
@@ -39,8 +42,20 @@ export default function OrderCreator() {
     navigate('/history')
   }
 
+  async function handleGenerateInvoice() {
+    const result = await generateInvoice()
+    if (result?.updated) {
+      navigate('/history')
+    }
+  }
+
+  function handleClearInvoice() {
+    if (!window.confirm('¿Limpiar la factura actual? Se borrarán productos, cantidades y cambios sin guardar.')) return
+    clearCurrentInvoice()
+  }
+
   return (
-    <main className="relative mt-8 xl:pr-[330px]">
+    <main className="mt-8">
       <section className="space-y-6">
         <InvoiceFormCard
           bootstrap={bootstrap}
@@ -51,13 +66,16 @@ export default function OrderCreator() {
           saving={saving}
           generating={generating}
           onAddFooterDiscount={addFooterDiscountRow}
+          onAddAutomaticBonusRule={addAutomaticBonusRule}
           onApplyCustomer={applyCustomer}
+          onAutomaticBonusRuleChange={updateAutomaticBonusRule}
           onFooterDiscountChange={updateFooterDiscountRow}
           onFieldChange={updateFormField}
           onLineDiscountChange={updateLineDiscountGroup}
-          onGenerate={generateInvoice}
+          onGenerate={handleGenerateInvoice}
           onRemoveFooterDiscount={removeFooterDiscountRow}
-          onSave={saveCustomer}
+          onRemoveAutomaticBonusRule={removeAutomaticBonusRule}
+          onSave={isAdmin ? saveCustomer : null}
           onCancelEdit={handleCancelInvoiceEdit}
         />
 
@@ -70,20 +88,12 @@ export default function OrderCreator() {
           generating={generating}
           onAddItem={addItemRow}
           onCancelEdit={handleCancelInvoiceEdit}
-          onGenerate={generateInvoice}
+          onClearInvoice={handleClearInvoice}
+          onGenerate={handleGenerateInvoice}
           onRemoveItem={removeItemRow}
           onUpdateItem={updateItem}
         />
       </section>
-
-      <aside className="mt-6 space-y-6 xl:absolute xl:right-0 xl:top-0 xl:mt-0 xl:w-[290px]">
-        <PriceListPanel
-          bootstrap={bootstrap}
-          uploading={uploading}
-          onFileChange={setPdfFile}
-          onUpload={uploadPriceList}
-        />
-      </aside>
     </main>
   )
 }

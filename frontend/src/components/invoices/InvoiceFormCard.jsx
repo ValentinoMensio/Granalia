@@ -1,5 +1,6 @@
 import Field from '../ui/Field'
 import Button from '../ui/Button'
+import AutomaticBonusRules from './AutomaticBonusRules'
 
 function InvoiceFormCard({
   bootstrap,
@@ -10,20 +11,23 @@ function InvoiceFormCard({
   saving,
   generating,
   onAddFooterDiscount,
+  onAddAutomaticBonusRule,
   onApplyCustomer,
+  onAutomaticBonusRuleChange,
   onFooterDiscountChange,
   onLineDiscountChange,
   onFieldChange,
   onGenerate,
   onRemoveFooterDiscount,
+  onRemoveAutomaticBonusRule,
   onSave,
   onCancelEdit,
 }) {
   return (
-    <div className="surface p-6 lg:p-7">
-      <div className="mb-6 flex items-center justify-between gap-4 border-b border-stone-200 pb-5">
+    <div className="surface p-4 sm:p-6 lg:p-7">
+      <div className="mb-5 flex items-center justify-between gap-4 border-b border-stone-200 pb-5 sm:mb-6">
         <div>
-          <h2 className="subsection-title text-2xl">{editingInvoiceId ? `Editar factura #${editingInvoiceId}` : 'Nueva factura'}</h2>
+          <h2 className="subsection-title text-xl sm:text-2xl">{editingInvoiceId ? `Editar factura #${editingInvoiceId}` : 'Nueva factura'}</h2>
         </div>
       </div>
 
@@ -39,6 +43,22 @@ function InvoiceFormCard({
 
         <Field label="Fecha">
           <input className="input" type="date" value={form.date} onChange={(event) => onFieldChange('date', event.target.value)} />
+        </Field>
+
+        <Field label="Lista de precios">
+          <select className="input" value={form.priceListId} onChange={(event) => onFieldChange('priceListId', event.target.value)}>
+            <option value="">Lista predeterminada</option>
+            {(bootstrap?.price_lists || []).map((priceList) => (
+              <option key={priceList.id} value={priceList.id}>{priceList.name}</option>
+            ))}
+          </select>
+        </Field>
+
+        <Field label="Declaración">
+          <select className="input" value={form.declared ? 'true' : 'false'} onChange={(event) => onFieldChange('declared', event.target.value === 'true')}>
+            <option value="false">No declarada</option>
+            <option value="true">Declarada</option>
+          </select>
         </Field>
 
         <Field label="Cliente" full>
@@ -68,7 +88,7 @@ function InvoiceFormCard({
 
         <div className="grid gap-8 md:grid-cols-2">
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <label className="text-sm font-medium text-slate-700">Descuentos Globales (al pie)</label>
               <Button variant="ghost" className="px-0 py-0 text-xs text-brand-red" onClick={onAddFooterDiscount}>
                 + Agregar
@@ -76,20 +96,20 @@ function InvoiceFormCard({
             </div>
             <div className="space-y-2">
               {(form.footerDiscounts || []).map((discount, index) => (
-                <div key={index} className="flex items-center gap-2">
+                <div key={index} className="grid grid-cols-[minmax(0,1fr)_5rem_auto] items-center gap-2">
                   <input
                     type="text"
                     value={discount.label}
                     onChange={(event) => onFooterDiscountChange(index, 'label', event.target.value)}
                     placeholder="Ej: Mayorista"
-                    className="flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-xs focus:outline-none focus:border-brand-red"
+                    className="input flex-1 py-1.5 text-xs"
                   />
                   <div className="flex items-center gap-1">
                     <input
                       type="number"
                       value={Number(discount.rate || 0) * 100}
                       onChange={(event) => onFooterDiscountChange(index, 'rate', event.target.value)}
-                      className="w-16 rounded-lg border border-slate-300 px-2 py-1.5 text-xs text-right focus:outline-none focus:border-brand-red"
+                      className="input w-16 py-1.5 text-right text-xs"
                     />
                     <span className="text-xs text-slate-400">%</span>
                   </div>
@@ -117,7 +137,7 @@ function InvoiceFormCard({
                       type="number"
                       value={(form.lineDiscountsByGroup?.[group] || 0) * 100}
                       onChange={(event) => onLineDiscountChange(group, event.target.value)}
-                      className="w-14 rounded border border-slate-300 px-1 py-0.5 text-xs text-right focus:outline-none focus:border-brand-red"
+                      className="input w-14 px-1 py-0.5 text-right text-xs"
                     />
                     <span className="text-xs text-slate-400">%</span>
                   </div>
@@ -128,11 +148,25 @@ function InvoiceFormCard({
         </div>
       </div>
 
-      <div className="mt-6 flex flex-wrap gap-3 border-t border-stone-200 pt-5">
-        <Button variant="primary" className="min-w-[180px]" onClick={onSave} disabled={saving}>
-          {saving ? 'Guardando...' : 'Guardar cambios'}
-        </Button>
+      <div className="mt-6 border-t border-stone-200 pt-6">
+        <AutomaticBonusRules
+          rules={form.automaticBonusRules}
+          disablesLineDiscount={form.automaticBonusDisablesLineDiscount}
+          catalog={bootstrap?.catalog || []}
+          onAdd={onAddAutomaticBonusRule}
+          onChange={onAutomaticBonusRuleChange}
+          onRemove={onRemoveAutomaticBonusRule}
+          onDisablesLineDiscountChange={(value) => onFieldChange('automaticBonusDisablesLineDiscount', value)}
+        />
       </div>
+
+      {onSave && (
+        <div className="mt-6 flex flex-wrap gap-3 border-t border-stone-200 pt-5">
+          <Button variant="primary" className="w-full sm:min-w-[180px] sm:w-auto" onClick={onSave} disabled={saving}>
+            {saving ? 'Guardando...' : 'Guardar cambios'}
+          </Button>
+        </div>
+      )}
     </div>
   )
 }

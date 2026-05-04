@@ -53,6 +53,8 @@ class PostgresCustomerMixin(PostgresRepositoryProtocol):
         for row in rows:
             payload = cast(CustomerProfileData, {key: serialize_value(value) for key, value in row.items()})
             payload["transport"] = payload.get("transport") or ""
+            payload["automatic_bonus_rules"] = payload.get("automatic_bonus_rules") or []
+            payload["automatic_bonus_disables_line_discount"] = bool(payload.get("automatic_bonus_disables_line_discount", False))
             _mode, payload["footer_discounts"], payload["line_discounts_by_format"] = canonicalize_discount_config(
                 payload.get("footer_discounts"),
                 payload.get("line_discounts_by_format"),
@@ -80,6 +82,8 @@ class PostgresCustomerMixin(PostgresRepositoryProtocol):
             return None
         payload = cast(CustomerProfileData, {key: serialize_value(value) for key, value in row.items()})
         payload["transport"] = payload.get("transport") or ""
+        payload["automatic_bonus_rules"] = payload.get("automatic_bonus_rules") or []
+        payload["automatic_bonus_disables_line_discount"] = bool(payload.get("automatic_bonus_disables_line_discount", False))
         _mode, payload["footer_discounts"], payload["line_discounts_by_format"] = canonicalize_discount_config(
             payload.get("footer_discounts"),
             payload.get("line_discounts_by_format"),
@@ -100,9 +104,15 @@ class PostgresCustomerMixin(PostgresRepositoryProtocol):
         merged: dict[str, object] = dict(existing)
         merged.update(profile)
         merged["name"] = profile.get("name") or existing.get("name") or ""
+        merged["cuit"] = merged.get("cuit", "")
+        merged["address"] = merged.get("address", "")
+        merged["business_name"] = merged.get("business_name", "")
+        merged["email"] = merged.get("email", "")
         merged["secondary_line"] = merged.get("secondary_line", "")
         merged["transport"] = merged.get("transport") or ""
         merged["notes"] = merged.get("notes", [])
+        merged["automatic_bonus_rules"] = merged.get("automatic_bonus_rules") or []
+        merged["automatic_bonus_disables_line_discount"] = bool(merged.get("automatic_bonus_disables_line_discount", False))
         _mode, merged["footer_discounts"], merged["line_discounts_by_format"] = canonicalize_discount_config(
             merged.get("footer_discounts", []),
             merged.get("line_discounts_by_format", {}),
@@ -118,10 +128,16 @@ class PostgresCustomerMixin(PostgresRepositoryProtocol):
                 {
                     "id": customer_id,
                     "name": merged["name"],
+                    "cuit": merged["cuit"],
+                    "address": merged["address"],
+                    "business_name": merged["business_name"],
+                    "email": merged["email"],
                     "secondary_line": merged["secondary_line"],
                     "notes": merged["notes"],
                     "footer_discounts": merged["footer_discounts"],
                     "line_discounts_by_format": merged["line_discounts_by_format"],
+                    "automatic_bonus_rules": merged["automatic_bonus_rules"],
+                    "automatic_bonus_disables_line_discount": merged["automatic_bonus_disables_line_discount"],
                     "source_count": merged["source_count"],
                     "transport_id": transport_id,
                     "created_at": created_at,
@@ -156,19 +172,65 @@ class PostgresTransportMixin(PostgresRepositoryProtocol):
 
         with self.engine.begin() as connection:
             if transport_id is None:
-                stmt = insert(self.transports).values(
-                    name=transport_name,
-                    notes=transport_notes,
-                    created_at=now,
-                    updated_at=now,
-                )
-                stmt = stmt.on_conflict_do_update(
-                    index_elements=[self.transports.c.name],
-                    set_={"notes": transport_notes, "updated_at": now},
-                )
-                connection.execute(stmt)
-                row = connection.execute(select(self.transports).where(self.transports.c.name == transport_name)).mappings().first()
+                row = connection.execute(
+                    select(self.transports)
+                    .where(self.transports.c.name == transport_name)
+                    .order_by(self.transports.c.transport_id)
+                    .limit(1)
+                ).mappings().first()
+                if row:
+                    connection.execute(
+                        update(self.transports)
+                        .where(self.transports.c.transport_id == row["transport_id"])
+                        .values(notes=transport_notes, updated_at=now)
+                    )
+                    row = connection.execute(
+                        select(self.transports).where(self.transports.c.transport_id == row["transport_id"])
+                    ).mappings().first()
+                else:
+                    row = connection.execute(
+                        insert(self.transports)
+                        .values(
+                            name=transport_name,
+                            notes=transport_notes,
+                            created_at=now,
+                            updated_at=now,
+                        )
+                        .returning(self.transports)
+                    ).mappings().first()
             else:
+                duplicate = connection.execute(
+                    select(self.transports)
+                    .where(
+                        self.transports.c.name == transport_name,
+                        self.transports.c.transport_id != transport_id,
+                    )
+                    .order_by(self.transports.c.transport_id)
+                    .limit(1)
+                ).mappings().first()
+                if duplicate:
+                    target_id = duplicate["transport_id"]
+                    connection.execute(
+                        update(self.customers)
+                        .where(self.customers.c.transport_id == transport_id)
+                        .values(transport_id=target_id, updated_at=now)
+                    )
+                    connection.execute(
+                        update(self.invoices)
+                        .where(self.invoices.c.transport_id == transport_id)
+                        .values(transport_id=target_id, transport=transport_name)
+                    )
+                    connection.execute(
+                        update(self.transports)
+                        .where(self.transports.c.transport_id == target_id)
+                        .values(notes=transport_notes, updated_at=now)
+                    )
+                    connection.execute(self.transports.delete().where(self.transports.c.transport_id == transport_id))
+                    row = connection.execute(
+                        select(self.transports).where(self.transports.c.transport_id == target_id)
+                    ).mappings().first()
+                    return cast(TransportData, {key: serialize_value(value) for key, value in row.items()})
+
                 result = connection.execute(
                     update(self.transports)
                     .where(self.transports.c.transport_id == transport_id)
@@ -179,7 +241,7 @@ class PostgresTransportMixin(PostgresRepositoryProtocol):
                 row = connection.execute(
                     select(self.transports).where(self.transports.c.transport_id == transport_id)
                 ).mappings().first()
-        return cast(TransportData, serialize_value(row))
+        return cast(TransportData, {key: serialize_value(value) for key, value in row.items()})
 
     def delete_transport(self, transport_id: int) -> None:
         with self.engine.begin() as connection:

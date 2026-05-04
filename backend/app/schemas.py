@@ -5,8 +5,22 @@ from typing import Annotated, Any
 from pydantic import BaseModel, Field, field_validator
 
 
-NonEmptyStr = Annotated[str, Field(min_length=1)]
+MAX_NAME_LENGTH = 255
+MAX_SHORT_TEXT_LENGTH = 500
+MAX_NOTE_LENGTH = 1000
+MAX_NOTES = 30
+MAX_INVOICE_ITEMS = 500
+MAX_DISCOUNTS = 30
+MAX_LINE_DISCOUNT_GROUPS = 100
+MAX_AUTOMATIC_BONUS_RULES = 100
+MAX_ALIASES = 50
+MAX_PRODUCT_OFFERINGS = 100
+
+
+NonEmptyStr = Annotated[str, Field(min_length=1, max_length=MAX_NAME_LENGTH)]
+OfferingLabelStr = Annotated[str, Field(min_length=1, max_length=120)]
 NonNegativeInt = Annotated[int, Field(ge=0)]
+NonNegativeNumber = Annotated[float, Field(ge=0)]
 
 
 def _strip_required(value: str) -> str:
@@ -17,7 +31,18 @@ def _strip_required(value: str) -> str:
 
 
 def _strip_optional(value: str) -> str:
-    return value.strip()
+    text = value.strip()
+    if len(text) > MAX_SHORT_TEXT_LENGTH:
+        raise ValueError(f"must be at most {MAX_SHORT_TEXT_LENGTH} characters")
+    return text
+
+
+def _normalize_text_list(value: list[str]) -> list[str]:
+    normalized = [item.strip() for item in value if item.strip()]
+    for item in normalized:
+        if len(item) > MAX_NOTE_LENGTH:
+            raise ValueError(f"list entries must be at most {MAX_NOTE_LENGTH} characters")
+    return normalized
 
 
 class FooterDiscount(BaseModel):
@@ -30,17 +55,35 @@ class FooterDiscount(BaseModel):
 class InvoiceItemInput(BaseModel):
     product_id: int
     offering_id: int
-    quantity: NonNegativeInt
+    quantity: NonNegativeNumber
     bonus_quantity: NonNegativeInt = 0
+    unit_price: NonNegativeInt | None = None
+
+    @field_validator("bonus_quantity", mode="before")
+    @classmethod
+    def normalize_quantity(cls, value: Any) -> int:
+        return round(float(value or 0))
+
+
+class AutomaticBonusRule(BaseModel):
+    product_id: int | None = None
+    offering_id: int | None = None
+    offering_label: str = Field(default="", max_length=120)
+    buy_quantity: int = Field(default=10, ge=1, le=10000)
+    bonus_quantity: int = Field(default=1, ge=1, le=10000)
+
+    _normalize_offering_label = field_validator("offering_label")(_strip_optional)
 
 
 class InvoiceCreate(BaseModel):
     client_name: NonEmptyStr
-    date: str
-    secondary_line: str = ""
-    transport: str = ""
-    notes: list[str] = Field(default_factory=list)
-    items: list[InvoiceItemInput]
+    date: str = Field(min_length=10, max_length=10)
+    price_list_id: int | None = None
+    declared: bool = False
+    secondary_line: str = Field(default="", max_length=MAX_SHORT_TEXT_LENGTH)
+    transport: str = Field(default="", max_length=MAX_SHORT_TEXT_LENGTH)
+    notes: list[str] = Field(default_factory=list, max_length=MAX_NOTES)
+    items: list[InvoiceItemInput] = Field(max_length=MAX_INVOICE_ITEMS)
 
     _normalize_client_name = field_validator("client_name")(_strip_required)
     _normalize_secondary_line = field_validator("secondary_line", "transport")(_strip_optional)
@@ -48,26 +91,32 @@ class InvoiceCreate(BaseModel):
     @field_validator("notes")
     @classmethod
     def normalize_notes(cls, value: list[str]) -> list[str]:
-        return [item.strip() for item in value if item.strip()]
+        return _normalize_text_list(value)
 
 
 class CustomerUpsert(BaseModel):
     id: int | None = None
     name: NonEmptyStr
-    secondary_line: str = ""
-    transport: str = ""
-    notes: list[str] = Field(default_factory=list)
-    footer_discounts: list[FooterDiscount] = Field(default_factory=list)
-    line_discounts_by_format: dict[str, float] = Field(default_factory=dict)
+    cuit: str = Field(default="", max_length=32)
+    address: str = Field(default="", max_length=MAX_SHORT_TEXT_LENGTH)
+    business_name: str = Field(default="", max_length=MAX_NAME_LENGTH)
+    email: str = Field(default="", max_length=MAX_NAME_LENGTH)
+    secondary_line: str = Field(default="", max_length=MAX_SHORT_TEXT_LENGTH)
+    transport: str = Field(default="", max_length=MAX_SHORT_TEXT_LENGTH)
+    notes: list[str] = Field(default_factory=list, max_length=MAX_NOTES)
+    footer_discounts: list[FooterDiscount] = Field(default_factory=list, max_length=MAX_DISCOUNTS)
+    line_discounts_by_format: dict[str, float] = Field(default_factory=dict, max_length=MAX_LINE_DISCOUNT_GROUPS)
+    automatic_bonus_rules: list[AutomaticBonusRule] = Field(default_factory=list, max_length=MAX_AUTOMATIC_BONUS_RULES)
+    automatic_bonus_disables_line_discount: bool = False
     source_count: NonNegativeInt = 0
 
     _normalize_name = field_validator("name")(_strip_required)
-    _normalize_secondary_line = field_validator("secondary_line", "transport")(_strip_optional)
+    _normalize_optional_text = field_validator("cuit", "address", "business_name", "email", "secondary_line", "transport")(_strip_optional)
 
     @field_validator("notes")
     @classmethod
     def normalize_customer_notes(cls, value: list[str]) -> list[str]:
-        return [item.strip() for item in value if item.strip()]
+        return _normalize_text_list(value)
 
     @field_validator("line_discounts_by_format")
     @classmethod
@@ -77,6 +126,8 @@ class CustomerUpsert(BaseModel):
             label = key.strip()
             if not label:
                 raise ValueError("discount keys must not be empty")
+            if len(label) > MAX_NAME_LENGTH:
+                raise ValueError(f"discount keys must be at most {MAX_NAME_LENGTH} characters")
             numeric_rate = float(rate)
             if numeric_rate < 0 or numeric_rate > 1:
                 raise ValueError("discount rates must be between 0 and 1")
@@ -91,20 +142,20 @@ class InvoiceRequest(BaseModel):
 
 class TransportUpsert(BaseModel):
     name: NonEmptyStr
-    notes: list[str] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list, max_length=MAX_NOTES)
 
     _normalize_name = field_validator("name")(_strip_required)
 
     @field_validator("notes")
     @classmethod
     def normalize_transport_notes(cls, value: list[str]) -> list[str]:
-        return [item.strip() for item in value if item.strip()]
+        return _normalize_text_list(value)
 
 
 class ProductUpsert(BaseModel):
     id: int | None = None
     name: NonEmptyStr
-    aliases: list[str] = Field(default_factory=list)
+    aliases: list[str] = Field(default_factory=list, max_length=MAX_ALIASES)
 
     _normalize_name = field_validator("name")(_strip_required)
 
@@ -112,13 +163,17 @@ class ProductUpsert(BaseModel):
     @classmethod
     def normalize_aliases(cls, value: list[str]) -> list[str]:
         normalized = [item.strip() for item in value if item.strip()]
+        for item in normalized:
+            if len(item) > MAX_NAME_LENGTH:
+                raise ValueError(f"aliases must be at most {MAX_NAME_LENGTH} characters")
         return list(dict.fromkeys(normalized))
 
 
 class ProductOfferingUpsert(BaseModel):
     id: int | None = None
-    label: NonEmptyStr
+    label: OfferingLabelStr
     price: NonNegativeInt
+    net_weight_kg: NonNegativeNumber = 0
 
     _normalize_label = field_validator("label")(_strip_required)
 
@@ -139,6 +194,7 @@ class ProductOfferingOut(BaseModel):
     id: int
     label: str
     price: int
+    net_weight_kg: float = 0
 
 
 class ProductCatalogOut(BaseModel):
@@ -160,11 +216,17 @@ class ProductOut(BaseModel):
 class CustomerOut(BaseModel):
     id: int
     name: str
+    cuit: str = ""
+    address: str = ""
+    business_name: str = ""
+    email: str = ""
     secondary_line: str = ""
     transport: str = ""
     notes: list[str] = Field(default_factory=list)
     footer_discounts: list[FooterDiscount] = Field(default_factory=list)
     line_discounts_by_format: dict[str, float] = Field(default_factory=dict)
+    automatic_bonus_rules: list[AutomaticBonusRule] = Field(default_factory=list)
+    automatic_bonus_disables_line_discount: bool = False
     source_count: int = 0
     transport_id: int | None = None
     created_at: str
@@ -173,6 +235,7 @@ class CustomerOut(BaseModel):
 
 class PriceListMetaOut(BaseModel):
     id: int
+    name: str
     filename: str
     content_type: str
     size: int
@@ -180,6 +243,12 @@ class PriceListMetaOut(BaseModel):
     source: str
     uploaded_at: str
     updated_at: str
+
+
+class PriceListRename(BaseModel):
+    name: NonEmptyStr
+
+    _normalize_name = field_validator("name")(_strip_required)
 
 
 class DatabaseInfoOut(BaseModel):
@@ -192,6 +261,7 @@ class BootstrapOut(BaseModel):
     profiles: dict[str, CustomerOut] = Field(default_factory=dict)
     clients: list[str] = Field(default_factory=list)
     transports: list[TransportOut] = Field(default_factory=list)
+    price_lists: list[PriceListMetaOut] = Field(default_factory=list)
     price_list: PriceListMetaOut | None = None
     database: DatabaseInfoOut
 
@@ -205,7 +275,7 @@ class InvoiceSummaryOut(BaseModel):
     gross_total: int
     discount_total: int
     final_total: int
-    total_bultos: int
+    total_bultos: float
 
 
 class InvoiceListItemOut(BaseModel):
@@ -215,7 +285,10 @@ class InvoiceListItemOut(BaseModel):
     client_name: str
     transport: str = ""
     order_date: str
-    total_bultos: int
+    price_list_id: int | None = None
+    price_list_name: str = ""
+    declared: bool = False
+    total_bultos: float
     gross_total: int
     discount_total: int
     final_total: int
@@ -231,13 +304,14 @@ class InvoiceItemOut(BaseModel):
     product_id: int | None = None
     offering_id: int | None = None
     label: str
-    quantity: int
+    quantity: float
     unit_price: int
     gross: int
     discount: int
     total: int
     product_name: str | None = None
     offering_label: str | None = None
+    offering_net_weight_kg: float = 0
 
 
 class InvoiceDetailOut(BaseModel):
@@ -247,12 +321,15 @@ class InvoiceDetailOut(BaseModel):
     legacy_key: str | None = None
     client_name: str
     order_date: str
+    price_list_id: int | None = None
+    price_list_name: str = ""
+    declared: bool = False
     secondary_line: str = ""
     transport: str = ""
     notes: list[str] = Field(default_factory=list)
     footer_discounts: list[FooterDiscount] = Field(default_factory=list)
     line_discounts_by_format: dict[str, float] = Field(default_factory=dict)
-    total_bultos: int
+    total_bultos: float
     gross_total: int
     discount_total: int
     final_total: int
@@ -260,6 +337,9 @@ class InvoiceDetailOut(BaseModel):
     xlsx_size: int
     created_at: str
     customer_name: str | None = None
+    customer_cuit: str | None = None
+    customer_address: str | None = None
+    customer_email: str | None = None
     transport_name: str | None = None
     items: list[InvoiceItemOut] = Field(default_factory=list)
 
@@ -274,6 +354,8 @@ class InvoiceCreateOut(BaseModel):
 class AuthSessionOut(BaseModel):
     authenticated: bool
     username: str | None = None
+    role: str | None = None
+    csrf_token: str | None = None
 
 
 class HealthOut(BaseModel):

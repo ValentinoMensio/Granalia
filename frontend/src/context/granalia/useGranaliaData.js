@@ -4,6 +4,7 @@ import { emptyItem } from '../../lib/format'
 import { createInitialForm } from './form'
 import {
   applyCustomerToForm,
+  applyAutomaticBonusRulesToItems,
   buildAvailableDiscountGroups,
   buildFormFromInvoiceDetail,
   buildInvoicePayload,
@@ -24,6 +25,8 @@ function useGranaliaData() {
   const [saving, setSaving] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [pdfFile, setPdfFile] = useState(null)
+  const [priceListUploadName, setPriceListUploadName] = useState('')
+  const [priceListUploadTargetId, setPriceListUploadTargetId] = useState('')
   const [form, setForm] = useState(createInitialForm)
 
   const productsById = useMemo(() => buildProductsById(catalog), [catalog])
@@ -45,14 +48,15 @@ function useGranaliaData() {
   }
 
   function primeForm(nextBootstrap) {
+    const defaultPriceListId = nextBootstrap.price_list?.id ? String(nextBootstrap.price_list.id) : ''
     const sourceCustomers = Object.values(nextBootstrap.profiles || {})
     if (!sourceCustomers.length) {
-      setForm(createInitialForm())
+      setForm({ ...createInitialForm(), priceListId: defaultPriceListId })
       return
     }
 
     const firstCustomer = sourceCustomers[0]
-    setForm(applyCustomerToForm(createInitialForm(), firstCustomer))
+    setForm(applyCustomerToForm({ ...createInitialForm(), priceListId: defaultPriceListId }, firstCustomer))
   }
 
   async function loadAll() {
@@ -84,6 +88,18 @@ function useGranaliaData() {
     setStatus('Edición cancelada.')
   }
 
+  function clearCurrentInvoice() {
+    const sourceCustomers = customers
+    setEditingInvoiceId(null)
+    if (!sourceCustomers.length) {
+      setForm(createInitialForm())
+      setStatus('Factura limpiada.')
+      return
+    }
+    setForm(applyCustomerToForm(createInitialForm(), sourceCustomers[0]))
+    setStatus('Factura limpiada.')
+  }
+
   function invoiceDownloadUrl(invoiceId) {
     return `${API_BASE}/api/invoices/${invoiceId}/xlsx`
   }
@@ -92,14 +108,13 @@ function useGranaliaData() {
     return `${API_BASE}/api/invoices/${invoiceId}/pdf`
   }
 
-  function downloadInvoicePdf(invoiceId) {
-    const link = document.createElement('a')
-    link.href = invoicePdfUrl(invoiceId)
-    link.target = '_blank'
-    link.rel = 'noreferrer'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+  function openInvoicePdfPreview(invoiceId, previewWindow = null) {
+    const url = invoicePdfUrl(invoiceId)
+    if (previewWindow && !previewWindow.closed) {
+      previewWindow.location.href = url
+      return true
+    }
+    return Boolean(window.open(url, '_blank'))
   }
 
   function downloadInvoice(invoiceId) {
@@ -118,6 +133,17 @@ function useGranaliaData() {
   }
 
   function updateFormField(field, value) {
+    if (field === 'priceListId') {
+      setForm((current) => ({ ...current, priceListId: value, items: [emptyItem()] }))
+      if (value) {
+        request(`/api/price-lists/${value}/catalog`)
+          .then((nextCatalog) => setCatalog(nextCatalog))
+          .catch((error) => setStatus(error.message))
+      } else {
+        setCatalog(bootstrap?.catalog || [])
+      }
+      return
+    }
     setForm((current) => ({ ...current, [field]: value }))
   }
 
@@ -153,14 +179,77 @@ function useGranaliaData() {
     }))
   }
 
+  function addAutomaticBonusRule() {
+    setForm((current) => {
+      const automaticBonusRules = [
+        ...(current.automaticBonusRules || []),
+        { product_id: null, offering_id: null, offering_label: '', buy_quantity: 10, bonus_quantity: 1 },
+      ]
+      return {
+        ...current,
+        automaticBonusRules,
+        items: applyAutomaticBonusRulesToItems(current.items, automaticBonusRules),
+      }
+    })
+  }
+
+  function updateAutomaticBonusRule(index, field, value) {
+    setForm((current) => {
+      const automaticBonusRules = [...(current.automaticBonusRules || [])]
+      const nextValue = ['product_id', 'offering_id'].includes(field)
+        ? (value === '' ? null : Number(value))
+        : field === 'offering_label'
+        ? value
+        : Number(value || 0)
+      automaticBonusRules[index] = { ...automaticBonusRules[index], [field]: nextValue }
+      if (field === 'product_id') {
+        automaticBonusRules[index].offering_id = null
+        automaticBonusRules[index].offering_label = ''
+      }
+      return {
+        ...current,
+        automaticBonusRules,
+        items: applyAutomaticBonusRulesToItems(current.items, automaticBonusRules),
+      }
+    })
+  }
+
+  function removeAutomaticBonusRule(index) {
+    setForm((current) => {
+      const automaticBonusRules = (current.automaticBonusRules || []).filter((_, currentIndex) => currentIndex !== index)
+      return {
+        ...current,
+        automaticBonusRules,
+        items: applyAutomaticBonusRulesToItems(current.items, automaticBonusRules),
+      }
+    })
+  }
+
   function updateItem(index, field, value) {
     setForm((current) => {
       const items = [...current.items]
       items[index] = { ...items[index], [field]: value }
       if (field === 'product_id') {
+        const product = catalog.find((entry) => entry.id === value)
+        items[index].product_name = product?.name || ''
         items[index].offering_id = ''
+        items[index].offering_label = ''
+        items[index].bonus_quantity_manual = false
+        items[index].unit_price = ''
       }
-      return { ...current, items }
+      if (field === 'offering_id') {
+        const product = catalog.find((entry) => entry.id === items[index].product_id)
+        const offering = product?.offerings.find((entry) => entry.id === value)
+        items[index].product_name = product?.name || ''
+        items[index].offering_label = offering?.label || ''
+        items[index].bonus_quantity_manual = false
+        items[index].unit_price = offering ? Number(offering.price || 0) : ''
+      }
+      if (field === 'bonus_quantity') {
+        items[index].bonus_quantity_manual = true
+        return { ...current, items: applyAutomaticBonusRulesToItems(items, current.automaticBonusRules) }
+      }
+      return { ...current, items: applyAutomaticBonusRulesToItems(items, current.automaticBonusRules) }
     })
   }
 
@@ -181,6 +270,9 @@ function useGranaliaData() {
 
   async function startInvoiceEdit(invoiceId) {
     const detail = await loadInvoiceDetail(invoiceId)
+    if (detail.price_list_id) {
+      setCatalog(await request(`/api/price-lists/${detail.price_list_id}/catalog`))
+    }
     setEditingInvoiceId(invoiceId)
     setForm(buildFormFromInvoiceDetail(detail, customers))
     setStatus(`Editando factura ${invoiceId}.`)
@@ -253,13 +345,47 @@ function useGranaliaData() {
     try {
       const formData = new FormData()
       formData.append('file', pdfFile)
+      formData.append('name', priceListUploadName.trim() || pdfFile.name.replace(/\.pdf$/i, ''))
+      formData.append('activate', 'true')
+      if (priceListUploadTargetId) {
+        formData.append('price_list_id', priceListUploadTargetId)
+      }
       const data = await request('/api/price-lists/upload', { method: 'POST', body: formData })
       applyBootstrap(data.bootstrap)
+      setForm((current) => ({ ...current, priceListId: data.bootstrap?.price_list?.id ? String(data.bootstrap.price_list.id) : current.priceListId }))
       setStatus('Lista de precios actualizada en la base.')
       setPdfFile(null)
+      setPriceListUploadName('')
+      setPriceListUploadTargetId('')
     } finally {
       setUploading(false)
     }
+  }
+
+  async function deletePriceList(priceListId) {
+    if (!priceListId) return
+    await request(`/api/price-lists/${priceListId}`, { method: 'DELETE' })
+    const nextBootstrap = await request('/api/bootstrap')
+    applyBootstrap(nextBootstrap)
+    setForm((current) => ({
+      ...current,
+      priceListId: nextBootstrap.price_list?.id ? String(nextBootstrap.price_list.id) : '',
+      items: [emptyItem()],
+    }))
+    await refreshInvoices()
+    setStatus('Lista de precios eliminada.')
+  }
+
+  async function renamePriceList(priceListId, name) {
+    if (!priceListId) return
+    await request(`/api/price-lists/${priceListId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    })
+    const nextBootstrap = await request('/api/bootstrap')
+    applyBootstrap(nextBootstrap)
+    setStatus('Lista de precios renombrada.')
   }
 
   async function generateInvoice() {
@@ -268,7 +394,18 @@ function useGranaliaData() {
       return
     }
 
+    const validItems = form.items.filter((item) => item.product_id && item.offering_id && (item.quantity > 0 || item.bonus_quantity > 0))
+    if (!validItems.length) {
+      setStatus('Completá al menos un producto con presentación y cantidad.')
+      return
+    }
+
     setGenerating(true)
+    const previewWindow = window.open('', '_blank')
+    if (previewWindow) {
+      previewWindow.document.title = 'Generando factura...'
+      previewWindow.document.body.innerHTML = '<p style="font-family: sans-serif; padding: 24px;">Generando previsualización...</p>'
+    }
     try {
       const isEditing = editingInvoiceId !== null
       const invoiceId = editingInvoiceId
@@ -277,10 +414,17 @@ function useGranaliaData() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(buildInvoicePayload(form, currentCustomer)),
       })
-      downloadInvoicePdf(data.invoice_id)
+      const previewOpened = openInvoicePdfPreview(data.invoice_id, previewWindow)
       await refreshInvoices()
       setEditingInvoiceId(null)
-      setStatus(`Factura ${data.invoice_id} ${isEditing ? 'actualizada' : 'guardada'} y descargada en PDF.`)
+      setForm({ ...createInitialForm(), priceListId: bootstrap?.price_list?.id ? String(bootstrap.price_list.id) : '' })
+      setStatus(`Factura ${data.invoice_id} ${isEditing ? 'actualizada' : 'guardada'}${previewOpened ? ' y abierta para previsualizar' : ''}.`)
+      return { invoiceId: data.invoice_id, updated: isEditing }
+    } catch (error) {
+      if (previewWindow && !previewWindow.closed) {
+        previewWindow.close()
+      }
+      setStatus(`Error al ${editingInvoiceId !== null ? 'actualizar' : 'guardar'} la factura: ${error.message}`)
     } finally {
       setGenerating(false)
     }
@@ -298,33 +442,42 @@ function useGranaliaData() {
     saving,
     generating,
     pdfFile,
+    priceListUploadName,
+    priceListUploadTargetId,
     form,
     productsById,
     totals,
     availableDiscountGroups,
     setPdfFile,
+    setPriceListUploadName,
+    setPriceListUploadTargetId,
     setStatus,
     loadInvoiceDetail,
     clearInvoiceDetail,
     clearInvoiceEditing,
+    clearCurrentInvoice,
     startInvoiceEdit,
     deleteInvoice,
     invoiceDownloadUrl,
     invoicePdfUrl,
     downloadInvoice,
-    downloadInvoicePdf,
     applyCustomer,
     updateFormField,
     addFooterDiscountRow,
     updateFooterDiscountRow,
     removeFooterDiscountRow,
     updateLineDiscountGroup,
+    addAutomaticBonusRule,
+    updateAutomaticBonusRule,
+    removeAutomaticBonusRule,
     updateItem,
     addItemRow,
     removeItemRow,
     saveCustomer,
     updateCustomer,
     uploadPriceList,
+    deletePriceList,
+    renamePriceList,
     generateInvoice,
     refreshAll: loadAll,
   }

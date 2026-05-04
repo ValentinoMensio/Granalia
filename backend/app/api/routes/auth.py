@@ -17,7 +17,7 @@ def session_status(request: Request) -> AuthSessionOut:
     payload = auth_manager.verify_session_token(token)
     if not payload:
         return AuthSessionOut(authenticated=False)
-    return AuthSessionOut(authenticated=True, username=str(payload["sub"]))
+    return AuthSessionOut(authenticated=True, username=str(payload["sub"]), role=str(payload["role"]), csrf_token=str(payload["csrf"]))
 
 
 class LoginPayload(BaseModel):
@@ -44,7 +44,10 @@ def login(payload: LoginPayload, request: Request, response: Response) -> AuthSe
     auth_manager.register_successful_login(client_id)
     token = auth_manager.create_session_token(user)
     response.set_cookie(auth_manager.cookie_name, token, **auth_manager.auth_cookie_settings())
-    return AuthSessionOut(authenticated=True, username=user.username)
+    session_payload = auth_manager.verify_session_token(token)
+    if not session_payload:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="No se pudo crear la sesión")
+    return AuthSessionOut(authenticated=True, username=user.username, role=str(session_payload["role"]), csrf_token=str(session_payload["csrf"]))
 
 
 @router.post("/logout", response_model=AuthSessionOut)

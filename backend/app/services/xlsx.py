@@ -10,13 +10,14 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
 from ..domain.catalog import catalog_indexes
 from ..domain.models import CatalogProduct, CustomerProfile, InvoiceRow, InvoiceSnapshot, InvoiceSummary, Order
-from ..core.utils import clean_cell_text, derive_discount_mode, discount_key_for_label, safe_filename
+from ..core.utils import clean_cell_text, derive_discount_mode, discount_key_for_label, is_x1kg_label, normalize_text, safe_filename
 
 
 LINE = Side(style="thin", color="767676")
 SOFT_LINE = Side(style="thin", color="8D8D8D")
 VERTICAL_LINE = Side(style="thin", color="808080")
 NUMBER_FORMAT = "#,##0"
+QUANTITY_FORMAT = "#,##0.##"
 
 HEADER_FILL = PatternFill(fill_type="solid", fgColor="ECECEC")
 ALT_FILL = PatternFill(fill_type="solid", fgColor="F7F7F7")
@@ -37,7 +38,7 @@ def style_sheet(ws) -> None:
 
 
 def add_logo(ws, base_dir: Path) -> None:
-    logo_path = base_dir / "img" / "logo.png"
+    logo_path = base_dir / "img" / "logof.png"
     if not logo_path.exists():
         return
     image = XLImage(str(logo_path))
@@ -129,6 +130,63 @@ def choose_rate(profile: CustomerProfile, discount_key: str) -> float:
     return 0.0
 
 
+def is_automatic_bonus_excluded(product_name: str, offering_label: str) -> bool:
+    normalized_product = normalize_text(product_name)
+    normalized_offering = normalize_text(offering_label)
+    is_corn_flour = "maiz" in normalized_product and (
+        "harina" in normalized_product or "h. maiz" in normalized_product or "h maiz" in normalized_product
+    )
+    is_one_kg = "1 kg" in normalized_offering or "1000" in normalized_offering
+    return is_corn_flour and is_one_kg
+
+
+def matching_automatic_bonus_rule(
+    profile: CustomerProfile,
+    product_id: int,
+    offering_id: int,
+    product_name: str,
+    offering_label: str,
+) -> object | None:
+    if is_automatic_bonus_excluded(product_name, offering_label):
+        return None
+
+    best_rule = None
+    best_score = -1
+    for rule in profile.automatic_bonus_rules or []:
+        product_matches = rule.product_id is None or int(rule.product_id) == int(product_id)
+        if rule.offering_id is not None:
+            offering_matches = int(rule.offering_id) == int(offering_id)
+        elif rule.offering_label:
+            offering_matches = normalize_text(rule.offering_label) in {
+                normalize_text(offering_label),
+                normalize_text(discount_key_for_label(offering_label)),
+            }
+        else:
+            offering_matches = True
+        if not product_matches or not offering_matches:
+            continue
+        score = (0 if rule.product_id is None else 1) + (0 if rule.offering_id is None and not rule.offering_label else 1)
+        if score > best_score:
+            best_rule = rule
+            best_score = score
+    return best_rule
+
+
+def choose_automatic_bonus_quantity(
+    profile: CustomerProfile,
+    product_id: int,
+    offering_id: int,
+    product_name: str,
+    offering_label: str,
+    quantity: float,
+) -> int:
+    best_rule = matching_automatic_bonus_rule(profile, product_id, offering_id, product_name, offering_label)
+
+    if best_rule is None or quantity <= 0:
+        return 0
+    return (int(quantity) // int(best_rule.buy_quantity)) * int(best_rule.bonus_quantity)
+
+
 def expand_rows(order: Order, profile: CustomerProfile, catalog: list[CatalogProduct]) -> list[InvoiceRow]:
     products_by_id, offerings_by_key, _aliases = catalog_indexes(catalog)
     rows: list[InvoiceRow] = []
@@ -136,7 +194,7 @@ def expand_rows(order: Order, profile: CustomerProfile, catalog: list[CatalogPro
     for item in order.items:
         if not item.product_id or not item.offering_id:
             continue
-        qty = int(item.quantity or 0)
+        qty = float(item.quantity or 0)
         bonus_qty = int(item.bonus_quantity or 0)
         if qty <= 0 and bonus_qty <= 0:
             continue
@@ -144,11 +202,22 @@ def expand_rows(order: Order, profile: CustomerProfile, catalog: list[CatalogPro
         offering_key = (product_key, str(item.offering_id))
         product = products_by_id[product_key]
         offering = offerings_by_key[offering_key]
+        if qty % 1 and not is_x1kg_label(offering["label"]):
+            raise ValueError("Solo la presentación x 1 kg permite cantidades fraccionadas")
+        if is_automatic_bonus_excluded(product["name"], offering["label"]):
+            bonus_qty = 0
+            bonus_rule = None
+        else:
+            bonus_rule = matching_automatic_bonus_rule(profile, item.product_id, item.offering_id, product["name"], offering["label"])
+            if bonus_qty <= 0 and bonus_rule is not None:
+                bonus_qty = (int(qty) // int(bonus_rule.buy_quantity)) * int(bonus_rule.bonus_quantity)
         label = f"{product['name']} {offering['label']}"
         rate = choose_rate(profile, discount_key_for_label(offering["label"]))
+        if bonus_qty > 0 and profile.automatic_bonus_disables_line_discount:
+            rate = 0.0
 
-        def append_row(quantity: int, unit_price: int) -> None:
-            gross = quantity * unit_price
+        def append_row(quantity: float, unit_price: int) -> None:
+            gross = round(quantity * unit_price)
             if mode in {"line_discount_net", "line_desc_factor"}:
                 discount = round(gross * rate)
                 total = gross - discount
@@ -158,9 +227,10 @@ def expand_rows(order: Order, profile: CustomerProfile, catalog: list[CatalogPro
             rows.append(InvoiceRow(item.product_id, item.offering_id, label, quantity, unit_price, gross, discount, total))
 
         if qty > 0:
-            append_row(qty, int(offering["price"]))
+            unit_price = item.unit_price if item.unit_price is not None else int(offering["price"])
+            append_row(qty, int(unit_price))
         if bonus_qty > 0:
-            append_row(bonus_qty, 0)
+            append_row(float(bonus_qty), 0)
     return rows
 
 
@@ -195,7 +265,7 @@ def fill_product_rows(ws, rows: list[InvoiceRow], start_row: int) -> int:
         ws.cell(row, 3).alignment = Alignment(horizontal="right", vertical="center")
         ws.cell(row, 4).alignment = Alignment(horizontal="right", vertical="center")
 
-        ws.cell(row, 2).number_format = NUMBER_FORMAT
+        ws.cell(row, 2).number_format = QUANTITY_FORMAT
         ws.cell(row, 3).number_format = NUMBER_FORMAT
         ws.cell(row, 4).number_format = NUMBER_FORMAT
 
@@ -218,7 +288,7 @@ def summary_discount_text(profile: CustomerProfile) -> str:
 
 def compute_summary(rows: list[InvoiceRow], profile: CustomerProfile) -> InvoiceSummary:
     gross_total = sum(int(item.gross) for item in rows)
-    total_bultos = sum(int(item.quantity) for item in rows)
+    total_bultos = sum(float(item.quantity) for item in rows)
     mode = derive_discount_mode(profile.to_data()["footer_discounts"], profile.line_discounts_by_format)
 
     if mode in {"line_discount_net", "line_desc_factor"}:
@@ -252,7 +322,7 @@ def fill_footer(ws, start_row: int, profile: CustomerProfile, summary: InvoiceSu
     ws.cell(row, 2, summary.total_bultos)
     ws.cell(row, 2).font = Font(name="Cambria", size=14, bold=True, color="333333")
     ws.cell(row, 2).alignment = Alignment(horizontal="center")
-    ws.cell(row, 2).number_format = NUMBER_FORMAT
+    ws.cell(row, 2).number_format = QUANTITY_FORMAT
 
     ws.cell(row, 4, summary.gross_total)
     ws.cell(row, 4).font = Font(name="Cambria", size=14, bold=True, color="333333")

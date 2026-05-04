@@ -9,10 +9,19 @@ class FooterDiscountData(TypedDict):
     rate: float
 
 
+class AutomaticBonusRuleData(TypedDict):
+    product_id: int | None
+    offering_id: int | None
+    offering_label: NotRequired[str]
+    buy_quantity: int
+    bonus_quantity: int
+
+
 class CatalogOfferingData(TypedDict):
     id: int | str
     label: str
     price: int
+    net_weight_kg: NotRequired[float]
     format_class: NotRequired[str]
 
 
@@ -36,11 +45,17 @@ class TransportData(TypedDict):
 
 class CustomerProfileData(TypedDict):
     name: str
+    cuit: str
+    address: str
+    business_name: str
+    email: str
     secondary_line: str
     transport: str
     notes: list[str]
     footer_discounts: list[FooterDiscountData]
     line_discounts_by_format: dict[str, float]
+    automatic_bonus_rules: list[AutomaticBonusRuleData]
+    automatic_bonus_disables_line_discount: bool
     source_count: int
     id: NotRequired[int]
     transport_id: NotRequired[int | None]
@@ -51,13 +66,16 @@ class CustomerProfileData(TypedDict):
 class OrderItemData(TypedDict):
     product_id: int
     offering_id: int
-    quantity: int
+    quantity: float
     bonus_quantity: int
+    unit_price: NotRequired[int]
 
 
 class OrderData(TypedDict):
     client_name: str
     date: str
+    price_list_id: NotRequired[int | None]
+    declared: NotRequired[bool]
     secondary_line: str
     transport: str
     notes: list[str]
@@ -68,7 +86,7 @@ class InvoiceRowData(TypedDict):
     product_id: int | None
     offering_id: int | None
     label: str
-    quantity: int
+    quantity: float
     unit_price: int
     gross: int
     discount: int
@@ -79,7 +97,7 @@ class InvoiceSummaryData(TypedDict):
     gross_total: int
     discount_total: int
     final_total: int
-    total_bultos: int
+    total_bultos: float
 
 
 class InvoiceSnapshotData(TypedDict):
@@ -96,7 +114,10 @@ class InvoiceListItemData(TypedDict):
     client_name: str
     transport: str
     order_date: str
-    total_bultos: int
+    price_list_id: int | None
+    price_list_name: str
+    declared: bool
+    total_bultos: float
     gross_total: int
     discount_total: int
     final_total: int
@@ -112,13 +133,14 @@ class InvoiceItemDetailData(TypedDict):
     product_id: int | None
     offering_id: int | None
     label: str
-    quantity: int
+    quantity: float
     unit_price: int
     gross: int
     discount: int
     total: int
     product_name: str | None
     offering_label: str | None
+    offering_net_weight_kg: NotRequired[float]
 
 
 class InvoiceDetailData(TypedDict):
@@ -128,12 +150,15 @@ class InvoiceDetailData(TypedDict):
     legacy_key: str | None
     client_name: str
     order_date: str
+    price_list_id: int | None
+    price_list_name: str
+    declared: bool
     secondary_line: str
     transport: str
     notes: list[str]
     footer_discounts: list[FooterDiscountData]
     line_discounts_by_format: dict[str, float]
-    total_bultos: int
+    total_bultos: float
     gross_total: int
     discount_total: int
     final_total: int
@@ -141,6 +166,9 @@ class InvoiceDetailData(TypedDict):
     xlsx_size: int
     created_at: str | datetime
     customer_name: str | None
+    customer_cuit: str | None
+    customer_address: str | None
+    customer_email: str | None
     transport_name: str | None
     items: list[InvoiceItemDetailData]
 
@@ -153,6 +181,7 @@ class InvoiceFileData(TypedDict):
 
 class PriceListMetaData(TypedDict):
     id: NotRequired[int]
+    name: str
     filename: str
     content_type: str
     size: int
@@ -172,5 +201,6 @@ class BootstrapPayloadData(TypedDict):
     profiles: dict[str, CustomerProfileData]
     clients: list[str]
     transports: list[TransportData]
+    price_lists: list[PriceListMetaData]
     price_list: PriceListMetaData | None
     database: DatabaseInfoData

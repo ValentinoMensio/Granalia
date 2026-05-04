@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
-from ...dependencies import get_repository
+from ...dependencies import get_repository, require_admin
 from ...schemas import CustomerMutationOut, CustomerOut, CustomerUpsert, StatusResponse
 
 
@@ -10,12 +10,12 @@ router = APIRouter(prefix="/api/customers", tags=["customers"])
 
 
 @router.get("", response_model=list[CustomerOut])
-def customers() -> list[CustomerOut]:
+def customers(_: str = Depends(require_admin)) -> list[CustomerOut]:
     return [CustomerOut.model_validate(item) for item in get_repository().get_profiles_map().values()]
 
 
 @router.post("", response_model=CustomerMutationOut)
-def create_customer(payload: CustomerUpsert) -> CustomerMutationOut:
+def create_customer(payload: CustomerUpsert, _: str = Depends(require_admin)) -> CustomerMutationOut:
     repository = get_repository()
     data = payload.model_dump()
     data["name"] = payload.name
@@ -24,7 +24,7 @@ def create_customer(payload: CustomerUpsert) -> CustomerMutationOut:
 
 
 @router.put("/{customer_id}", response_model=CustomerMutationOut)
-def update_customer(customer_id: int, payload: CustomerUpsert) -> CustomerMutationOut:
+def update_customer(customer_id: int, payload: CustomerUpsert, _: str = Depends(require_admin)) -> CustomerMutationOut:
     repository = get_repository()
     data = payload.model_dump()
     data["id"] = customer_id
@@ -34,7 +34,7 @@ def update_customer(customer_id: int, payload: CustomerUpsert) -> CustomerMutati
 
 
 @router.delete("/{customer_id}", response_model=StatusResponse)
-def delete_customer(customer_id: int) -> StatusResponse:
+def delete_customer(customer_id: int, _: str = Depends(require_admin)) -> StatusResponse:
     repository = get_repository()
     with repository.engine.begin() as connection:
         connection.execute(repository.customers.delete().where(repository.customers.c.id == customer_id))

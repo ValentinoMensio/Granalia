@@ -50,7 +50,7 @@ def discount_key_for_label(label: str) -> str:
         return "Pack 300/350/400 gr"
     if "10x500" in text or "12x500" in text:
         return "Pack 500 gr"
-    if "10x1 kg" in text or "10x1000" in text or "10x 1 kg" in text:
+    if "10x1 kg" in text or "10x1000" in text or "10x 1 kg" in text or "x 1 kg" in text or "x1 kg" in text:
         return "Pack 1 kg"
     if "x 4 kg" in text or "x4 kg" in text:
         return "Bolsa 4 kg"
@@ -61,6 +61,18 @@ def discount_key_for_label(label: str) -> str:
     if "x 30 kg" in text or "x30 kg" in text:
         return "Bolsa 30 kg"
     return clean_cell_text(label) or "Otros"
+
+
+def is_x1kg_label(label: str) -> bool:
+    text = normalize_text(label)
+    return "x 1 kg" in text or "x1 kg" in text or "x1kg" in text
+
+
+def format_quantity(value: float | int) -> str:
+    quantity = float(value or 0)
+    if quantity.is_integer():
+        return str(int(quantity))
+    return f"{quantity:.2f}".rstrip("0").rstrip(".")
 
 
 def safe_filename(value: str) -> str:

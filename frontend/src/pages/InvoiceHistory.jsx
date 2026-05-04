@@ -4,17 +4,21 @@ import { useGranalia } from '../context/GranaliaContext'
 import { money } from '../lib/format'
 import Button from '../components/ui/Button'
 import PageSectionHeader from '../components/ui/PageSectionHeader'
+import { useAuth } from '../context/AuthContext'
 
 const PAGE_SIZE = 10
 const EMPTY_FILTERS = { customerId: '', dateFrom: '', dateTo: '', transport: '', minTotal: '', maxTotal: '' }
 
 export default function InvoiceHistory() {
   const navigate = useNavigate()
+  const { session } = useAuth()
+  const isAdmin = session?.role === 'admin'
   const { bootstrap, invoices, customers, invoiceDetail, loadInvoiceDetail, clearInvoiceDetail, invoiceDownloadUrl, invoicePdfUrl, startInvoiceEdit, deleteInvoice } = useGranalia()
   const [filters, setFilters] = useState(EMPTY_FILTERS)
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [deletingInvoiceId, setDeletingInvoiceId] = useState(null)
   const [page, setPage] = useState(1)
+  const todayKey = new Date().toLocaleDateString('en-CA')
 
   const filteredInvoices = useMemo(() => {
     const minTotal = filters.minTotal === '' ? null : Number(filters.minTotal)
@@ -84,9 +88,13 @@ export default function InvoiceHistory() {
     const productName = String(item.product_name || '').trim()
     const offeringLabel = String(item.offering_label || '').trim()
     const fullLabel = String(item.label || '').trim().toLowerCase()
+    const normalizedOfferingLabel = offeringLabel.toLowerCase()
 
     if (!productName && !offeringLabel) return ''
     if (fullLabel && productName && offeringLabel && fullLabel === `${productName} ${offeringLabel}`.trim().toLowerCase()) {
+      return ''
+    }
+    if (normalizedOfferingLabel && fullLabel.endsWith(normalizedOfferingLabel)) {
       return ''
     }
     return [productName, offeringLabel].filter(Boolean).join(' · ')
@@ -96,162 +104,249 @@ export default function InvoiceHistory() {
     <div className="mt-8 space-y-6">
       <PageSectionHeader title="Facturas emitidas" />
 
-      <div className="grid w-full items-start gap-6 xl:grid-cols-[220px_minmax(0,1fr)]">
-      <aside className="surface w-full self-start p-6">
-        <div className="flex min-h-[4.5rem] items-start justify-between gap-4 border-b border-stone-200 pb-4 pt-1">
-          <div>
-            <h2 className="subsection-title text-2xl">Filtros</h2>
+      <div className="grid w-full items-start gap-4 sm:gap-6 xl:grid-cols-[220px_minmax(0,1fr)]">
+      <div className="space-y-4">
+        <aside className="surface w-full self-start p-4 sm:p-6">
+          <div className="flex min-h-0 items-start justify-between gap-4 border-b border-stone-200 pb-4 pt-1 sm:min-h-[4.5rem]">
+            <div>
+              <h2 className="subsection-title text-xl sm:text-2xl">Filtros</h2>
+            </div>
           </div>
-        </div>
 
-        <div className="mt-6 space-y-3">
-          <select
-            value={filters.customerId}
-            onChange={(event) => updateFilter('customerId', event.target.value)}
-            className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-brand-red focus:outline-none"
-          >
-            <option value="">Todos los clientes</option>
-            {customers.map((customer) => (
-              <option key={customer.id} value={customer.id}>{customer.name}</option>
-            ))}
-          </select>
-          <input
-            type="date"
-            value={filters.dateFrom}
-            onChange={(event) => updateFilter('dateFrom', event.target.value)}
-            className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-brand-red focus:outline-none"
-          />
-          <input
-            type="date"
-            value={filters.dateTo}
-            onChange={(event) => updateFilter('dateTo', event.target.value)}
-            className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-brand-red focus:outline-none"
-          />
-          <select
-            value={filters.transport}
-            onChange={(event) => updateFilter('transport', event.target.value)}
-            className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-brand-red focus:outline-none"
-          >
-            <option value="">Todos los transportes</option>
-            {(bootstrap?.transports || []).map((transport) => (
-              <option key={transport.transport_id} value={transport.transport_id}>{transport.name}</option>
-            ))}
-          </select>
-          <input
-            type="number"
-            min="0"
-            value={filters.minTotal}
-            onChange={(event) => updateFilter('minTotal', event.target.value)}
-            placeholder="Total minimo"
-            className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-brand-red focus:outline-none"
-          />
-          <input
-            type="number"
-            min="0"
-            value={filters.maxTotal}
-            onChange={(event) => updateFilter('maxTotal', event.target.value)}
-            placeholder="Total maximo"
-            className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-brand-red focus:outline-none"
-          />
-        </div>
+          <div className="mt-6 space-y-3">
+            <select
+              value={filters.customerId}
+              onChange={(event) => updateFilter('customerId', event.target.value)}
+              className="input"
+            >
+              <option value="">Todos los clientes</option>
+              {customers.map((customer) => (
+                <option key={customer.id} value={customer.id}>{customer.name}</option>
+              ))}
+            </select>
+            <input
+              type="date"
+              value={filters.dateFrom}
+              onChange={(event) => updateFilter('dateFrom', event.target.value)}
+              className="input"
+            />
+            <input
+              type="date"
+              value={filters.dateTo}
+              onChange={(event) => updateFilter('dateTo', event.target.value)}
+              className="input"
+            />
+            <select
+              value={filters.transport}
+              onChange={(event) => updateFilter('transport', event.target.value)}
+              className="input"
+            >
+              <option value="">Todos los transportes</option>
+              {(bootstrap?.transports || []).map((transport) => (
+                <option key={transport.transport_id} value={transport.transport_id}>{transport.name}</option>
+              ))}
+            </select>
+            <input
+              type="number"
+              min="0"
+              value={filters.minTotal}
+              onChange={(event) => updateFilter('minTotal', event.target.value)}
+              placeholder="Total minimo"
+              className="input"
+            />
+            <input
+              type="number"
+              min="0"
+              value={filters.maxTotal}
+              onChange={(event) => updateFilter('maxTotal', event.target.value)}
+              placeholder="Total maximo"
+              className="input"
+            />
+          </div>
 
-        <div className="mt-3 flex justify-end">
-          <Button variant="secondary" onClick={resetFilters} className="w-full">
-            Limpiar filtros
-          </Button>
-        </div>
-      </aside>
+          <div className="mt-3 flex justify-end">
+            <Button variant="secondary" onClick={resetFilters} className="w-full">
+              Limpiar filtros
+            </Button>
+          </div>
+        </aside>
 
-      <section className="surface w-full self-start p-6">
-        <div className="flex min-h-[4.5rem] flex-col gap-4 border-b border-stone-200 pb-4 pt-1 md:flex-row md:items-start md:justify-between">
+      </div>
+
+      <section className="surface w-full self-start p-4 sm:p-6">
+        <div className="flex min-h-0 flex-col gap-4 border-b border-stone-200 pb-4 pt-1 md:min-h-[4.5rem] md:flex-row md:items-start md:justify-between">
           <div>
-            <h2 className="subsection-title text-2xl">Facturas</h2>
+            <h2 className="subsection-title text-xl sm:text-2xl">Facturas</h2>
           </div>
           <div className="badge self-start md:mt-1">{filteredInvoices.length} resultados</div>
         </div>
 
-        <div className="table-shell mt-6">
-          <table className="table-base">
+        <div className="mobile-list mt-6">
+          {paginatedInvoices.map((invoice) => {
+            const isUpcoming = invoice.order_date >= todayKey
+
+            return (
+              <article key={invoice.invoice_id} className={`rounded-2xl border p-4 ${isUpcoming ? 'border-slate-300 bg-stone-100' : 'border-slate-200 bg-white'}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="font-mono text-xs text-slate-500">#{invoice.invoice_id}</div>
+                    <h3 className="mt-1 truncate font-semibold text-brand-ink">{invoice.client_name}</h3>
+                  </div>
+                  <div className="shrink-0 whitespace-nowrap text-right text-sm font-semibold text-brand-red">${money(invoice.final_total)}</div>
+                </div>
+                <div className="mt-3 grid gap-2 text-sm text-slate-600">
+                  <div className="flex justify-between gap-3">
+                    <span>Fecha</span>
+                    <span className="font-medium text-slate-800">{invoice.order_date}</span>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <span>Transporte</span>
+                    <span className="min-w-0 truncate text-right font-medium text-slate-800">{invoice.transport || 'Sin transporte'}</span>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <span>Tipo</span>
+                    <span className="font-medium text-slate-800">{invoice.declared ? 'Declarada' : 'No declarada'}</span>
+                  </div>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+                  <Button variant="secondary" className="w-full" onClick={() => handleSelectInvoice(invoice.invoice_id)}>
+                    Detalle
+                  </Button>
+                  {isAdmin && (
+                    <Button variant="secondary" className="w-full" onClick={() => handleEditInvoice(invoice.invoice_id)}>
+                      Editar
+                    </Button>
+                  )}
+                  <a
+                    href={invoiceDownloadUrl(invoice.invoice_id)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn-secondary w-full"
+                  >
+                    XLSX
+                  </a>
+                  <a
+                    href={invoicePdfUrl(invoice.invoice_id)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn-secondary w-full"
+                  >
+                    PDF
+                  </a>
+                  {isAdmin && (
+                    <Button
+                      variant="danger"
+                      className="col-span-2"
+                      onClick={() => handleDeleteInvoice(invoice.invoice_id)}
+                      disabled={deletingInvoiceId === invoice.invoice_id}
+                    >
+                      {deletingInvoiceId === invoice.invoice_id ? 'Eliminando...' : 'Eliminar'}
+                    </Button>
+                  )}
+                </div>
+              </article>
+            )
+          })}
+          {filteredInvoices.length === 0 && (
+            <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-400">
+              No hay facturas que coincidan con los filtros.
+            </div>
+          )}
+        </div>
+
+        <div className="table-shell mt-6 hidden lg:block">
+          <table className="table-base min-w-[960px] table-fixed">
+            <colgroup>
+              <col className="w-[6%]" />
+              <col className="w-[19%]" />
+              <col className="w-[10%]" />
+              <col className="w-[14%]" />
+              <col className="w-[11%]" />
+              <col className="w-[12%]" />
+              <col className="w-[28%]" />
+            </colgroup>
             <thead className="table-head">
               <tr>
-                <th>Factura</th>
+                <th className="text-center">Factura</th>
                 <th>Cliente</th>
-                <th>Fecha</th>
+                <th className="text-center">Fecha</th>
                 <th>Transporte</th>
+                <th className="text-center">Tipo</th>
                 <th className="text-right">Total</th>
-                <th className="text-right">Acciones</th>
+                <th className="text-center">Acciones</th>
               </tr>
             </thead>
             <tbody className="bg-white">
-              {paginatedInvoices.map((invoice) => (
-                <tr key={invoice.invoice_id} className="table-row">
-                  <td className="table-cell font-mono text-xs">#{invoice.invoice_id}</td>
-                  <td className="table-cell font-medium">{invoice.client_name}</td>
-                  <td className="table-cell text-slate-600">{invoice.order_date}</td>
-                  <td className="table-cell text-slate-600">{invoice.transport || 'Sin transporte'}</td>
-                  <td className="table-cell text-right font-medium">${money(invoice.final_total)}</td>
-                  <td className="table-cell">
-                    <div className="flex items-center justify-end gap-3">
-                      <Button variant="ghost" className="px-0 py-0 text-sm text-brand-red" onClick={() => handleSelectInvoice(invoice.invoice_id)}>
-                        Ver detalle
-                      </Button>
-                      <Button variant="ghost" className="px-0 py-0 text-sm text-brand-ink" onClick={() => handleEditInvoice(invoice.invoice_id)}>
-                        Editar
-                      </Button>
-                      <a
-                        href={invoiceDownloadUrl(invoice.invoice_id)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-sm font-semibold text-brand-ink hover:text-brand-red"
-                      >
-                        XLSX
-                      </a>
-                      <a
-                        href={invoicePdfUrl(invoice.invoice_id)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-sm font-semibold text-brand-ink hover:text-brand-red"
-                      >
-                        PDF
-                      </a>
-                      <Button
-                        variant="ghost"
-                        className="px-0 py-0 text-sm text-red-600"
-                        onClick={() => handleDeleteInvoice(invoice.invoice_id)}
-                        disabled={deletingInvoiceId === invoice.invoice_id}
-                      >
-                        {deletingInvoiceId === invoice.invoice_id ? 'Eliminando...' : 'Eliminar'}
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {paginatedInvoices.map((invoice) => {
+                const isUpcoming = invoice.order_date >= todayKey
+
+                return (
+                  <tr key={invoice.invoice_id} className={`table-row ${isUpcoming ? 'bg-stone-100 text-brand-ink' : ''}`}>
+                    <td className="table-cell text-center font-mono text-xs">#{invoice.invoice_id}</td>
+                    <td className="table-cell break-words font-medium leading-snug" title={invoice.client_name}>{invoice.client_name}</td>
+                    <td className={`table-cell whitespace-nowrap text-center ${isUpcoming ? 'text-slate-800' : 'text-slate-600'}`}>{invoice.order_date}</td>
+                    <td className={`table-cell break-words leading-snug ${isUpcoming ? 'text-slate-800' : 'text-slate-600'}`} title={invoice.transport || 'Sin transporte'}>{invoice.transport || 'Sin transporte'}</td>
+                    <td className="table-cell text-center">{invoice.declared ? 'Declarada' : 'No declarada'}</td>
+                    <td className="table-cell whitespace-nowrap text-right font-medium">${money(invoice.final_total)}</td>
+                    <td className="table-cell">
+                      <div className="flex items-center justify-center gap-x-2 whitespace-nowrap text-xs leading-tight">
+                        <Button variant="ghost" className="px-0 py-0 text-brand-red" onClick={() => handleSelectInvoice(invoice.invoice_id)}>
+                          Ver detalle
+                        </Button>
+                        {isAdmin && (
+                          <Button variant="ghost" className="px-0 py-0 text-brand-ink" onClick={() => handleEditInvoice(invoice.invoice_id)}>
+                            Editar
+                          </Button>
+                        )}
+                        <a
+                          href={invoicePdfUrl(invoice.invoice_id)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="font-semibold text-brand-ink hover:text-brand-red"
+                        >
+                          PDF
+                        </a>
+                        {isAdmin && (
+                          <Button
+                            variant="ghost"
+                            className="px-0 py-0 text-xs text-red-600"
+                            onClick={() => handleDeleteInvoice(invoice.invoice_id)}
+                            disabled={deletingInvoiceId === invoice.invoice_id}
+                          >
+                            {deletingInvoiceId === invoice.invoice_id ? 'Eliminando...' : 'Eliminar'}
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
               {filteredInvoices.length === 0 && (
                 <tr>
-                  <td colSpan="6" className="table-cell py-10 text-center text-slate-400">No hay facturas que coincidan con los filtros.</td>
+                  <td colSpan="7" className="table-cell py-10 text-center text-slate-400">No hay facturas que coincidan con los filtros.</td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
 
-        <div className="mt-4 flex items-center justify-between text-sm text-slate-500">
+        <div className="mt-4 flex flex-col gap-3 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
           <div>Pagina {page} de {totalPages}</div>
-          <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page === 1}>
+          <div className="grid grid-cols-2 gap-2 sm:flex">
+            <Button variant="secondary" className="w-full sm:w-auto" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page === 1}>
               Anterior
             </Button>
-            <Button variant="secondary" onClick={() => setPage((current) => Math.min(totalPages, current + 1))} disabled={page === totalPages}>
+            <Button variant="secondary" className="w-full sm:w-auto" onClick={() => setPage((current) => Math.min(totalPages, current + 1))} disabled={page === totalPages}>
               Siguiente
             </Button>
           </div>
         </div>
       </section>
 
-      <aside className="surface w-full self-start p-6 xl:col-span-2">
-        <div className="flex min-h-[4.5rem] items-start justify-between gap-4 border-b border-stone-200 pb-4 pt-1">
+      <aside className="surface w-full self-start p-4 sm:p-6 xl:col-span-2">
+        <div className="flex min-h-0 items-start justify-between gap-4 border-b border-stone-200 pb-4 pt-1 sm:min-h-[4.5rem]">
           <div>
-            <h2 className="subsection-title text-2xl">Detalle</h2>
+            <h2 className="subsection-title text-xl sm:text-2xl">Detalle</h2>
           </div>
           {invoiceDetail && (
             <Button variant="ghost" onClick={clearInvoiceDetail}>
@@ -272,7 +367,7 @@ export default function InvoiceHistory() {
 
         {invoiceDetail && !loadingDetail && (
           <div className="mt-6 space-y-6">
-            <div className="surface-muted grid gap-4 p-4 text-sm md:grid-cols-3 xl:grid-cols-6">
+            <div className="surface-muted grid gap-4 p-4 text-sm md:grid-cols-3 xl:grid-cols-8">
               <div>
                 <div className="text-xs uppercase tracking-wide text-slate-400">Factura</div>
                 <div className="mt-1 font-mono">#{invoiceDetail.id}</div>
@@ -297,13 +392,48 @@ export default function InvoiceHistory() {
                 <div className="text-xs uppercase tracking-wide text-slate-400">Transporte asociado</div>
                 <div className="mt-1">{invoiceDetail.transport_name || (invoiceDetail.transport_id ? `#${invoiceDetail.transport_id}` : 'Sin asociar')}</div>
               </div>
+              <div>
+                <div className="text-xs uppercase tracking-wide text-slate-400">Tipo</div>
+                <div className="mt-1">{invoiceDetail.declared ? 'Declarada' : 'No declarada'}</div>
+              </div>
+              <div>
+                <div className="text-xs uppercase tracking-wide text-slate-400">Lista</div>
+                <div className="mt-1">{invoiceDetail.price_list_name || 'Sin lista'}</div>
+              </div>
             </div>
 
             <div>
               <div className="mb-3 flex items-center justify-between">
                 <h3 className="font-medium">Lineas</h3>
               </div>
-              <div className="table-shell">
+              <div className="mobile-list">
+                {invoiceDetail.items.map((item) => (
+                  <article key={item.id} className="mobile-card">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="mobile-card-kicker">Línea {item.line_number}</div>
+                        <h4 className="mobile-card-title mt-1 break-words">{item.label}</h4>
+                        {itemSecondaryLabel(item) ? (
+                          <div className="mt-1 text-xs text-slate-400">{itemSecondaryLabel(item)}</div>
+                        ) : null}
+                      </div>
+                      <div className="shrink-0 text-right text-sm font-semibold text-brand-red">${money(item.total)}</div>
+                    </div>
+                    <div className="mobile-field-grid">
+                      <div className="mobile-field">
+                        <span className="mobile-field-label">Cantidad</span>
+                        <span className="mobile-field-value">{item.quantity}</span>
+                      </div>
+                      <div className="mobile-field">
+                        <span className="mobile-field-label">Precio</span>
+                        <span className="mobile-field-value">${money(item.unit_price)}</span>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+
+              <div className="table-shell hidden lg:block">
                 <table className="table-base">
                   <thead className="table-head">
                     <tr>
@@ -349,15 +479,17 @@ export default function InvoiceHistory() {
               </div>
             </div>
 
-            <div className="flex flex-wrap justify-end gap-3 border-t border-stone-200 pt-4">
-              <Button variant="secondary" onClick={() => handleEditInvoice(invoiceDetail.id)}>
-                Editar factura
-              </Button>
+            <div className="flex flex-col gap-3 border-t border-stone-200 pt-4 sm:flex-row sm:flex-wrap sm:justify-end">
+              {isAdmin && (
+                <Button variant="secondary" className="w-full sm:w-auto" onClick={() => handleEditInvoice(invoiceDetail.id)}>
+                  Editar factura
+                </Button>
+              )}
               <a
                 href={invoiceDownloadUrl(invoiceDetail.id)}
                 target="_blank"
                 rel="noreferrer"
-                className="btn-secondary"
+                className="btn-secondary w-full sm:w-auto"
               >
                 Descargar XLSX
               </a>
@@ -365,17 +497,20 @@ export default function InvoiceHistory() {
                 href={invoicePdfUrl(invoiceDetail.id)}
                 target="_blank"
                 rel="noreferrer"
-                className="btn-secondary"
+                className="btn-secondary w-full sm:w-auto"
               >
                 Descargar PDF
               </a>
-              <Button
-                variant="danger"
-                onClick={() => handleDeleteInvoice(invoiceDetail.id)}
-                disabled={deletingInvoiceId === invoiceDetail.id}
-              >
-                {deletingInvoiceId === invoiceDetail.id ? 'Eliminando...' : 'Eliminar factura'}
-              </Button>
+              {isAdmin && (
+                <Button
+                  variant="danger"
+                  className="w-full sm:w-auto"
+                  onClick={() => handleDeleteInvoice(invoiceDetail.id)}
+                  disabled={deletingInvoiceId === invoiceDetail.id}
+                >
+                  {deletingInvoiceId === invoiceDetail.id ? 'Eliminando...' : 'Eliminar factura'}
+                </Button>
+              )}
             </div>
           </div>
         )}

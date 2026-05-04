@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
+from decimal import Decimal
 from typing import Any
 
 from ..types import CustomerProfileData
@@ -9,11 +10,17 @@ from ..types import CustomerProfileData
 def default_profile(client_name: str) -> CustomerProfileData:
     return {
         "name": client_name,
+        "cuit": "",
+        "address": "",
+        "business_name": "",
+        "email": "",
         "secondary_line": "",
         "transport": "",
         "notes": [],
         "footer_discounts": [],
         "line_discounts_by_format": {},
+        "automatic_bonus_rules": [],
+        "automatic_bonus_disables_line_discount": False,
         "source_count": 0,
     }
 
@@ -31,6 +38,8 @@ def serialize_value(value: Any) -> Any:
         return value.tobytes()
     if isinstance(value, bytes):
         return value
+    if isinstance(value, Decimal):
+        return float(value)
     if isinstance(value, list):
         return [serialize_value(item) for item in value]
     if isinstance(value, dict):

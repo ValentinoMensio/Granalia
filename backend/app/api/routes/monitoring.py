@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from sqlalchemy import select
 
 from ...core.config import load_config
-from ...dependencies import get_auth_manager, get_repository
+from ...dependencies import get_auth_manager, get_repository, require_authenticated
 from ...schemas import HealthOut
 
 
@@ -19,7 +19,7 @@ def live() -> HealthOut:
 
 
 @router.get("/health/ready")
-def ready() -> dict[str, object]:
+def ready(_: str = Depends(require_authenticated)) -> dict[str, object]:
     config = load_config()
     repository = get_repository()
     auth_manager = get_auth_manager()

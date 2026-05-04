@@ -33,14 +33,17 @@ class AuthUser:
     id: int
     username: str
     password_hash: str
+    role: str
     is_active: bool
 
 
 class SessionTokenPayload(TypedDict):
     sub: str
+    role: str
     pwd: str
     exp: int
     nonce: str
+    csrf: str
 
 
 class AuthCookieSettings(TypedDict):
@@ -56,7 +59,7 @@ class AuthManager:
     session_ttl_seconds = 60 * 60 * 8
     login_window_seconds = 60 * 10
     login_attempt_limit = 5
-    lockout_seconds = 60 * 15
+    lockout_seconds = 30
 
     def __init__(self, base_dir: Path) -> None:
         self.base_dir = base_dir
@@ -114,7 +117,7 @@ class AuthManager:
             row = connection.execute(
                 text(
                     """
-                    SELECT id, username, password_hash, is_active
+                    SELECT id, username, password_hash, role, is_active
                     FROM app_users
                     WHERE username = :username
                     LIMIT 1
@@ -128,6 +131,7 @@ class AuthManager:
             id=int(row["id"]),
             username=str(row["username"]),
             password_hash=str(row["password_hash"]),
+            role=str(row.get("role") or "operator"),
             is_active=bool(row["is_active"]),
         )
 
@@ -147,6 +151,7 @@ class AuthManager:
         env_username = os.getenv("GRANALIA_AUTH_USERNAME")
         env_password_hash = os.getenv("GRANALIA_AUTH_PASSWORD_HASH")
         env_password = os.getenv("GRANALIA_AUTH_PASSWORD")
+        env_role = os.getenv("GRANALIA_AUTH_ROLE", "admin")
 
         username = env_username or "admin"
         password_hash: str | None = None
@@ -165,7 +170,7 @@ class AuthManager:
         if password_hash is None:
             raise RuntimeError("No se pudo inicializar el password hash del usuario administrador")
 
-        self.upsert_user(username, password_hash=password_hash, is_active=True)
+        self.upsert_user(username, password_hash=password_hash, role=env_role, is_active=True)
 
         if generated_password:
             print(
@@ -179,18 +184,21 @@ class AuthManager:
         username: str,
         *,
         password_hash: str,
+        role: str = "operator",
         is_active: bool = True,
     ) -> None:
         now = int(time.time())
+        normalized_role = role if role in {"admin", "operator"} else "operator"
         with self.engine.begin() as connection:
             connection.execute(
                 text(
                     """
-                    INSERT INTO app_users (username, password_hash, is_active, created_at, updated_at)
-                    VALUES (:username, :password_hash, :is_active, now(), now())
+                    INSERT INTO app_users (username, password_hash, role, is_active, created_at, updated_at)
+                    VALUES (:username, :password_hash, :role, :is_active, now(), now())
                     ON CONFLICT (username)
                     DO UPDATE SET
                         password_hash = EXCLUDED.password_hash,
+                        role = EXCLUDED.role,
                         is_active = EXCLUDED.is_active,
                         updated_at = now()
                     """
@@ -198,6 +206,7 @@ class AuthManager:
                 {
                     "username": username,
                     "password_hash": password_hash,
+                    "role": normalized_role,
                     "is_active": is_active,
                     "now": now,
                 },
@@ -217,9 +226,11 @@ class AuthManager:
     def create_session_token(self, user: AuthUser) -> str:
         payload = {
             "sub": user.username,
+            "role": user.role,
             "pwd": _password_fingerprint(user.password_hash),
             "exp": int(time.time()) + self.session_ttl_seconds,
             "nonce": secrets.token_urlsafe(16),
+            "csrf": secrets.token_urlsafe(32),
         }
         payload_bytes = json.dumps(payload, separators=(",", ":")).encode("utf-8")
         encoded_payload = _b64url_encode(payload_bytes)
@@ -249,12 +260,20 @@ class AuthManager:
             return None
         if payload.get("pwd") != _password_fingerprint(user.password_hash):
             return None
+        if not payload.get("csrf"):
+            return None
         return {
             "sub": user.username,
+            "role": user.role,
             "pwd": str(payload.get("pwd")),
             "exp": int(payload.get("exp", 0)),
             "nonce": str(payload.get("nonce", "")),
+            "csrf": str(payload.get("csrf", "")),
         }
+
+    def verify_csrf_token(self, payload: SessionTokenPayload, csrf_token: str | None) -> bool:
+        expected = payload.get("csrf") or ""
+        return bool(expected and csrf_token and hmac.compare_digest(csrf_token, expected))
 
     def auth_cookie_settings(self) -> AuthCookieSettings:
         secure_flag = os.getenv("GRANALIA_SECURE_COOKIES")

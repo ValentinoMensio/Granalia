@@ -24,11 +24,18 @@ class PostgresBootstrapMixin(PostgresRepositoryProtocol):
     def ensure_seeded(self) -> None:
         now = utc_now()
         with self.engine.begin() as connection:
+            self._ensure_customer_billing_fields(connection=connection)
+            self._ensure_fractional_invoice_quantities(connection=connection)
+            self._ensure_price_list_invoice_fields(connection=connection)
+            self._ensure_offering_net_weight(connection=connection)
+
             active_catalog = connection.execute(
                 select(self.catalogs.c.catalog).where(self.catalogs.c.active.is_(True)).order_by(self.catalogs.c.id.desc()).limit(1)
             ).scalar_one_or_none()
             if active_catalog:
                 self._sync_catalog_tables(active_catalog, connection=connection, now=now)
+                self._ensure_offering_net_weight(connection=connection)
+                self._refresh_active_catalog_snapshot(connection=connection, now=now)
 
             if not self._table_empty(self.customers):
                 self._sync_customer_references(connection=connection, now=now)
@@ -37,11 +44,17 @@ class PostgresBootstrapMixin(PostgresRepositoryProtocol):
         self.ensure_seeded()
         profiles = self.get_profiles_map()
         clients = sorted(profile["name"] for profile in profiles.values())
+        try:
+            catalog = self.get_active_catalog()
+        except RuntimeError:
+            catalog = []
+        price_lists = self.list_price_lists()
         return {
-            "catalog": self.get_active_catalog(),
+            "catalog": catalog,
             "profiles": profiles,
             "clients": clients,
             "transports": self.get_transports(),
+            "price_lists": price_lists,
             "price_list": self.get_active_price_list_meta(),
             "database": {
                 "type": "postgresql",

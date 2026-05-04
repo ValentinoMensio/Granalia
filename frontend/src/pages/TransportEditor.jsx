@@ -11,6 +11,7 @@ export default function TransportEditor() {
   const isNewTransport = !id || id === 'new' || Number.isNaN(transportId)
   const navigate = useNavigate()
   const { bootstrap, setStatus, saving, refreshAll } = useGranalia()
+  const managementPath = '/management?tab=transports'
   
   const transport = bootstrap?.transports.find((t) => t.transport_id === transportId)
   const [formData, setFormData] = useState(null)
@@ -38,7 +39,7 @@ export default function TransportEditor() {
       })
       await refreshAll()
       setStatus('Transporte actualizado correctamente.')
-      navigate('/management')
+      navigate(managementPath)
     } catch (e) {
       setStatus(`Error al guardar: ${e.message}`)
     }
@@ -49,7 +50,7 @@ export default function TransportEditor() {
       <PageSectionHeader
         title={isNewTransport ? 'Nuevo transporte' : 'Editar transporte'}
         description="Mantené el nombre y las observaciones de transporte con el mismo criterio visual del resto del sistema."
-        aside={<Button variant="ghost" onClick={() => navigate('/management')}>Volver a gestión</Button>}
+        aside={<Button variant="ghost" onClick={() => navigate(managementPath)}>Volver a gestión</Button>}
       />
 
       <div className="editor-card grid gap-6">
@@ -59,7 +60,7 @@ export default function TransportEditor() {
             type="text"
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
+            className="input"
           />
         </div>
 
@@ -69,15 +70,15 @@ export default function TransportEditor() {
             rows={4}
             value={formData.notes?.join('\\n') || ''}
             onChange={(e) => setFormData({ ...formData, notes: e.target.value.split('\\n').filter(Boolean) })}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
+            className="input"
           />
         </div>
 
-        <div className="flex justify-end gap-3 pt-6 border-t">
-          <Button variant="secondary" onClick={() => navigate('/management')}>
+        <div className="flex flex-col gap-3 pt-6 border-t sm:flex-row sm:justify-end">
+          <Button variant="secondary" className="w-full sm:w-auto" onClick={() => navigate(managementPath)}>
             Cancelar
           </Button>
-          <Button variant="primary" onClick={handleSave} disabled={saving}>
+          <Button variant="primary" className="w-full sm:w-auto" onClick={handleSave} disabled={saving}>
             {saving ? 'Guardando...' : 'Guardar Cambios'}
           </Button>
         </div>
