@@ -1,26 +1,42 @@
-# Granalia Platform
+# Granalia
 
-Refactor completo con este stack:
+Aplicacion web para gestionar pedidos, clientes, transportes, productos, listas de precios y facturas de Granalia.
 
-- API: FastAPI
-- Web: React + Vite + Tailwind
-- Base de datos: PostgreSQL
+El sistema esta compuesto por una API FastAPI, una web React/Vite y una base PostgreSQL. La informacion operativa se persiste en base de datos y los comprobantes XLSX/PDF se generan desde la API.
 
-La app ahora guarda todo en la base de datos:
+## Stack
 
-- clientes
-- transportes
-- descuentos
-- productos y presentaciones
-- listas de precios PDF
-- facturas
-- lineas de factura
-- archivos XLSX generados
+- Backend: FastAPI, SQLAlchemy, Alembic, PostgreSQL, OpenPyXL, ReportLab, pypdf.
+- Frontend: React 18, React Router, Vite y Tailwind CSS.
+- Base de datos: PostgreSQL 16.
+- Despliegue: Docker Compose y Caddy.
 
-## Esquema principal
+## Funcionalidades
 
-Tablas operativas:
+- Inicio de sesion con cookie HTTP-only, token CSRF y roles `admin` / `operator`.
+- Creacion, edicion, descarga y eliminacion de facturas.
+- Descarga de facturas en XLSX y PDF.
+- Historial de facturas con estadisticas para administradores.
+- Gestion de clientes, productos, presentaciones y transportes.
+- Carga de listas de precios PDF y actualizacion del catalogo activo.
+- Reglas de bonificacion automaticas por cliente.
+- Healthchecks y logging estructurado para operacion.
 
+## Estructura
+
+```text
+backend/                 API FastAPI, dominio, servicios, repositorios y migraciones
+frontend/                Aplicacion React/Vite
+deploy/                  Dockerfiles, Caddy y scripts operativos
+docker-compose.postgres.yml
+.env.example             Variables base para produccion
+```
+
+## Datos principales
+
+Tablas operativas principales:
+
+- `app_users`
 - `customers`
 - `transports`
 - `discount_policies`
@@ -33,43 +49,55 @@ Tablas operativas:
 
 Relaciones clave:
 
-- cada `customer` puede tener un `transport` y una `discount_policy` por defecto
-- cada `product` tiene muchas `product_offerings`
-- cada `invoice` pertenece a un `customer`
-- cada `invoice_item` pertenece a una `invoice` y referencia `product` + `product_offering`
-- cada lista PDF queda almacenada en `price_lists`
+- cada cliente puede tener transporte y politica de descuento por defecto;
+- cada producto tiene una o mas presentaciones;
+- cada factura pertenece a un cliente y tiene items asociados;
+- cada item referencia producto y presentacion;
+- cada lista PDF queda registrada y puede alimentar el catalogo activo.
 
-## Levantar PostgreSQL
+## Requisitos
+
+- Python 3.11+.
+- Node.js 18+.
+- Docker y Docker Compose.
+- PostgreSQL local o el servicio incluido en `docker-compose.postgres.yml`.
+
+## Desarrollo Local
+
+### 1. Levantar PostgreSQL
 
 ```bash
 docker compose -f docker-compose.postgres.yml up -d
 ```
 
-Adminer:
+Adminer queda disponible en `http://127.0.0.1:8082/`.
 
-- `http://127.0.0.1:8082/`
-
-Credenciales por defecto:
+Credenciales locales por defecto:
 
 - servidor: `postgres`
 - usuario: `granalia`
 - clave: `granalia`
 - base: `granalia`
 
-## Correr la API
+### 2. Preparar y correr la API
 
 ```bash
 cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 python3 -m alembic -c alembic.ini upgrade head
 uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-API por defecto:
+API local:
 
-- `http://127.0.0.1:8000`
+- base: `http://127.0.0.1:8000`
 - docs: `http://127.0.0.1:8000/docs`
+- health live: `http://127.0.0.1:8000/health/live`
+- health ready: `http://127.0.0.1:8000/health/ready`
 
-## Correr la web
+### 3. Preparar y correr la web
 
 ```bash
 cd frontend
@@ -77,23 +105,68 @@ npm install
 npm run dev
 ```
 
-Web por defecto:
+Web local: `http://127.0.0.1:5173`.
 
-- `http://127.0.0.1:5173`
-
-Si querés apuntar la web a otra URL de API:
+Por defecto, cuando Vite corre en el puerto `5173`, el frontend apunta a `http://<host>:8000`. Para usar otra API:
 
 ```bash
 VITE_API_URL=http://127.0.0.1:8000 npm run dev
 ```
 
-## HTTPS obligatorio con Caddy
+### Cookies Seguras En Local
 
-La configuración segura queda en `deploy/Caddyfile` y `deploy/docker-compose.caddy.yml`.
+La cookie de sesion usa `Secure` por defecto. Para desarrollo HTTP local sin Caddy, desactivala temporalmente antes de iniciar la API:
 
-Pasos recomendados:
+```bash
+export GRANALIA_SECURE_COOKIES=false
+```
 
-1. construir el frontend estático
+No desactivar cookies seguras en produccion.
+
+## Autenticacion
+
+La primera vez que la API inicia con la tabla `app_users` vacia, crea un usuario inicial.
+
+Opciones recomendadas:
+
+- definir `GRANALIA_AUTH_USERNAME`, `GRANALIA_AUTH_PASSWORD` y `GRANALIA_AUTH_ROLE` antes de iniciar la API;
+- o definir `GRANALIA_AUTH_PASSWORD_HASH` para no guardar password plano en variables de entorno;
+- o usar el password generado que la API imprime por stdout en el primer arranque.
+
+Para actualizar credenciales manualmente:
+
+```bash
+cd backend
+python3 set_admin_password.py
+```
+
+Roles disponibles:
+
+- `admin`: acceso completo, gestion y estadisticas.
+- `operator`: acceso operativo limitado al historial visible y creacion/descarga de facturas permitidas.
+
+## Variables De Entorno
+
+Archivo base:
+
+```bash
+cp .env.example .env
+```
+
+Variables principales:
+
+- `GRANALIA_ENV`: `development` o `production`.
+- `GRANALIA_POSTGRES_URL`: URL SQLAlchemy para PostgreSQL.
+- `GRANALIA_SESSION_SECRET`: secreto de sesion, obligatorio y de 32+ caracteres en produccion.
+- `GRANALIA_SECURE_COOKIES`: mantiene cookies seguras cuando vale `true`.
+- `GRANALIA_ALLOWED_ORIGINS`: origenes permitidos por CORS, separados por coma.
+- `GRANALIA_AUTH_USERNAME`: usuario inicial.
+- `GRANALIA_AUTH_PASSWORD`: password inicial en texto plano.
+- `GRANALIA_AUTH_PASSWORD_HASH`: hash inicial alternativo.
+- `GRANALIA_AUTH_ROLE`: rol del usuario inicial (`admin` u `operator`).
+- `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`: configuracion del contenedor PostgreSQL.
+
+## Build Del Frontend
 
 ```bash
 cd frontend
@@ -101,7 +174,22 @@ npm install
 npm run build
 ```
 
-2. levantar la API local en `127.0.0.1:8000`
+El build queda en `frontend/dist`.
+
+## Caddy Local
+
+Configuracion:
+
+- `deploy/Caddyfile`
+- `deploy/docker-compose.caddy.yml`
+
+Flujo recomendado:
+
+```bash
+cd frontend
+npm install
+npm run build
+```
 
 ```bash
 cd backend
@@ -109,50 +197,43 @@ python3 -m alembic -c alembic.ini upgrade head
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-3. levantar Caddy delante de la app
-
 ```bash
 cd deploy
 docker compose -f docker-compose.caddy.yml up -d
 ```
 
-Acceso HTTPS:
+Con `.env.example`, Caddy escucha en HTTP por defecto: `http://localhost`.
 
-- `https://granalia.localhost`
+Para usar HTTPS local, configurar un sitio compatible con TLS en `GRANALIA_CADDY_SITE` y acceder por ese hostname. Si se usa HTTP, iniciar la API con `GRANALIA_SECURE_COOKIES=false` para que el navegador acepte la cookie de sesion.
 
-Notas de seguridad:
+Caddy sirve el frontend estatico y proxya estos paths a FastAPI:
 
-- la cookie de sesión se emite con `Secure` por defecto
-- Caddy redirige tráfico y sirve la web por HTTPS
-- `/api/*` se proxya a FastAPI con `X-Forwarded-Proto: https`
-- se agregan headers de endurecimiento básicos (`HSTS`, `nosniff`, `X-Frame-Options`, etc.)
+- `/api/*`
+- `/health/*`
+- `/docs*`
+- `/redoc*`
+- `/openapi.json`
 
-Para desarrollo local sin Caddy, podés desactivar temporalmente cookies seguras:
+Tambien agrega headers basicos de endurecimiento como `HSTS`, `nosniff`, `X-Frame-Options`, `Referrer-Policy` y `Permissions-Policy`.
 
-```bash
-export GRANALIA_SECURE_COOKIES=false
-```
+## Produccion
 
-No se recomienda en producción.
-
-## Produccion recomendada
-
-1. copiar variables base:
+### 1. Crear configuracion
 
 ```bash
 cp .env.example .env
 ```
 
-2. completar secretos reales:
+Completar valores reales:
 
-- `GRANALIA_SESSION_SECRET` con 32+ caracteres
-- `POSTGRES_PASSWORD` fuerte
-- `GRANALIA_POSTGRES_URL` apuntando al contenedor `postgres`
-- `GRANALIA_ALLOWED_ORIGINS` con tu dominio real
-- `GRANALIA_AUTH_ROLE` como `admin` u `operator` para el usuario inicial
-- opcionalmente `GRANALIA_AUTH_PASSWORD_HASH` para no guardar password plano en `.env`
+- `GRANALIA_SESSION_SECRET` con 32+ caracteres.
+- `POSTGRES_PASSWORD` fuerte.
+- `GRANALIA_POSTGRES_URL` apuntando al servicio `postgres`.
+- `GRANALIA_ALLOWED_ORIGINS` con el dominio real.
+- `GRANALIA_AUTH_USERNAME` y `GRANALIA_AUTH_ROLE`.
+- `GRANALIA_AUTH_PASSWORD_HASH` o `GRANALIA_AUTH_PASSWORD` para el usuario inicial.
 
-3. construir frontend:
+### 2. Construir frontend
 
 ```bash
 cd frontend
@@ -160,7 +241,7 @@ npm install
 npm run build
 ```
 
-4. levantar stack completo:
+### 3. Levantar stack
 
 ```bash
 cd deploy
@@ -169,28 +250,26 @@ docker compose --env-file ../.env -f docker-compose.production.yml up -d --build
 
 Servicios incluidos:
 
-- `postgres` con healthcheck
-- `api` FastAPI + migraciones automáticas al iniciar
-- `caddy` como web origin interno
+- `postgres` con healthcheck y puerto publicado solo en localhost.
+- `api` con FastAPI y migraciones automaticas al iniciar.
+- `caddy` como origen web interno.
 
-En este modo `Granalia` publica solo `127.0.0.1:${GRANALIA_LOCAL_CADDY_PORT:-8088}` en la notebook.
-El `cloudflared` de tu otro proyecto puede publicar un hostname nuevo apuntando a:
+Puertos locales por defecto:
+
+- Web/Caddy: `127.0.0.1:${GRANALIA_LOCAL_CADDY_PORT:-8088}`.
+- PostgreSQL: `127.0.0.1:${GRANALIA_LOCAL_POSTGRES_PORT:-5433}`.
+
+Si se publica con `cloudflared` u otro proxy externo, apuntar el hostname a:
 
 ```text
 http://host.docker.internal:8088
 ```
 
-o al puerto que definas en `GRANALIA_LOCAL_CADDY_PORT`.
+o al puerto configurado en `GRANALIA_LOCAL_CADDY_PORT`.
 
-## Acceso PostgreSQL con DBeaver por SSH
+## PostgreSQL Con DBeaver Por SSH
 
-`Granalia` publica PostgreSQL solo en localhost del host:
-
-```text
-127.0.0.1:${GRANALIA_LOCAL_POSTGRES_PORT:-5433}
-```
-
-Configuracion sugerida en DBeaver:
+Configuracion sugerida:
 
 - Main / Host: `127.0.0.1`
 - Main / Port: `5433`
@@ -198,21 +277,26 @@ Configuracion sugerida en DBeaver:
 - Main / Username: `granalia`
 - Main / Password: valor de `POSTGRES_PASSWORD`
 - SSH / Use SSH Tunnel: habilitado
-- SSH / Host: IP o dominio de la notebook
+- SSH / Host: IP o dominio del servidor
 - SSH / Port: `22`
-- SSH / User: tu usuario del servidor
+- SSH / User: usuario del servidor
 
-Healthchecks utiles:
+No exponer PostgreSQL ni Adminer publicamente en produccion.
+
+## Logs Y Monitoreo
+
+Healthchecks:
 
 - `GET /health/live`
 - `GET /health/ready`
 
-## Logs y monitoreo basico
+Logs:
 
-- logs estructurados por stdout en la API
-- request logging con tiempo de respuesta en `X-Response-Time-Ms`
-- readiness check con verificacion de base de datos y secreto de auth
-- revisar contenedores:
+- la API escribe logs por stdout;
+- cada request agrega `X-Response-Time-Ms`;
+- `GRANALIA_LOG_JSON=true` habilita logs JSON.
+
+Comando util:
 
 ```bash
 cd deploy
@@ -240,28 +324,59 @@ Ejemplo de cron diario:
 0 3 * * * cd /ruta/a/Granalia && set -a && . ./.env && set +a && sh deploy/scripts/backup_postgres.sh >> backups/cron.log 2>&1
 ```
 
-Recomendacion operativa:
+Recomendaciones:
 
-- copiar backups fuera del servidor
-- probar restore periodicamente
-- no dejar Adminer expuesto en produccion
+- copiar backups fuera del servidor;
+- probar restores periodicamente;
+- no dejar Adminer expuesto en produccion.
 
-## Endpoints principales
+## Endpoints Principales
+
+Autenticacion:
+
+- `GET /api/auth/session`
+- `POST /api/auth/login`
+- `POST /api/auth/logout`
+
+Datos base:
 
 - `GET /api/bootstrap`
 - `GET /api/customers`
-- `PUT /api/customers/{customer_key}`
+- `POST /api/customers`
+- `PUT /api/customers/{customer_id}`
+- `DELETE /api/customers/{customer_id}`
 - `GET /api/transports`
-- `GET /api/discount-policies`
+- `POST /api/transports`
+- `PUT /api/transports/{transport_id}`
+- `DELETE /api/transports/{transport_id}`
 - `GET /api/products`
+- `POST /api/products`
+- `POST /api/products/{product_id}/offerings`
+- `DELETE /api/products/{product_id}`
+
+Facturas:
+
 - `GET /api/invoices`
-- `POST /api/invoices`
+- `GET /api/invoices/stats/items`
+- `GET /api/invoices/{invoice_id}`
 - `GET /api/invoices/{invoice_id}/xlsx`
+- `GET /api/invoices/{invoice_id}/pdf`
+- `POST /api/invoices`
+- `PUT /api/invoices/{invoice_id}`
+- `DELETE /api/invoices/{invoice_id}`
+
+Listas de precios:
+
+- `GET /api/price-lists`
 - `POST /api/price-lists/upload`
+- `PATCH /api/price-lists/{price_list_id}`
+- `GET /api/price-lists/{price_list_id}/catalog`
+- `DELETE /api/price-lists/{price_list_id}`
 
-## Notas
+## Notas Operativas
 
-- el XLSX ya no se guarda en disco como almacenamiento principal; se genera en memoria y se persiste en PostgreSQL
-- el catálogo activo sale de la base de datos
-- subir un PDF de precios actualiza también el catálogo activo
-- se eliminaron los artefactos locales de salida y la UI legacy en Python
+- Ejecutar migraciones antes de iniciar la API en desarrollo.
+- En produccion, el contenedor `api` corre migraciones al arrancar.
+- El XLSX no se usa como almacenamiento principal; se genera desde datos persistidos en PostgreSQL.
+- La lista de precios activa sale de la base de datos.
+- Subir un PDF de precios puede actualizar el catalogo activo.

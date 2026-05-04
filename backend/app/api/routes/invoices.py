@@ -113,16 +113,16 @@ def download_invoice_pdf(invoice_id: int, role: str = Depends(current_role)) -> 
 
 
 @router.post("", response_model=InvoiceCreateOut)
-def create_invoice(payload: InvoiceRequest) -> InvoiceCreateOut:
+def create_invoice(payload: InvoiceRequest, role: str = Depends(current_role)) -> InvoiceCreateOut:
     repository = get_repository()
     order = payload.order.model_dump()
     profile = payload.profile.model_dump()
     try:
         catalog = repository.get_catalog_for_price_list(int(order["price_list_id"])) if order.get("price_list_id") else repository.get_active_catalog()
         filename, xlsx_bytes, snapshot = generate_invoice_document(order, profile, catalog)
+        invoice_id = repository.save_invoice(order, profile, snapshot, filename, xlsx_bytes, update_customer=role == "admin")
     except (RuntimeError, ValueError) as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
-    invoice_id = repository.save_invoice(order, profile, snapshot, filename, xlsx_bytes)
     return InvoiceCreateOut.model_validate({
         "invoice_id": invoice_id,
         "filename": filename,

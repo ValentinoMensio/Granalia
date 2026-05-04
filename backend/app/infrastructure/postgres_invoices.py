@@ -198,6 +198,8 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
         snapshot: InvoiceSnapshotData,
         filename: str,
         xlsx_bytes: bytes,
+        *,
+        update_customer: bool = True,
     ) -> int:
         created_at = utc_now()
         order_date = datetime.strptime(order["date"], "%Y-%m-%d").date()
@@ -249,30 +251,37 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                 invoice_payload["price_list_name"] = str(price_list_row or invoice_payload["price_list_name"] or "")
             transport_name = order.get("transport") or profile.get("transport") or ""
             transport_id = self._resolve_transport_id(connection=connection, transport_name=transport_name, now=created_at)
-            customer_id = self._upsert_customer(
-                {
-                    "id": profile.get("id"),
-                    "name": order["client_name"],
-                    "cuit": profile.get("cuit", ""),
-                    "address": profile.get("address", ""),
-                    "business_name": profile.get("business_name", ""),
-                    "email": profile.get("email", ""),
-                    "secondary_line": order.get("secondary_line") or profile.get("secondary_line") or "",
-                    "notes": order.get("notes") or profile.get("notes") or [],
-                    "footer_discounts": invoice_payload["footer_discounts"],
-                    "line_discounts_by_format": invoice_payload["line_discounts_by_format"],
-                    "automatic_bonus_rules": profile.get("automatic_bonus_rules", []),
-                    "automatic_bonus_disables_line_discount": bool(profile.get("automatic_bonus_disables_line_discount", False)),
-                    "source_count": int(profile.get("source_count", 0)),
-                    "transport_id": transport_id,
-                    "created_at": created_at,
-                    "updated_at": created_at,
-                },
-                connection=connection,
-                now=created_at,
-            )
-            customer_row = connection.execute(select(self.customers).where(self.customers.c.id == customer_id)).mappings().first()
-            invoice_payload["customer_id"] = customer_row["id"] if customer_row else None
+            customer_id = None
+            if update_customer:
+                customer_id = self._upsert_customer(
+                    {
+                        "id": profile.get("id"),
+                        "name": order["client_name"],
+                        "cuit": profile.get("cuit", ""),
+                        "address": profile.get("address", ""),
+                        "business_name": profile.get("business_name", ""),
+                        "email": profile.get("email", ""),
+                        "secondary_line": order.get("secondary_line") or profile.get("secondary_line") or "",
+                        "notes": order.get("notes") or profile.get("notes") or [],
+                        "footer_discounts": invoice_payload["footer_discounts"],
+                        "line_discounts_by_format": invoice_payload["line_discounts_by_format"],
+                        "automatic_bonus_rules": profile.get("automatic_bonus_rules", []),
+                        "automatic_bonus_disables_line_discount": bool(profile.get("automatic_bonus_disables_line_discount", False)),
+                        "source_count": int(profile.get("source_count", 0)),
+                        "transport_id": transport_id,
+                        "created_at": created_at,
+                        "updated_at": created_at,
+                    },
+                    connection=connection,
+                    now=created_at,
+                )
+            elif profile.get("id") is not None:
+                customer_id = connection.execute(
+                    select(self.customers.c.id).where(self.customers.c.id == profile.get("id"))
+                ).scalar_one_or_none()
+                if customer_id is None:
+                    raise ValueError("Cliente no encontrado")
+            invoice_payload["customer_id"] = int(customer_id) if customer_id is not None else None
             invoice_payload["transport_id"] = transport_id
             invoice_id = connection.execute(self.invoices.insert().values(**invoice_payload).returning(self.invoices.c.id)).scalar_one()
             if item_payloads:
