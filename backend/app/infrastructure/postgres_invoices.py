@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from decimal import Decimal, ROUND_HALF_UP
 from datetime import date, datetime
 from typing import cast
 
@@ -27,6 +28,25 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
     price_lists: Table
     invoice_tax_breakdown: Table
     invoice_sequences: Table
+
+    def _round_money(self, value: Decimal) -> Decimal:
+        return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    def _fiscal_item_values(self, item: dict[str, object]) -> dict[str, object]:
+        iva_rate = item.get("iva_rate")
+        if iva_rate is None:
+            return {}
+        net_amount = self._round_money(Decimal(str(item.get("total") or 0)))
+        iva_amount = self._round_money(net_amount * Decimal(str(iva_rate)))
+        return {
+            "iva_rate": Decimal(str(iva_rate)),
+            "net_amount": net_amount,
+            "iva_amount": iva_amount,
+            "fiscal_total": self._round_money(net_amount + iva_amount),
+        }
+
+    def _arca_iva_id(self, iva_rate: Decimal) -> int:
+        return 4 if iva_rate == Decimal("0.105") else 5
 
     def _fiscal_scope(self) -> tuple[str, int]:
         document_type = os.getenv("GRANALIA_DOCUMENT_TYPE", "FACTURA").strip().upper() or "FACTURA"
@@ -276,6 +296,10 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
         xlsx_bytes: bytes,
         *,
         update_customer: bool = True,
+        batch_id: int | None = None,
+        split_kind: str | None = None,
+        split_percentage: float | None = None,
+        fiscal_status: str | None = None,
     ) -> int:
         created_at = utc_now()
         order_date = datetime.strptime(order["date"], "%Y-%m-%d").date()
@@ -287,13 +311,16 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
             "customer_id": None,
             "transport_id": None,
             "price_list_id": order.get("price_list_id"),
+            "batch_id": batch_id,
             "legacy_key": f"invoice:{int(created_at.timestamp())}:{order['client_name']}",
             "document_type": "FACTURA",
             "point_of_sale": 1,
             "invoice_number": 1,
             "client_name": order["client_name"],
             "declared": bool(order.get("declared", False)),
-            "fiscal_status": "draft" if bool(order.get("declared", False)) else "internal",
+            "split_kind": split_kind,
+            "split_percentage": split_percentage,
+            "fiscal_status": fiscal_status or ("draft" if bool(order.get("declared", False)) else "internal"),
             "price_list_name": str(order.get("price_list_name") or ""),
             "price_list_effective_date": None,
             "customer_cuit": str(profile.get("cuit", "") or ""),
@@ -317,8 +344,7 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
         }
         item_payloads = []
         for index, item in enumerate(snapshot["rows"], start=1):
-            item_payloads.append(
-                {
+            item_payload = {
                     "line_number": index,
                     "product_id": item.get("product_id"),
                     "offering_id": item.get("offering_id"),
@@ -334,7 +360,8 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     "discount": int(item["discount"]),
                     "total": int(item["total"]),
                 }
-            )
+            item_payload.update(self._fiscal_item_values(cast(dict[str, object], item)))
+            item_payloads.append(item_payload)
         with self.engine.begin() as connection:
             document_type, point_of_sale = self._fiscal_scope()
             invoice_payload["document_type"] = document_type
@@ -391,7 +418,196 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                 for item_payload in item_payloads:
                     item_payload["invoice_id"] = invoice_id
                 connection.execute(self.invoice_items.insert(), item_payloads)
+                breakdown: dict[Decimal, dict[str, Decimal]] = {}
+                for item_payload in item_payloads:
+                    iva_rate = item_payload.get("iva_rate")
+                    if iva_rate is None:
+                        continue
+                    rate = Decimal(str(iva_rate))
+                    current = breakdown.setdefault(rate, {"base_amount": Decimal("0"), "iva_amount": Decimal("0")})
+                    current["base_amount"] += Decimal(str(item_payload.get("net_amount") or 0))
+                    current["iva_amount"] += Decimal(str(item_payload.get("iva_amount") or 0))
+                if breakdown:
+                    connection.execute(
+                        self.invoice_tax_breakdown.insert(),
+                        [
+                            {
+                                "invoice_id": invoice_id,
+                                "iva_rate": rate,
+                                "arca_iva_id": self._arca_iva_id(rate),
+                                "base_amount": values["base_amount"],
+                                "iva_amount": values["iva_amount"],
+                                "created_at": created_at,
+                            }
+                            for rate, values in breakdown.items()
+                        ],
+                    )
         return invoice_id
+
+    def save_invoice_batch(
+        self,
+        *,
+        batch: dict[str, object],
+        invoices: list[dict[str, object]],
+        update_customer: bool = True,
+    ) -> tuple[int, list[int]]:
+        created_at = utc_now()
+        order_date = datetime.strptime(str(batch["order_date"]), "%Y-%m-%d").date()
+        invoice_ids: list[int] = []
+
+        with self.engine.begin() as connection:
+            transport_name = str(batch.get("transport") or "")
+            transport_id = self._resolve_transport_id(connection=connection, transport_name=transport_name, now=created_at)
+            customer_id = None
+            profile = cast(CustomerProfileData, batch["profile"])
+            if update_customer:
+                customer_id = self._upsert_customer(
+                    {
+                        "id": profile.get("id"),
+                        "name": str(batch["client_name"]),
+                        "cuit": profile.get("cuit", ""),
+                        "address": profile.get("address", ""),
+                        "business_name": profile.get("business_name", ""),
+                        "email": profile.get("email", ""),
+                        "secondary_line": batch.get("secondary_line") or profile.get("secondary_line") or "",
+                        "notes": batch.get("notes") or profile.get("notes") or [],
+                        "footer_discounts": profile.get("footer_discounts", []),
+                        "line_discounts_by_format": profile.get("line_discounts_by_format", {}),
+                        "automatic_bonus_rules": profile.get("automatic_bonus_rules", []),
+                        "automatic_bonus_disables_line_discount": bool(profile.get("automatic_bonus_disables_line_discount", False)),
+                        "source_count": int(profile.get("source_count", 0)),
+                        "transport_id": transport_id,
+                        "created_at": created_at,
+                        "updated_at": created_at,
+                    },
+                    connection=connection,
+                    now=created_at,
+                )
+            elif profile.get("id") is not None:
+                customer_id = connection.execute(select(self.customers.c.id).where(self.customers.c.id == profile.get("id"))).scalar_one_or_none()
+                if customer_id is None:
+                    raise ValueError("Cliente no encontrado")
+
+            batch_id = int(
+                connection.execute(
+                    self.invoice_batches.insert()
+                    .values(
+                        customer_id=int(customer_id) if customer_id is not None else None,
+                        client_name=str(batch["client_name"]),
+                        order_date=order_date,
+                        billing_mode=str(batch["billing_mode"]),
+                        declared_percentage=batch.get("declared_percentage"),
+                        internal_percentage=batch.get("internal_percentage"),
+                        internal_price_list_id=batch.get("internal_price_list_id"),
+                        fiscal_price_list_id=batch.get("fiscal_price_list_id"),
+                        created_by_user_id=None,
+                        created_at=created_at,
+                    )
+                    .returning(self.invoice_batches.c.id)
+                ).scalar_one()
+            )
+
+            document_type, point_of_sale = self._fiscal_scope()
+            for doc in invoices:
+                order = cast(OrderData, doc["order"])
+                snapshot = cast(InvoiceSnapshotData, doc["snapshot"])
+                _mode, footer_discounts, line_discounts_by_format = canonicalize_discount_config(
+                    profile.get("footer_discounts", []),
+                    profile.get("line_discounts_by_format", {}),
+                )
+                price_list_id = order.get("price_list_id")
+                price_list_name = ""
+                price_list_effective_date = None
+                if price_list_id:
+                    price_list_row = connection.execute(select(self.price_lists.c.name, self.price_lists.c.uploaded_at).where(self.price_lists.c.id == price_list_id)).mappings().first()
+                    if price_list_row:
+                        price_list_name = str(price_list_row["name"] or "")
+                        price_list_effective_date = price_list_row["uploaded_at"]
+                invoice_payload = {
+                    "customer_id": int(customer_id) if customer_id is not None else None,
+                    "transport_id": transport_id,
+                    "price_list_id": price_list_id,
+                    "batch_id": batch_id,
+                    "legacy_key": f"invoice:{int(created_at.timestamp())}:{order['client_name']}:{doc.get('split_kind')}",
+                    "document_type": document_type,
+                    "point_of_sale": point_of_sale,
+                    "invoice_number": self._next_fiscal_number(connection=connection, document_type=document_type, point_of_sale=point_of_sale, now=created_at),
+                    "client_name": order["client_name"],
+                    "declared": bool(order.get("declared", False)),
+                    "split_kind": doc.get("split_kind"),
+                    "split_percentage": doc.get("split_percentage"),
+                    "fiscal_status": str(doc.get("fiscal_status") or ("draft" if order.get("declared") else "internal")),
+                    "price_list_name": price_list_name,
+                    "price_list_effective_date": price_list_effective_date,
+                    "customer_cuit": str(profile.get("cuit", "") or ""),
+                    "customer_address": str(profile.get("address", "") or ""),
+                    "customer_business_name": str(profile.get("business_name", "") or ""),
+                    "customer_email": str(profile.get("email", "") or ""),
+                    "order_date": order_date,
+                    "secondary_line": order.get("secondary_line") or profile.get("secondary_line") or "",
+                    "transport": order.get("transport") or profile.get("transport") or "",
+                    "notes": order.get("notes") or profile.get("notes") or [],
+                    "footer_discounts": footer_discounts,
+                    "line_discounts_by_format": line_discounts_by_format,
+                    "total_bultos": float(snapshot["summary"]["total_bultos"]),
+                    "gross_total": int(snapshot["summary"]["gross_total"]),
+                    "discount_total": int(snapshot["summary"]["discount_total"]),
+                    "final_total": int(snapshot["summary"]["final_total"]),
+                    "output_filename": str(doc["filename"]),
+                    "xlsx_data": doc["xlsx_bytes"],
+                    "xlsx_size": len(cast(bytes, doc["xlsx_bytes"])),
+                    "created_at": created_at,
+                }
+                invoice_id = int(connection.execute(self.invoices.insert().values(**invoice_payload).returning(self.invoices.c.id)).scalar_one())
+                invoice_ids.append(invoice_id)
+                item_payloads = []
+                for index, item in enumerate(snapshot["rows"], start=1):
+                    item_payload = {
+                        "invoice_id": invoice_id,
+                        "line_number": index,
+                        "product_id": item.get("product_id"),
+                        "offering_id": item.get("offering_id"),
+                        "product_name": str(item.get("product_name") or ""),
+                        "offering_label": str(item.get("offering_label") or ""),
+                        "offering_net_weight_kg": float(item.get("offering_net_weight_kg") or 0),
+                        "line_type": str(item.get("line_type") or "sale"),
+                        "discount_rate": float(item.get("discount_rate") or 0),
+                        "label": item["label"],
+                        "quantity": float(item["quantity"]),
+                        "unit_price": int(item["unit_price"]),
+                        "gross": int(item["gross"]),
+                        "discount": int(item["discount"]),
+                        "total": int(item["total"]),
+                    }
+                    item_payload.update(self._fiscal_item_values(cast(dict[str, object], item)))
+                    item_payloads.append(item_payload)
+                if item_payloads:
+                    connection.execute(self.invoice_items.insert(), item_payloads)
+                    breakdown: dict[Decimal, dict[str, Decimal]] = {}
+                    for item_payload in item_payloads:
+                        iva_rate = item_payload.get("iva_rate")
+                        if iva_rate is None:
+                            continue
+                        rate = Decimal(str(iva_rate))
+                        current = breakdown.setdefault(rate, {"base_amount": Decimal("0"), "iva_amount": Decimal("0")})
+                        current["base_amount"] += Decimal(str(item_payload.get("net_amount") or 0))
+                        current["iva_amount"] += Decimal(str(item_payload.get("iva_amount") or 0))
+                    if breakdown:
+                        connection.execute(
+                            self.invoice_tax_breakdown.insert(),
+                            [
+                                {
+                                    "invoice_id": invoice_id,
+                                    "iva_rate": rate,
+                                    "arca_iva_id": self._arca_iva_id(rate),
+                                    "base_amount": values["base_amount"],
+                                    "iva_amount": values["iva_amount"],
+                                    "created_at": created_at,
+                                }
+                                for rate, values in breakdown.items()
+                            ],
+                        )
+        return batch_id, invoice_ids
 
     def update_invoice(
         self,

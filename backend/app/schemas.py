@@ -432,6 +432,8 @@ class InvoiceDetailOut(BaseModel):
 
 class InvoiceCreateOut(BaseModel):
     invoice_id: int
+    batch_id: int | None = None
+    invoices: list[dict[str, Any]] = Field(default_factory=list)
     filename: str
     download_url: str
     summary: InvoiceSummaryOut

@@ -481,11 +481,6 @@ function useGranaliaData() {
       return
     }
 
-    if ((form.billingMode || 'internal_only') === 'split') {
-      setStatus('El modo dividido ya tiene preview. La generación transaccional se habilita en Fase 3.')
-      return
-    }
-
     setGenerating(true)
     const previewWindow = window.open('', '_blank')
     if (previewWindow) {
@@ -500,13 +495,18 @@ function useGranaliaData() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(buildInvoicePayload({ ...form, authorizationPassword }, currentCustomer)),
       })
-      const previewOpened = openInvoicePdfPreview(data.invoice_id, previewWindow)
+      const createdInvoices = data.invoices || []
+      const previewInvoiceId = data.invoice_id || createdInvoices[0]?.invoice_id
+      const previewOpened = previewInvoiceId ? openInvoicePdfPreview(previewInvoiceId, previewWindow) : false
       await refreshInvoices()
       setEditingInvoiceId(null)
       const defaultPriceListId = bootstrap?.price_list?.id ? String(bootstrap.price_list.id) : ''
       setForm({ ...createInitialForm(), priceListId: defaultPriceListId, internalPriceListId: defaultPriceListId, fiscalPriceListId: defaultPriceListId })
-      setStatus(`Factura ${data.invoice_id} ${isEditing ? 'actualizada' : 'guardada'}${previewOpened ? ' y abierta para previsualizar' : ''}.`)
-      return { invoiceId: data.invoice_id, updated: isEditing }
+      const createdText = createdInvoices.length > 1
+        ? `Comprobantes ${createdInvoices.map((invoice) => invoice.invoice_id).join(' y ')} guardados`
+        : `Factura ${previewInvoiceId} ${isEditing ? 'actualizada' : 'guardada'}`
+      setStatus(`${createdText}${previewOpened ? ' y abierta para previsualizar' : ''}.`)
+      return { invoiceId: previewInvoiceId, updated: isEditing }
     } catch (error) {
       if (previewWindow && !previewWindow.closed) {
         previewWindow.close()

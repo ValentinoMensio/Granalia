@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -61,6 +62,108 @@ def catalog_with_invoice_history(catalog: list[dict], invoice: dict) -> list[dic
     return next_catalog
 
 
+def normalize_lookup(value: object) -> str:
+    return " ".join(str(value or "").strip().lower().split())
+
+
+def find_catalog_product(catalog: list[dict], product_id: int | None = None, product_name: str = "") -> dict | None:
+    if product_id is not None:
+        match = next((item for item in catalog if str(item.get("id")) == str(product_id)), None)
+        if match:
+            return match
+    normalized_name = normalize_lookup(product_name)
+    return next((item for item in catalog if normalize_lookup(item.get("name")) == normalized_name), None)
+
+
+def find_catalog_offering(product: dict | None, offering_id: int | None = None, offering_label: str = "") -> dict | None:
+    if not product:
+        return None
+    offerings = product.get("offerings", [])
+    if offering_id is not None:
+        match = next((item for item in offerings if str(item.get("id")) == str(offering_id)), None)
+        if match:
+            return match
+    normalized_label = normalize_lookup(offering_label)
+    return next((item for item in offerings if normalize_lookup(item.get("label")) == normalized_label), None)
+
+
+def split_quantity(value: object, declared_percentage: float) -> tuple[int, int]:
+    quantity = float(value or 0)
+    if quantity < 0 or not quantity.is_integer():
+        raise ValueError("El modo dividido solo acepta cantidades enteras")
+    declared_quantity = math.ceil(quantity * declared_percentage / 100)
+    return int(quantity) - declared_quantity, declared_quantity
+
+
+def order_with_items(order: dict, *, price_list_id: int | None, declared: bool, items: list[dict]) -> dict:
+    return {
+        **order,
+        "price_list_id": price_list_id,
+        "declared": declared,
+        "items": items,
+    }
+
+
+def fiscalize_snapshot(snapshot: dict, catalog: list[dict]) -> dict:
+    products_by_id = {str(product.get("id")): product for product in catalog}
+    rows = []
+    for row in snapshot.get("rows", []):
+        next_row = dict(row)
+        product = products_by_id.get(str(row.get("product_id") or ""))
+        if not product:
+            raise ValueError(f"Producto fiscal no encontrado para {row.get('product_name') or row.get('label')}")
+        iva_rate = product.get("iva_rate")
+        if iva_rate is None:
+            raise ValueError(f"Falta configurar IVA fiscal para {product.get('name')}")
+        next_row["iva_rate"] = float(iva_rate)
+        rows.append(next_row)
+    return {**snapshot, "rows": rows}
+
+
+def build_split_orders(order: dict, internal_catalog: list[dict], fiscal_catalog: list[dict]) -> tuple[dict, dict]:
+    declared_percentage = float(order.get("declared_percentage") or 0)
+    internal_items: list[dict] = []
+    fiscal_items: list[dict] = []
+
+    for item in order.get("items", []):
+        product = find_catalog_product(internal_catalog, item.get("product_id"))
+        offering = find_catalog_offering(product, item.get("offering_id"))
+        if not product or not offering:
+            raise ValueError("Producto o presentacion interna no encontrada")
+
+        fiscal_product = find_catalog_product(fiscal_catalog, product_name=str(product.get("name") or ""))
+        fiscal_offering = find_catalog_offering(fiscal_product, offering_label=str(offering.get("label") or ""))
+        if not fiscal_product:
+            raise ValueError(f"Falta el producto {product.get('name')} en la lista declarada")
+        if not fiscal_offering:
+            raise ValueError(f"Falta la presentacion {offering.get('label')} de {product.get('name')} en la lista declarada")
+        if fiscal_product.get("iva_rate") is None:
+            raise ValueError(f"Falta configurar IVA fiscal para {fiscal_product.get('name')}")
+
+        internal_quantity, fiscal_quantity = split_quantity(item.get("quantity"), declared_percentage)
+        internal_bonus, fiscal_bonus = split_quantity(item.get("bonus_quantity", 0), declared_percentage)
+        if internal_quantity > 0 or internal_bonus > 0:
+            internal_items.append({**item, "quantity": internal_quantity, "bonus_quantity": internal_bonus})
+        if fiscal_quantity > 0 or fiscal_bonus > 0:
+            fiscal_items.append(
+                {
+                    **item,
+                    "product_id": int(fiscal_product["id"]),
+                    "offering_id": int(fiscal_offering["id"]),
+                    "quantity": fiscal_quantity,
+                    "bonus_quantity": fiscal_bonus,
+                    "unit_price": int(fiscal_offering.get("price") or 0),
+                }
+            )
+
+    if not internal_items and not fiscal_items:
+        raise ValueError("No hay cantidades para generar")
+    return (
+        order_with_items(order, price_list_id=order.get("internal_price_list_id") or order.get("price_list_id"), declared=False, items=internal_items),
+        order_with_items(order, price_list_id=order.get("fiscal_price_list_id"), declared=True, items=fiscal_items),
+    )
+
+
 @router.get("", response_model=list[InvoiceListItemOut])
 def invoices(limit: int = Query(default=500, ge=1, le=10000), role: str = Depends(current_role)) -> list[InvoiceListItemOut]:
     date_from = operator_min_order_date() if role == "operator" else None
@@ -118,22 +221,109 @@ def create_invoice(payload: InvoiceRequest, role: str = Depends(current_role)) -
     order = payload.order.model_dump()
     profile = payload.profile.model_dump()
     billing_mode = str(order.get("billing_mode") or ("fiscal_only" if order.get("declared") else "internal_only"))
-    if billing_mode == "split":
-        raise HTTPException(status_code=400, detail="La generación dividida se habilita en Fase 3")
-    if billing_mode == "fiscal_only" or bool(order.get("declared", False)):
+    if billing_mode in {"fiscal_only", "split"} or bool(order.get("declared", False)):
         validate_invoice_authorization_password(payload.authorization.password if payload.authorization else "")
     try:
-        catalog = repository.get_catalog_for_price_list(int(order["price_list_id"])) if order.get("price_list_id") else repository.get_active_catalog()
-        filename, xlsx_bytes, snapshot = generate_invoice_document(order, profile, catalog)
-        invoice_id = repository.save_invoice(order, profile, snapshot, filename, xlsx_bytes, update_customer=role == "admin")
+        if billing_mode == "internal_only":
+            order["declared"] = False
+            order["price_list_id"] = order.get("internal_price_list_id") or order.get("price_list_id")
+            catalog = repository.get_catalog_for_price_list(int(order["price_list_id"])) if order.get("price_list_id") else repository.get_active_catalog()
+            filename, xlsx_bytes, snapshot = generate_invoice_document(order, profile, catalog)
+            invoice_id = repository.save_invoice(order, profile, snapshot, filename, xlsx_bytes, update_customer=role == "admin", split_kind="internal", fiscal_status="internal")
+            return InvoiceCreateOut.model_validate({
+                "invoice_id": invoice_id,
+                "invoices": [{"invoice_id": invoice_id, "split_kind": "internal", "fiscal_status": "internal"}],
+                "filename": filename,
+                "download_url": f"/api/invoices/{invoice_id}/xlsx",
+                "summary": snapshot["summary"],
+            })
+
+        if billing_mode == "fiscal_only":
+            order["declared"] = True
+            order["price_list_id"] = order.get("fiscal_price_list_id") or order.get("price_list_id")
+            catalog = repository.get_catalog_for_price_list(int(order["price_list_id"])) if order.get("price_list_id") else repository.get_active_catalog()
+            filename, xlsx_bytes, snapshot = generate_invoice_document(order, profile, catalog)
+            snapshot = fiscalize_snapshot(snapshot, catalog)
+            invoice_id = repository.save_invoice(order, profile, snapshot, filename, xlsx_bytes, update_customer=role == "admin", split_kind="fiscal", fiscal_status="draft")
+            return InvoiceCreateOut.model_validate({
+                "invoice_id": invoice_id,
+                "invoices": [{"invoice_id": invoice_id, "split_kind": "fiscal", "fiscal_status": "draft"}],
+                "filename": filename,
+                "download_url": f"/api/invoices/{invoice_id}/xlsx",
+                "summary": snapshot["summary"],
+            })
+
+        internal_price_list_id = order.get("internal_price_list_id") or order.get("price_list_id")
+        fiscal_price_list_id = order.get("fiscal_price_list_id")
+        if not fiscal_price_list_id:
+            raise ValueError("Selecciona una lista declarada")
+        internal_catalog = repository.get_catalog_for_price_list(int(internal_price_list_id)) if internal_price_list_id else repository.get_active_catalog()
+        fiscal_catalog = repository.get_catalog_for_price_list(int(fiscal_price_list_id))
+        internal_order, fiscal_order = build_split_orders(order, internal_catalog, fiscal_catalog)
+        declared_percentage = float(order.get("declared_percentage") or 0)
+        batch_invoices = []
+        response_invoices = []
+        if internal_order.get("items"):
+            internal_filename, internal_xlsx, internal_snapshot = generate_invoice_document(internal_order, profile, internal_catalog)
+            batch_invoices.append(
+                {
+                    "order": internal_order,
+                    "snapshot": internal_snapshot,
+                    "filename": internal_filename,
+                    "xlsx_bytes": internal_xlsx,
+                    "split_kind": "internal",
+                    "split_percentage": 100 - declared_percentage,
+                    "fiscal_status": "internal",
+                }
+            )
+        if fiscal_order.get("items"):
+            fiscal_filename, fiscal_xlsx, fiscal_snapshot = generate_invoice_document(fiscal_order, profile, fiscal_catalog)
+            fiscal_snapshot = fiscalize_snapshot(fiscal_snapshot, fiscal_catalog)
+            batch_invoices.append(
+                {
+                    "order": fiscal_order,
+                    "snapshot": fiscal_snapshot,
+                    "filename": fiscal_filename,
+                    "xlsx_bytes": fiscal_xlsx,
+                    "split_kind": "fiscal",
+                    "split_percentage": declared_percentage,
+                    "fiscal_status": "draft",
+                }
+            )
+        if not batch_invoices:
+            raise ValueError("No hay cantidades para generar")
+        batch_id, invoice_ids = repository.save_invoice_batch(
+            batch={
+                "client_name": order["client_name"],
+                "order_date": order["date"],
+                "billing_mode": "split",
+                "declared_percentage": declared_percentage,
+                "internal_percentage": 100 - declared_percentage,
+                "internal_price_list_id": internal_price_list_id,
+                "fiscal_price_list_id": fiscal_price_list_id,
+                "transport": order.get("transport") or profile.get("transport") or "",
+                "secondary_line": order.get("secondary_line") or profile.get("secondary_line") or "",
+                "notes": order.get("notes") or profile.get("notes") or [],
+                "profile": profile,
+            },
+            invoices=batch_invoices,
+            update_customer=role == "admin",
+        )
+        for invoice_id, doc in zip(invoice_ids, batch_invoices):
+            response_invoices.append({"invoice_id": invoice_id, "split_kind": doc.get("split_kind"), "fiscal_status": doc.get("fiscal_status")})
+        invoice_id = invoice_ids[0]
+        first_doc = batch_invoices[0]
+        first_snapshot = first_doc["snapshot"]
+        return InvoiceCreateOut.model_validate({
+            "invoice_id": invoice_id,
+            "batch_id": batch_id,
+            "invoices": response_invoices,
+            "filename": first_doc["filename"],
+            "download_url": f"/api/invoices/{invoice_id}/xlsx",
+            "summary": first_snapshot["summary"],
+        })
     except (RuntimeError, ValueError) as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
-    return InvoiceCreateOut.model_validate({
-        "invoice_id": invoice_id,
-        "filename": filename,
-        "download_url": f"/api/invoices/{invoice_id}/xlsx",
-        "summary": snapshot["summary"],
-    })
 
 
 @router.put("/{invoice_id}", response_model=InvoiceCreateOut)

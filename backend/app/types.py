@@ -76,6 +76,10 @@ class OrderData(TypedDict):
     client_name: str
     date: str
     price_list_id: NotRequired[int | None]
+    billing_mode: NotRequired[str]
+    declared_percentage: NotRequired[float | None]
+    internal_price_list_id: NotRequired[int | None]
+    fiscal_price_list_id: NotRequired[int | None]
     declared: NotRequired[bool]
     secondary_line: str
     transport: str
