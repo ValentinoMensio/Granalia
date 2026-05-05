@@ -26,7 +26,6 @@ function InvoiceFormCard({
   const defaultPriceListName = bootstrap?.price_list?.name || 'sin lista activa'
   const priceLists = bootstrap?.price_lists || []
   const billingMode = form.billingMode || (form.declared ? 'fiscal_only' : 'internal_only')
-  const internalPercentage = Math.max(0, 100 - Number(form.declaredPercentage || 0))
 
   return (
     <div className="surface p-4 sm:p-6 lg:p-7">
@@ -47,6 +46,13 @@ function InvoiceFormCard({
             </select>
             {editingInvoiceId ? <p className="mt-1 text-xs text-slate-500">El modo se define al crear la factura.</p> : null}
           </Field>
+
+          {billingMode === 'split' && (
+            <Field label="% declarado">
+              <input className="input" type="number" min="0" max="100" step="1" value={form.declaredPercentage} onChange={(event) => onFieldChange('declaredPercentage', Number(event.target.value || 0))} />
+              <p className="mt-1 text-xs text-slate-500">El porcentaje interno es el resto.</p>
+            </Field>
+          )}
 
         {(billingMode === 'internal_only' || billingMode === 'split') && (
           <Field label="Lista interna">
@@ -70,20 +76,14 @@ function InvoiceFormCard({
           </Field>
         )}
 
-        {billingMode === 'split' && (
-          <>
-            <Field label="% declarado">
-              <input className="input" type="number" min="0" max="100" step="1" value={form.declaredPercentage} onChange={(event) => onFieldChange('declaredPercentage', Number(event.target.value || 0))} />
-            </Field>
-            <Field label="% interno">
-              <input className="input bg-slate-50" value={`${internalPercentage}%`} readOnly />
-            </Field>
-          </>
-        )}
         </div>
       </div>
 
       <div className="mt-6 grid gap-4 md:grid-cols-2">
+        <div className="md:col-span-2">
+          <h3 className="subsection-title text-lg">Cliente</h3>
+        </div>
+
         <Field label="Cliente histórico">
           <select className="input" value={form.customerId} onChange={(event) => onApplyCustomer(event.target.value)}>
             <option value="">Nuevo cliente</option>

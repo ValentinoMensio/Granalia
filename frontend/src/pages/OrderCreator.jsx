@@ -24,9 +24,8 @@ function findMatchingProduct(catalog, product) {
 function buildSplitPreview(form, productsById, fiscalCatalog) {
   const billingMode = form.billingMode || (form.declared ? 'fiscal_only' : 'internal_only')
   const declaredPercentage = Math.max(0, Math.min(100, Number(form.declaredPercentage || 0)))
-  const internalPercentage = Math.max(0, 100 - declaredPercentage)
   if (billingMode !== 'split') {
-    return { enabled: false, rows: [], warnings: [], declaredPercentage, internalPercentage }
+    return { enabled: false, rows: [], warnings: [], declaredPercentage }
   }
 
   const warnings = []
@@ -77,7 +76,7 @@ function buildSplitPreview(form, productsById, fiscalCatalog) {
   }
 
   warnings.push(...warningSet)
-  return { enabled: true, rows, warnings, declaredPercentage, internalPercentage, internalQuantityTotal, declaredQuantityTotal, internalTotal, fiscalTotal }
+  return { enabled: true, rows, warnings, declaredPercentage, internalQuantityTotal, declaredQuantityTotal, internalTotal, fiscalTotal }
 }
 
 export default function OrderCreator() {
