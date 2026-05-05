@@ -138,7 +138,7 @@ def arca_iva_id_for_rate(value: object) -> int:
 def build_arca_invoice_items(invoice: dict) -> list[ArcaInvoiceItem]:
     items: list[ArcaInvoiceItem] = []
     for item in invoice.get("items", []):
-        iva_rate = item.get("iva_rate")
+        iva_rate = item.get("iva_rate") if item.get("iva_rate") is not None else item.get("product_iva_rate")
         if iva_rate is None:
             raise ValueError(f"Falta IVA fiscal para {item.get('label')}")
         quantity = Decimal(str(item.get("quantity") or 0))
@@ -147,7 +147,7 @@ def build_arca_invoice_items(invoice: dict) -> list[ArcaInvoiceItem]:
         unit_price = money_decimal(item.get("unit_price"))
         gross = money_decimal(item.get("gross"))
         net_amount = money_decimal(item.get("net_amount") if item.get("net_amount") is not None else item.get("total"))
-        iva_amount = money_decimal(item.get("iva_amount"))
+        iva_amount = money_decimal(item.get("iva_amount") if item.get("iva_amount") is not None else net_amount * Decimal(str(iva_rate)))
         fiscal_total = money_decimal(item.get("fiscal_total") if item.get("fiscal_total") is not None else net_amount + iva_amount)
         discount_amount = money_decimal(max(Decimal("0"), gross - net_amount))
         description = " ".join(str(part or "").strip() for part in (item.get("product_name"), item.get("offering_label")) if str(part or "").strip())
@@ -170,19 +170,26 @@ def build_arca_invoice_items(invoice: dict) -> list[ArcaInvoiceItem]:
 
 
 def build_arca_invoice_request(invoice: dict, tax_breakdown: list[dict], *, point_of_sale: int) -> ArcaInvoiceRequest:
-    if not tax_breakdown:
-        raise ValueError("La factura no tiene breakdown fiscal por IVA")
     doc_nro = digits_only(invoice.get("customer_cuit"))
     if len(doc_nro) != 11:
         raise ValueError("Cliente con CUIT invalido")
-    iva_items = [
-        ArcaIvaItem(
-            Id=int(item["arca_iva_id"]),
-            BaseImp=money_decimal(item["base_amount"]),
-            Importe=money_decimal(item["iva_amount"]),
-        )
-        for item in tax_breakdown
-    ]
+    arca_items = build_arca_invoice_items(invoice)
+    if tax_breakdown:
+        iva_items = [
+            ArcaIvaItem(
+                Id=int(item["arca_iva_id"]),
+                BaseImp=money_decimal(item["base_amount"]),
+                Importe=money_decimal(item["iva_amount"]),
+            )
+            for item in tax_breakdown
+        ]
+    else:
+        iva_breakdown: dict[int, dict[str, Decimal]] = {}
+        for item in arca_items:
+            current = iva_breakdown.setdefault(item.iva_id, {"base": Decimal("0"), "iva": Decimal("0")})
+            current["base"] += item.item_total - item.iva_amount
+            current["iva"] += item.iva_amount
+        iva_items = [ArcaIvaItem(Id=iva_id, BaseImp=money_decimal(values["base"]), Importe=money_decimal(values["iva"])) for iva_id, values in sorted(iva_breakdown.items())]
     imp_neto = money_decimal(sum(item.BaseImp for item in iva_items))
     imp_iva = money_decimal(sum(item.Importe for item in iva_items))
     return ArcaInvoiceRequest(
@@ -196,7 +203,7 @@ def build_arca_invoice_request(invoice: dict, tax_breakdown: list[dict], *, poin
         imp_iva=imp_iva,
         imp_total=money_decimal(imp_neto + imp_iva),
         iva=iva_items,
-        items=build_arca_invoice_items(invoice),
+        items=arca_items,
     )
 
 

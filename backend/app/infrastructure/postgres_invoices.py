@@ -278,8 +278,9 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
             item_rows = connection.execute(
                 select(
                     self.invoice_items,
+                    self.products.c.iva_rate.label("product_iva_rate"),
                 )
-                .select_from(self.invoice_items)
+                .select_from(self.invoice_items.outerjoin(self.products, self.invoice_items.c.product_id == self.products.c.id))
                 .where(self.invoice_items.c.invoice_id == invoice_id)
                 .order_by(self.invoice_items.c.line_number)
             ).mappings().all()
@@ -287,6 +288,9 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
         invoice = {key: serialize_value(value) for key, value in invoice_row.items()}
         invoice["fiscal_number"] = self._format_fiscal_number(str(invoice.get("document_type") or "FACTURA"), int(invoice.get("point_of_sale") or 1), int(invoice.get("invoice_number") or 0))
         items = [{key: serialize_value(value) for key, value in row.items()} for row in item_rows]
+        for item in items:
+            if item.get("iva_rate") is None and item.get("product_iva_rate") is not None:
+                item["iva_rate"] = item["product_iva_rate"]
         invoice["items"] = items
         return cast(InvoiceDetailData, invoice)
 
