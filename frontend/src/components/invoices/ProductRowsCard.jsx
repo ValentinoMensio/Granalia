@@ -338,12 +338,6 @@ function ProductRowsCard({
         </Button>
       </div>
 
-      <div className="mt-6 grid gap-3 md:grid-cols-3">
-        <Metric label="Total bultos" value={money(totals.bultos)} />
-        <Metric label="Subtotal" value={money(totals.subtotal)} />
-        <Metric label="Total estimado" value={money(totals.total)} />
-      </div>
-
       {splitPreview?.enabled && (
         <div className="mt-6 rounded-[26px] border border-amber-200 bg-amber-50/80 p-4 sm:p-5">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -388,9 +382,10 @@ function ProductRowsCard({
             </table>
           </div>
 
-          <div className="mt-4 grid gap-3 text-sm md:grid-cols-3">
+          <div className="mt-4 grid gap-3 text-sm md:grid-cols-4">
             <Metric label="Bultos internos" value={splitPreview.internalQuantityTotal} />
             <Metric label="Bultos declarados" value={splitPreview.declaredQuantityTotal} />
+            <Metric label="Total estimado interno" value={`$${money(splitPreview.internalTotal)}`} />
             <Metric label="Total declarado estimado" value={`$${money(splitPreview.fiscalTotal)}`} />
           </div>
 
@@ -404,6 +399,12 @@ function ProductRowsCard({
           ) : null}
         </div>
       )}
+
+      <div className="mt-6 grid gap-3 md:grid-cols-3">
+        <Metric label="Total bultos" value={money(totals.bultos)} />
+        <Metric label="Subtotal" value={money(totals.subtotal)} />
+        <Metric label="Total estimado" value={money(totals.total)} />
+      </div>
 
       <div className="mt-6 flex flex-col gap-3 border-t border-stone-200 pt-5 sm:flex-row sm:flex-wrap sm:justify-start">
         <Button
