@@ -5,7 +5,7 @@ from datetime import date, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 
-from ...dependencies import current_role, get_repository, require_admin
+from ...dependencies import current_role, get_repository, require_admin, validate_invoice_authorization_password
 from ...schemas import InvoiceCreateOut, InvoiceDetailOut, InvoiceListItemOut, InvoiceRequest, StatusResponse
 from ...services.pdf import build_invoice_pdf
 from ...services.invoicing import generate_invoice_document
@@ -117,6 +117,11 @@ def create_invoice(payload: InvoiceRequest, role: str = Depends(current_role)) -
     repository = get_repository()
     order = payload.order.model_dump()
     profile = payload.profile.model_dump()
+    billing_mode = str(order.get("billing_mode") or ("fiscal_only" if order.get("declared") else "internal_only"))
+    if billing_mode == "split":
+        raise HTTPException(status_code=400, detail="La generación dividida se habilita en Fase 3")
+    if billing_mode == "fiscal_only" or bool(order.get("declared", False)):
+        validate_invoice_authorization_password(payload.authorization.password if payload.authorization else "")
     try:
         catalog = repository.get_catalog_for_price_list(int(order["price_list_id"])) if order.get("price_list_id") else repository.get_active_catalog()
         filename, xlsx_bytes, snapshot = generate_invoice_document(order, profile, catalog)

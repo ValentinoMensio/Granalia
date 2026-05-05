@@ -24,6 +24,9 @@ function InvoiceFormCard({
   onCancelEdit,
 }) {
   const defaultPriceListName = bootstrap?.price_list?.name || 'sin lista activa'
+  const priceLists = bootstrap?.price_lists || []
+  const billingMode = form.billingMode || (form.declared ? 'fiscal_only' : 'internal_only')
+  const internalPercentage = Math.max(0, 100 - Number(form.declaredPercentage || 0))
 
   return (
     <div className="surface p-4 sm:p-6 lg:p-7">
@@ -47,22 +50,54 @@ function InvoiceFormCard({
           <input className="input" type="date" value={form.date} onChange={(event) => onFieldChange('date', event.target.value)} />
         </Field>
 
-        <Field label="Lista de precios">
-          <select className="input" value={form.priceListId} onChange={(event) => onFieldChange('priceListId', event.target.value)}>
-            <option value="">Lista predeterminada ({defaultPriceListName})</option>
-            {(bootstrap?.price_lists || []).map((priceList) => (
-              <option key={priceList.id} value={priceList.id}>{priceList.name}</option>
-            ))}
+        <Field label="Modo de facturación">
+          <select className="input" value={billingMode} onChange={(event) => onFieldChange('billingMode', event.target.value)} disabled={Boolean(editingInvoiceId)}>
+            <option value="internal_only">Solo interna</option>
+            <option value="fiscal_only">Solo declarada</option>
+            <option value="split">Dividida</option>
           </select>
-          <p className="mt-1 text-xs text-slate-500">Si no elegís otra, se usa la lista activa: {defaultPriceListName}.</p>
+          {editingInvoiceId ? <p className="mt-1 text-xs text-slate-500">El modo se define al crear la factura.</p> : null}
         </Field>
 
-        <Field label="Declaración">
-          <select className="input" value={form.declared ? 'true' : 'false'} onChange={(event) => onFieldChange('declared', event.target.value === 'true')}>
-            <option value="false">Interna</option>
-            <option value="true">Declarada</option>
-          </select>
-        </Field>
+        {(billingMode === 'internal_only' || billingMode === 'split') && (
+          <Field label="Lista interna">
+            <select className="input" value={form.internalPriceListId || form.priceListId} onChange={(event) => onFieldChange('internalPriceListId', event.target.value)}>
+              <option value="">Lista predeterminada ({defaultPriceListName})</option>
+              {priceLists.map((priceList) => (
+                <option key={priceList.id} value={priceList.id}>{priceList.name}</option>
+              ))}
+            </select>
+          </Field>
+        )}
+
+        {(billingMode === 'fiscal_only' || billingMode === 'split') && (
+          <Field label="Lista declarada">
+            <select className="input" value={form.fiscalPriceListId || form.priceListId} onChange={(event) => onFieldChange('fiscalPriceListId', event.target.value)}>
+              <option value="">Lista predeterminada ({defaultPriceListName})</option>
+              {priceLists.map((priceList) => (
+                <option key={priceList.id} value={priceList.id}>{priceList.name}</option>
+              ))}
+            </select>
+          </Field>
+        )}
+
+        {billingMode === 'split' && (
+          <>
+            <Field label="% declarado">
+              <input className="input" type="number" min="0" max="100" step="1" value={form.declaredPercentage} onChange={(event) => onFieldChange('declaredPercentage', Number(event.target.value || 0))} />
+            </Field>
+            <Field label="% interno">
+              <input className="input bg-slate-50" value={`${internalPercentage}%`} readOnly />
+            </Field>
+          </>
+        )}
+
+        {billingMode !== 'split' && (
+          <Field label="Lista activa aplicada">
+            <input className="input bg-slate-50" value={billingMode === 'fiscal_only' ? 'Factura A draft' : 'Comprobante interno'} readOnly />
+            <p className="mt-1 text-xs text-slate-500">Si no elegís otra, se usa la lista activa: {defaultPriceListName}.</p>
+          </Field>
+        )}
 
         <Field label="Cliente" full>
           <input className="input" value={form.clientName} onChange={(event) => onFieldChange('clientName', event.target.value)} />

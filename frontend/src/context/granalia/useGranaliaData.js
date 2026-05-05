@@ -51,12 +51,12 @@ function useGranaliaData() {
     const defaultPriceListId = nextBootstrap.price_list?.id ? String(nextBootstrap.price_list.id) : ''
     const sourceCustomers = Object.values(nextBootstrap.profiles || {})
     if (!sourceCustomers.length) {
-      setForm({ ...createInitialForm(), priceListId: defaultPriceListId })
+      setForm({ ...createInitialForm(), priceListId: defaultPriceListId, internalPriceListId: defaultPriceListId, fiscalPriceListId: defaultPriceListId })
       return
     }
 
     const firstCustomer = sourceCustomers[0]
-    setForm(applyCustomerToForm({ ...createInitialForm(), priceListId: defaultPriceListId }, firstCustomer))
+    setForm(applyCustomerToForm({ ...createInitialForm(), priceListId: defaultPriceListId, internalPriceListId: defaultPriceListId, fiscalPriceListId: defaultPriceListId }, firstCustomer))
   }
 
   async function loadAll() {
@@ -78,25 +78,27 @@ function useGranaliaData() {
 
   function clearInvoiceEditing() {
     const sourceCustomers = customers
+    const defaultPriceListId = bootstrap?.price_list?.id ? String(bootstrap.price_list.id) : ''
     setEditingInvoiceId(null)
     if (!sourceCustomers.length) {
-      setForm(createInitialForm())
+      setForm({ ...createInitialForm(), priceListId: defaultPriceListId, internalPriceListId: defaultPriceListId, fiscalPriceListId: defaultPriceListId })
       setStatus('Edición cancelada.')
       return
     }
-    setForm(applyCustomerToForm(createInitialForm(), sourceCustomers[0]))
+    setForm(applyCustomerToForm({ ...createInitialForm(), priceListId: defaultPriceListId, internalPriceListId: defaultPriceListId, fiscalPriceListId: defaultPriceListId }, sourceCustomers[0]))
     setStatus('Edición cancelada.')
   }
 
   function clearCurrentInvoice() {
     const sourceCustomers = customers
+    const defaultPriceListId = bootstrap?.price_list?.id ? String(bootstrap.price_list.id) : ''
     setEditingInvoiceId(null)
     if (!sourceCustomers.length) {
-      setForm(createInitialForm())
+      setForm({ ...createInitialForm(), priceListId: defaultPriceListId, internalPriceListId: defaultPriceListId, fiscalPriceListId: defaultPriceListId })
       setStatus('Factura limpiada.')
       return
     }
-    setForm(applyCustomerToForm(createInitialForm(), sourceCustomers[0]))
+    setForm(applyCustomerToForm({ ...createInitialForm(), priceListId: defaultPriceListId, internalPriceListId: defaultPriceListId, fiscalPriceListId: defaultPriceListId }, sourceCustomers[0]))
     setStatus('Factura limpiada.')
   }
 
@@ -167,27 +169,59 @@ function useGranaliaData() {
     })
   }
 
+  function applyPriceListChange(value, extraUpdates = {}) {
+    if (value) {
+      request(`/api/price-lists/${value}/catalog`)
+        .then((nextCatalog) => {
+          setCatalog(nextCatalog)
+          setForm((current) => ({
+            ...current,
+            ...extraUpdates,
+            priceListId: value,
+            items: applyAutomaticBonusRulesToItems(repriceItemsForCatalog(current.items, nextCatalog), current.automaticBonusRules),
+          }))
+        })
+        .catch((error) => setStatus(error.message))
+    } else {
+      const nextCatalog = bootstrap?.catalog || []
+      setCatalog(nextCatalog)
+      setForm((current) => ({
+        ...current,
+        ...extraUpdates,
+        priceListId: value,
+        items: applyAutomaticBonusRulesToItems(repriceItemsForCatalog(current.items, nextCatalog), current.automaticBonusRules),
+      }))
+    }
+  }
+
   function updateFormField(field, value) {
     if (field === 'priceListId') {
-      if (value) {
-        request(`/api/price-lists/${value}/catalog`)
-          .then((nextCatalog) => {
-            setCatalog(nextCatalog)
-            setForm((current) => ({
-              ...current,
-              priceListId: value,
-              items: applyAutomaticBonusRulesToItems(repriceItemsForCatalog(current.items, nextCatalog), current.automaticBonusRules),
-            }))
-          })
-          .catch((error) => setStatus(error.message))
+      applyPriceListChange(value, { internalPriceListId: value, fiscalPriceListId: value })
+      return
+    }
+    if (field === 'billingMode') {
+      const declared = value !== 'internal_only'
+      const targetPriceListId = value === 'fiscal_only' ? form.fiscalPriceListId : form.internalPriceListId
+      if (targetPriceListId !== form.priceListId) {
+        applyPriceListChange(targetPriceListId, { billingMode: value, declared })
       } else {
-        const nextCatalog = bootstrap?.catalog || []
-        setCatalog(nextCatalog)
-        setForm((current) => ({
-          ...current,
-          priceListId: value,
-          items: applyAutomaticBonusRulesToItems(repriceItemsForCatalog(current.items, nextCatalog), current.automaticBonusRules),
-        }))
+        setForm((current) => ({ ...current, billingMode: value, declared }))
+      }
+      return
+    }
+    if (field === 'internalPriceListId') {
+      if (form.billingMode === 'internal_only' || form.billingMode === 'split') {
+        applyPriceListChange(value, { internalPriceListId: value })
+      } else {
+        setForm((current) => ({ ...current, internalPriceListId: value }))
+      }
+      return
+    }
+    if (field === 'fiscalPriceListId') {
+      if (form.billingMode === 'fiscal_only') {
+        applyPriceListChange(value, { fiscalPriceListId: value })
+      } else {
+        setForm((current) => ({ ...current, fiscalPriceListId: value }))
       }
       return
     }
@@ -435,7 +469,7 @@ function useGranaliaData() {
     setStatus('Lista de precios renombrada.')
   }
 
-  async function generateInvoice() {
+  async function generateInvoice(authorizationPassword = '') {
     if (!form.clientName.trim()) {
       setStatus('Ingresá un cliente.')
       return
@@ -444,6 +478,11 @@ function useGranaliaData() {
     const validItems = form.items.filter((item) => item.product_id && item.offering_id && (item.quantity > 0 || item.bonus_quantity > 0))
     if (!validItems.length) {
       setStatus('Completá al menos un producto con presentación y cantidad.')
+      return
+    }
+
+    if ((form.billingMode || 'internal_only') === 'split') {
+      setStatus('El modo dividido ya tiene preview. La generación transaccional se habilita en Fase 3.')
       return
     }
 
@@ -459,12 +498,13 @@ function useGranaliaData() {
       const data = await request(isEditing ? `/api/invoices/${invoiceId}` : '/api/invoices', {
         method: isEditing ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildInvoicePayload(form, currentCustomer)),
+        body: JSON.stringify(buildInvoicePayload({ ...form, authorizationPassword }, currentCustomer)),
       })
       const previewOpened = openInvoicePdfPreview(data.invoice_id, previewWindow)
       await refreshInvoices()
       setEditingInvoiceId(null)
-      setForm({ ...createInitialForm(), priceListId: bootstrap?.price_list?.id ? String(bootstrap.price_list.id) : '' })
+      const defaultPriceListId = bootstrap?.price_list?.id ? String(bootstrap.price_list.id) : ''
+      setForm({ ...createInitialForm(), priceListId: defaultPriceListId, internalPriceListId: defaultPriceListId, fiscalPriceListId: defaultPriceListId })
       setStatus(`Factura ${data.invoice_id} ${isEditing ? 'actualizada' : 'guardada'}${previewOpened ? ' y abierta para previsualizar' : ''}.`)
       return { invoiceId: data.invoice_id, updated: isEditing }
     } catch (error) {

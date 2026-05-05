@@ -160,13 +160,18 @@ function buildProfilePayload(currentCustomer, form) {
 
 function buildInvoicePayload(form, currentCustomer) {
   const profile = buildProfilePayload(currentCustomer, form)
+  const billingMode = form.billingMode || (form.declared ? 'fiscal_only' : 'internal_only')
 
   return {
     order: {
       client_name: form.clientName,
       date: form.date,
       price_list_id: form.priceListId ? Number(form.priceListId) : null,
-      declared: Boolean(form.declared),
+      billing_mode: billingMode,
+      declared_percentage: billingMode === 'split' ? Number(form.declaredPercentage || 0) : null,
+      internal_price_list_id: form.internalPriceListId ? Number(form.internalPriceListId) : null,
+      fiscal_price_list_id: form.fiscalPriceListId ? Number(form.fiscalPriceListId) : null,
+      declared: billingMode !== 'internal_only',
       secondary_line: form.secondaryLine,
       transport: form.transport,
       notes: splitNotes(form.notes),
@@ -181,6 +186,7 @@ function buildInvoicePayload(form, currentCustomer) {
         })),
     },
     profile,
+    authorization: form.authorizationPassword ? { password: form.authorizationPassword } : null,
   }
 }
 
@@ -214,6 +220,10 @@ function buildFormFromInvoiceDetail(invoiceDetail, customers) {
   return {
     customerId: matchingCustomer ? String(matchingCustomer.id) : '',
     priceListId: invoiceDetail.price_list_id ? String(invoiceDetail.price_list_id) : '',
+    internalPriceListId: invoiceDetail.price_list_id ? String(invoiceDetail.price_list_id) : '',
+    fiscalPriceListId: invoiceDetail.price_list_id ? String(invoiceDetail.price_list_id) : '',
+    billingMode: invoiceDetail.declared ? 'fiscal_only' : 'internal_only',
+    declaredPercentage: Number(invoiceDetail.split_percentage || 30),
     declared: Boolean(invoiceDetail.declared),
     clientName: invoiceDetail.client_name || '',
     date: invoiceDetail.order_date || new Date().toISOString().slice(0, 10),

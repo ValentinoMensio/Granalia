@@ -79,6 +79,10 @@ class InvoiceCreate(BaseModel):
     client_name: NonEmptyStr
     date: str = Field(min_length=10, max_length=10)
     price_list_id: int | None = None
+    billing_mode: str = "internal_only"
+    declared_percentage: float | None = None
+    internal_price_list_id: int | None = None
+    fiscal_price_list_id: int | None = None
     declared: bool = False
     secondary_line: str = Field(default="", max_length=MAX_SHORT_TEXT_LENGTH)
     transport: str = Field(default="", max_length=MAX_SHORT_TEXT_LENGTH)
@@ -92,6 +96,23 @@ class InvoiceCreate(BaseModel):
     @classmethod
     def normalize_notes(cls, value: list[str]) -> list[str]:
         return _normalize_text_list(value)
+
+    @field_validator("billing_mode")
+    @classmethod
+    def validate_billing_mode(cls, value: str) -> str:
+        if value not in {"internal_only", "fiscal_only", "split"}:
+            raise ValueError("billing_mode must be internal_only, fiscal_only or split")
+        return value
+
+    @field_validator("declared_percentage")
+    @classmethod
+    def validate_declared_percentage(cls, value: float | None) -> float | None:
+        if value is None:
+            return None
+        numeric = float(value)
+        if numeric < 0 or numeric > 100:
+            raise ValueError("declared_percentage must be between 0 and 100")
+        return numeric
 
 
 class CustomerUpsert(BaseModel):
@@ -135,13 +156,14 @@ class CustomerUpsert(BaseModel):
         return normalized
 
 
+class AuthorizationPayload(BaseModel):
+    password: str = Field(min_length=1, max_length=500)
+
+
 class InvoiceRequest(BaseModel):
     order: InvoiceCreate
     profile: CustomerUpsert
-
-
-class AuthorizationPayload(BaseModel):
-    password: str = Field(min_length=1, max_length=500)
+    authorization: AuthorizationPayload | None = None
 
 
 class TransportUpsert(BaseModel):

@@ -27,6 +27,7 @@ function ProductRowsCard({
   form,
   catalog,
   productsById,
+  splitPreview,
   totals,
   generating,
   onAddItem,
@@ -44,6 +45,67 @@ function ProductRowsCard({
           <h2 className="subsection-title mt-2 text-xl sm:text-2xl">Productos y cantidades</h2>
         </div>
       </div>
+
+      {splitPreview?.enabled && (
+        <div className="mb-6 rounded-[26px] border border-amber-200 bg-amber-50/80 p-4 sm:p-5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <div className="eyebrow text-amber-700">Preview de división</div>
+              <h3 className="mt-1 font-semibold text-brand-ink">Cantidades internas y declaradas</h3>
+            </div>
+            <div className="text-sm font-semibold text-amber-800">
+              {splitPreview.declaredPercentage}% declarado / {splitPreview.internalPercentage}% interno
+            </div>
+          </div>
+
+          <div className="mt-4 overflow-x-auto">
+            <table className="table-base min-w-[760px] bg-white/80">
+              <thead className="table-head">
+                <tr>
+                  <th>Producto</th>
+                  <th className="text-right">Total</th>
+                  <th className="text-right">Interna</th>
+                  <th className="text-right">Declarada</th>
+                  <th className="text-right">Total interno</th>
+                  <th className="text-right">Total declarado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {splitPreview.rows.map((row, index) => (
+                  <tr key={index} className="table-row">
+                    <td className="table-cell font-medium">{row.productName} / {row.offeringLabel}</td>
+                    <td className="table-cell text-right">{row.totalQuantity}</td>
+                    <td className="table-cell text-right">{row.internalQuantity}</td>
+                    <td className="table-cell text-right">{row.declaredQuantity}</td>
+                    <td className="table-cell text-right">${money(row.internalTotal)}</td>
+                    <td className="table-cell text-right">${money(row.fiscalTotal)}</td>
+                  </tr>
+                ))}
+                {!splitPreview.rows.length && (
+                  <tr>
+                    <td colSpan="6" className="table-cell py-6 text-center text-slate-400">Agregá productos para ver el preview.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-4 grid gap-3 text-sm md:grid-cols-3">
+            <Metric label="Bultos internos" value={splitPreview.internalQuantityTotal} tone="dark" />
+            <Metric label="Bultos declarados" value={splitPreview.declaredQuantityTotal} tone="dark" />
+            <Metric label="Total declarado estimado" value={`$${money(splitPreview.fiscalTotal)}`} tone="red" />
+          </div>
+
+          {splitPreview.warnings.length ? (
+            <div className="mt-4 rounded-2xl border border-amber-300 bg-white px-4 py-3 text-sm text-amber-800">
+              <div className="font-semibold">Advertencias</div>
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                {splitPreview.warnings.map((warning, index) => <li key={index}>{warning}</li>)}
+              </ul>
+            </div>
+          ) : null}
+        </div>
+      )}
 
       <div className="overflow-hidden rounded-[26px] border border-stone-200 bg-stone-50/70">
         <div className="hidden lg:block">
