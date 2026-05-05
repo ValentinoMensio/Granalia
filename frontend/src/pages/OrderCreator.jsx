@@ -5,7 +5,6 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useEffect, useMemo, useState } from 'react'
 import { request } from '../lib/api'
-import Button from '../components/ui/Button'
 
 function normalizeLookup(value) {
   return String(value || '')
@@ -83,8 +82,6 @@ export default function OrderCreator() {
   const navigate = useNavigate()
   const { session } = useAuth()
   const isAdmin = session?.role === 'admin'
-  const [authorizationOpen, setAuthorizationOpen] = useState(false)
-  const [authorizationPassword, setAuthorizationPassword] = useState('')
   const [fiscalCatalog, setFiscalCatalog] = useState([])
   const {
     bootstrap,
@@ -145,22 +142,11 @@ export default function OrderCreator() {
     navigate('/history')
   }
 
-  async function submitGenerateInvoice(password = '') {
-    const result = await generateInvoice(password)
-    setAuthorizationPassword('')
-    setAuthorizationOpen(false)
+  async function handleGenerateInvoice() {
+    const result = await generateInvoice()
     if (result?.updated) {
       navigate('/history')
     }
-  }
-
-  async function handleGenerateInvoice() {
-    const billingMode = form.billingMode || (form.declared ? 'fiscal_only' : 'internal_only')
-    if (!editingInvoiceId && ['fiscal_only', 'split'].includes(billingMode)) {
-      setAuthorizationOpen(true)
-      return
-    }
-    await submitGenerateInvoice()
   }
 
   function handleClearInvoice() {
@@ -209,29 +195,6 @@ export default function OrderCreator() {
           onUpdateItem={updateItem}
         />
 
-        {authorizationOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
-            <div className="surface w-full max-w-md p-5 sm:p-6">
-              <h2 className="subsection-title text-xl">Contraseña de autorización</h2>
-              <p className="mt-2 text-sm text-slate-600">Esta operación requiere autorización adicional.</p>
-              <input
-                className="input mt-4"
-                type="password"
-                value={authorizationPassword}
-                onChange={(event) => setAuthorizationPassword(event.target.value)}
-                autoFocus
-              />
-              <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
-                <Button variant="secondary" className="w-full sm:w-auto" onClick={() => { setAuthorizationOpen(false); setAuthorizationPassword('') }}>
-                  Cancelar
-                </Button>
-                <Button variant="primary" className="w-full sm:w-auto" onClick={() => submitGenerateInvoice(authorizationPassword)} disabled={!authorizationPassword || generating}>
-                  Autorizar
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
       </section>
     </main>
   )

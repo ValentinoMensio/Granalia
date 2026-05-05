@@ -186,7 +186,6 @@ function buildInvoicePayload(form, currentCustomer) {
         })),
     },
     profile,
-    authorization: form.authorizationPassword ? { password: form.authorizationPassword } : null,
   }
 }
 
@@ -222,7 +221,7 @@ function buildFormFromInvoiceDetail(invoiceDetail, customers) {
     priceListId: invoiceDetail.price_list_id ? String(invoiceDetail.price_list_id) : '',
     internalPriceListId: invoiceDetail.price_list_id ? String(invoiceDetail.price_list_id) : '',
     fiscalPriceListId: invoiceDetail.price_list_id ? String(invoiceDetail.price_list_id) : '',
-    billingMode: invoiceDetail.declared ? 'fiscal_only' : 'internal_only',
+    billingMode: invoiceDetail.batch_id ? 'split' : invoiceDetail.declared ? 'fiscal_only' : 'internal_only',
     declaredPercentage: Number(invoiceDetail.split_percentage || 30),
     declared: Boolean(invoiceDetail.declared),
     clientName: invoiceDetail.client_name || '',

@@ -469,7 +469,7 @@ function useGranaliaData() {
     setStatus('Lista de precios renombrada.')
   }
 
-  async function generateInvoice(authorizationPassword = '') {
+  async function generateInvoice() {
     if (!form.clientName.trim()) {
       setStatus('Ingresá un cliente.')
       return
@@ -493,7 +493,7 @@ function useGranaliaData() {
       const data = await request(isEditing ? `/api/invoices/${invoiceId}` : '/api/invoices', {
         method: isEditing ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildInvoicePayload({ ...form, authorizationPassword }, currentCustomer)),
+        body: JSON.stringify(buildInvoicePayload(form, currentCustomer)),
       })
       const createdInvoices = data.invoices || []
       const previewInvoiceId = data.invoice_id || createdInvoices[0]?.invoice_id

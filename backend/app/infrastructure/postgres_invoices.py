@@ -450,12 +450,24 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
         batch: dict[str, object],
         invoices: list[dict[str, object]],
         update_customer: bool = True,
+        replace_batch_id: int | None = None,
     ) -> tuple[int, list[int]]:
         created_at = utc_now()
         order_date = datetime.strptime(str(batch["order_date"]), "%Y-%m-%d").date()
         invoice_ids: list[int] = []
 
         with self.engine.begin() as connection:
+            if replace_batch_id is not None:
+                existing = connection.execute(
+                    select(self.invoices.c.id, self.invoices.c.fiscal_status)
+                    .where(self.invoices.c.batch_id == replace_batch_id)
+                    .with_for_update()
+                ).mappings().all()
+                if any(str(row["fiscal_status"] or "") == "authorized" for row in existing):
+                    raise ValueError("No se puede editar un batch split con parte fiscal autorizada")
+                connection.execute(self.invoices.delete().where(self.invoices.c.batch_id == replace_batch_id))
+                connection.execute(self.invoice_batches.delete().where(self.invoice_batches.c.id == replace_batch_id))
+
             transport_name = str(batch.get("transport") or "")
             transport_id = self._resolve_transport_id(connection=connection, transport_name=transport_name, now=created_at)
             customer_id = None
@@ -609,6 +621,15 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                         )
         return batch_id, invoice_ids
 
+    def list_batch_invoice_statuses(self, batch_id: int) -> list[dict[str, object]]:
+        with self.engine.connect() as connection:
+            rows = connection.execute(
+                select(self.invoices.c.id.label("invoice_id"), self.invoices.c.split_kind, self.invoices.c.fiscal_status)
+                .where(self.invoices.c.batch_id == batch_id)
+                .order_by(self.invoices.c.id)
+            ).mappings().all()
+        return [{key: serialize_value(value) for key, value in row.items()} for row in rows]
+
     def update_invoice(
         self,
         invoice_id: int,
@@ -675,7 +696,7 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     price_list_id=order.get("price_list_id"),
                     client_name=order["client_name"],
                     declared=bool(order.get("declared", False)),
-                    fiscal_status="draft" if bool(order.get("declared", False)) else "internal",
+                    fiscal_status=str(existing_invoice.get("fiscal_status") or ("draft" if bool(order.get("declared", False)) else "internal")),
                     price_list_name=price_list_name,
                     price_list_effective_date=price_list_effective_date,
                     customer_cuit=str(profile.get("cuit", "") or ""),
@@ -730,6 +751,23 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
 
     def delete_invoice(self, invoice_id: int) -> None:
         with self.engine.begin() as connection:
+            existing_invoice = connection.execute(
+                select(self.invoices.c.id, self.invoices.c.batch_id, self.invoices.c.fiscal_status).where(self.invoices.c.id == invoice_id)
+            ).mappings().first()
+            if not existing_invoice:
+                raise ValueError("Factura no encontrada")
+            if str(existing_invoice["fiscal_status"] or "") == "authorized":
+                raise ValueError("No se puede eliminar un comprobante fiscal autorizado")
+            batch_id = existing_invoice.get("batch_id")
+            if batch_id is not None:
+                batch_rows = connection.execute(
+                    select(self.invoices.c.fiscal_status).where(self.invoices.c.batch_id == batch_id).with_for_update()
+                ).mappings().all()
+                if any(str(row["fiscal_status"] or "") == "authorized" for row in batch_rows):
+                    raise ValueError("No se puede eliminar un batch split con parte fiscal autorizada")
+                connection.execute(self.invoices.delete().where(self.invoices.c.batch_id == batch_id))
+                connection.execute(self.invoice_batches.delete().where(self.invoice_batches.c.id == batch_id))
+                return
             result = connection.execute(
                 self.invoices.delete().where(self.invoices.c.id == invoice_id)
             )

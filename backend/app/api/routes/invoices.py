@@ -6,7 +6,7 @@ from datetime import date, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 
-from ...dependencies import current_role, get_repository, require_admin, validate_invoice_authorization_password
+from ...dependencies import current_role, get_repository, require_admin
 from ...schemas import InvoiceCreateOut, InvoiceDetailOut, InvoiceListItemOut, InvoiceRequest, StatusResponse
 from ...services.pdf import build_invoice_pdf
 from ...services.invoicing import generate_invoice_document
@@ -164,6 +164,58 @@ def build_split_orders(order: dict, internal_catalog: list[dict], fiscal_catalog
     )
 
 
+def ensure_invoice_editable(invoice: dict) -> None:
+    if str(invoice.get("fiscal_status") or "") == "authorized":
+        raise HTTPException(status_code=400, detail="No se puede editar un comprobante fiscal autorizado")
+
+
+def ensure_invoice_deletable(invoice: dict) -> None:
+    if str(invoice.get("fiscal_status") or "") == "authorized":
+        raise HTTPException(status_code=400, detail="No se puede eliminar un comprobante fiscal autorizado")
+
+
+def ensure_batch_editable(repository, batch_id: int | None) -> None:
+    if not batch_id:
+        return
+    statuses = repository.list_batch_invoice_statuses(batch_id)
+    if any(str(item.get("fiscal_status") or "") == "authorized" for item in statuses):
+        raise HTTPException(status_code=400, detail="No se puede editar un batch split con parte fiscal autorizada")
+
+
+def build_and_save_split(repository, order: dict, profile: dict, *, update_customer: bool, replace_batch_id: int | None = None) -> InvoiceCreateOut:
+    internal_price_list_id = order.get("internal_price_list_id") or order.get("price_list_id")
+    fiscal_price_list_id = order.get("fiscal_price_list_id")
+    if not fiscal_price_list_id:
+        raise ValueError("Selecciona una lista declarada")
+    internal_catalog = repository.get_catalog_for_price_list(int(internal_price_list_id)) if internal_price_list_id else repository.get_active_catalog()
+    fiscal_catalog = repository.get_catalog_for_price_list(int(fiscal_price_list_id))
+    internal_order, fiscal_order = build_split_orders(order, internal_catalog, fiscal_catalog)
+    declared_percentage = float(order.get("declared_percentage") or 0)
+    batch_invoices = []
+    response_invoices = []
+    if internal_order.get("items"):
+        internal_filename, internal_xlsx, internal_snapshot = generate_invoice_document(internal_order, profile, internal_catalog)
+        batch_invoices.append({"order": internal_order, "snapshot": internal_snapshot, "filename": internal_filename, "xlsx_bytes": internal_xlsx, "split_kind": "internal", "split_percentage": 100 - declared_percentage, "fiscal_status": "internal"})
+    if fiscal_order.get("items"):
+        fiscal_filename, fiscal_xlsx, fiscal_snapshot = generate_invoice_document(fiscal_order, profile, fiscal_catalog)
+        fiscal_snapshot = fiscalize_snapshot(fiscal_snapshot, fiscal_catalog)
+        batch_invoices.append({"order": fiscal_order, "snapshot": fiscal_snapshot, "filename": fiscal_filename, "xlsx_bytes": fiscal_xlsx, "split_kind": "fiscal", "split_percentage": declared_percentage, "fiscal_status": "draft"})
+    if not batch_invoices:
+        raise ValueError("No hay cantidades para generar")
+    batch_id, invoice_ids = repository.save_invoice_batch(
+        batch={"client_name": order["client_name"], "order_date": order["date"], "billing_mode": "split", "declared_percentage": declared_percentage, "internal_percentage": 100 - declared_percentage, "internal_price_list_id": internal_price_list_id, "fiscal_price_list_id": fiscal_price_list_id, "transport": order.get("transport") or profile.get("transport") or "", "secondary_line": order.get("secondary_line") or profile.get("secondary_line") or "", "notes": order.get("notes") or profile.get("notes") or [], "profile": profile},
+        invoices=batch_invoices,
+        update_customer=update_customer,
+        replace_batch_id=replace_batch_id,
+    )
+    for invoice_id, doc in zip(invoice_ids, batch_invoices):
+        response_invoices.append({"invoice_id": invoice_id, "split_kind": doc.get("split_kind"), "fiscal_status": doc.get("fiscal_status")})
+    first_doc = batch_invoices[0]
+    first_snapshot = first_doc["snapshot"]
+    first_invoice_id = invoice_ids[0]
+    return InvoiceCreateOut.model_validate({"invoice_id": first_invoice_id, "batch_id": batch_id, "invoices": response_invoices, "filename": first_doc["filename"], "download_url": f"/api/invoices/{first_invoice_id}/xlsx", "summary": first_snapshot["summary"]})
+
+
 @router.get("", response_model=list[InvoiceListItemOut])
 def invoices(limit: int = Query(default=500, ge=1, le=10000), role: str = Depends(current_role)) -> list[InvoiceListItemOut]:
     date_from = operator_min_order_date() if role == "operator" else None
@@ -221,8 +273,6 @@ def create_invoice(payload: InvoiceRequest, role: str = Depends(current_role)) -
     order = payload.order.model_dump()
     profile = payload.profile.model_dump()
     billing_mode = str(order.get("billing_mode") or ("fiscal_only" if order.get("declared") else "internal_only"))
-    if billing_mode in {"fiscal_only", "split"} or bool(order.get("declared", False)):
-        validate_invoice_authorization_password(payload.authorization.password if payload.authorization else "")
     try:
         if billing_mode == "internal_only":
             order["declared"] = False
@@ -253,75 +303,7 @@ def create_invoice(payload: InvoiceRequest, role: str = Depends(current_role)) -
                 "summary": snapshot["summary"],
             })
 
-        internal_price_list_id = order.get("internal_price_list_id") or order.get("price_list_id")
-        fiscal_price_list_id = order.get("fiscal_price_list_id")
-        if not fiscal_price_list_id:
-            raise ValueError("Selecciona una lista declarada")
-        internal_catalog = repository.get_catalog_for_price_list(int(internal_price_list_id)) if internal_price_list_id else repository.get_active_catalog()
-        fiscal_catalog = repository.get_catalog_for_price_list(int(fiscal_price_list_id))
-        internal_order, fiscal_order = build_split_orders(order, internal_catalog, fiscal_catalog)
-        declared_percentage = float(order.get("declared_percentage") or 0)
-        batch_invoices = []
-        response_invoices = []
-        if internal_order.get("items"):
-            internal_filename, internal_xlsx, internal_snapshot = generate_invoice_document(internal_order, profile, internal_catalog)
-            batch_invoices.append(
-                {
-                    "order": internal_order,
-                    "snapshot": internal_snapshot,
-                    "filename": internal_filename,
-                    "xlsx_bytes": internal_xlsx,
-                    "split_kind": "internal",
-                    "split_percentage": 100 - declared_percentage,
-                    "fiscal_status": "internal",
-                }
-            )
-        if fiscal_order.get("items"):
-            fiscal_filename, fiscal_xlsx, fiscal_snapshot = generate_invoice_document(fiscal_order, profile, fiscal_catalog)
-            fiscal_snapshot = fiscalize_snapshot(fiscal_snapshot, fiscal_catalog)
-            batch_invoices.append(
-                {
-                    "order": fiscal_order,
-                    "snapshot": fiscal_snapshot,
-                    "filename": fiscal_filename,
-                    "xlsx_bytes": fiscal_xlsx,
-                    "split_kind": "fiscal",
-                    "split_percentage": declared_percentage,
-                    "fiscal_status": "draft",
-                }
-            )
-        if not batch_invoices:
-            raise ValueError("No hay cantidades para generar")
-        batch_id, invoice_ids = repository.save_invoice_batch(
-            batch={
-                "client_name": order["client_name"],
-                "order_date": order["date"],
-                "billing_mode": "split",
-                "declared_percentage": declared_percentage,
-                "internal_percentage": 100 - declared_percentage,
-                "internal_price_list_id": internal_price_list_id,
-                "fiscal_price_list_id": fiscal_price_list_id,
-                "transport": order.get("transport") or profile.get("transport") or "",
-                "secondary_line": order.get("secondary_line") or profile.get("secondary_line") or "",
-                "notes": order.get("notes") or profile.get("notes") or [],
-                "profile": profile,
-            },
-            invoices=batch_invoices,
-            update_customer=role == "admin",
-        )
-        for invoice_id, doc in zip(invoice_ids, batch_invoices):
-            response_invoices.append({"invoice_id": invoice_id, "split_kind": doc.get("split_kind"), "fiscal_status": doc.get("fiscal_status")})
-        invoice_id = invoice_ids[0]
-        first_doc = batch_invoices[0]
-        first_snapshot = first_doc["snapshot"]
-        return InvoiceCreateOut.model_validate({
-            "invoice_id": invoice_id,
-            "batch_id": batch_id,
-            "invoices": response_invoices,
-            "filename": first_doc["filename"],
-            "download_url": f"/api/invoices/{invoice_id}/xlsx",
-            "summary": first_snapshot["summary"],
-        })
+        return build_and_save_split(repository, order, profile, update_customer=role == "admin")
     except (RuntimeError, ValueError) as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
@@ -332,9 +314,17 @@ def update_invoice(invoice_id: int, payload: InvoiceRequest, _: str = Depends(re
     invoice = repository.get_invoice_detail(invoice_id)
     if not invoice:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
+    ensure_invoice_editable(invoice)
+    batch_id = int(invoice["batch_id"]) if invoice.get("batch_id") is not None else None
+    ensure_batch_editable(repository, batch_id)
     order = payload.order.model_dump()
     profile = payload.profile.model_dump()
     try:
+        if batch_id is not None:
+            if str(order.get("billing_mode") or "") != "split":
+                raise ValueError("Para editar un batch split se debe regenerar el split completo")
+            return build_and_save_split(repository, order, profile, update_customer=True, replace_batch_id=batch_id)
+
         base_catalog = repository.get_catalog_for_price_list(int(order["price_list_id"])) if order.get("price_list_id") else repository.get_active_catalog()
         catalog = catalog_with_invoice_history(base_catalog, invoice)
         filename, xlsx_bytes, snapshot = generate_invoice_document(order, profile, catalog)
@@ -352,7 +342,13 @@ def update_invoice(invoice_id: int, payload: InvoiceRequest, _: str = Depends(re
 @router.delete("/{invoice_id}", response_model=StatusResponse)
 def delete_invoice(invoice_id: int, _: str = Depends(require_admin)) -> StatusResponse:
     repository = get_repository()
-    if not repository.get_invoice_detail(invoice_id):
+    invoice = repository.get_invoice_detail(invoice_id)
+    if not invoice:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
-    repository.delete_invoice(invoice_id)
+    ensure_invoice_deletable(invoice)
+    ensure_batch_editable(repository, int(invoice["batch_id"]) if invoice.get("batch_id") is not None else None)
+    try:
+        repository.delete_invoice(invoice_id)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
     return StatusResponse(status="deleted")
