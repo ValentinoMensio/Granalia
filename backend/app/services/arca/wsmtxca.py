@@ -96,6 +96,30 @@ def parse_code_descriptions(root: ET.Element, container_name: str) -> list[dict[
     return items
 
 
+def parse_items(root: ET.Element) -> list[dict[str, str]]:
+    container = first_child(root, "arrayItems")
+    if container is None:
+        return []
+    items: list[dict[str, str]] = []
+    for item in container.iter():
+        if local_name(item.tag) != "item":
+            continue
+        items.append(
+            {
+                "codigo": direct_text(item, "codigo"),
+                "descripcion": direct_text(item, "descripcion"),
+                "cantidad": direct_text(item, "cantidad"),
+                "codigoUnidadMedida": direct_text(item, "codigoUnidadMedida"),
+                "precioUnitario": direct_text(item, "precioUnitario"),
+                "importeBonificacion": direct_text(item, "importeBonificacion"),
+                "codigoCondicionIVA": direct_text(item, "codigoCondicionIVA"),
+                "importeIVA": direct_text(item, "importeIVA"),
+                "importeItem": direct_text(item, "importeItem"),
+            }
+        )
+    return items
+
+
 def request_operation(config: ArcaConfig, operation: str, request_element: str, body: str) -> ET.Element:
     request = urllib.request.Request(
         config.wsfe_url,
@@ -168,7 +192,7 @@ class WsmtxcaClient:
             cae=cae or None,
             cae_expires_at=parse_date(direct_text(comprobante, "fechaVencimiento")),
             observations=parse_code_descriptions(root, "arrayObservaciones"),
-            raw={"numeroComprobante": cbte_nro, "codigoAutorizacion": cae},
+            raw={"numeroComprobante": cbte_nro, "codigoAutorizacion": cae, "items": parse_items(comprobante)},
         )
 
     def request_cae(self, request: ArcaInvoiceRequest, cbte_nro: int) -> ArcaAuthorizationResult:
