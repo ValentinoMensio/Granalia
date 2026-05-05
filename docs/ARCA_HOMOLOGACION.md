@@ -34,7 +34,7 @@ PYTHONPATH=backend python3 backend/scripts/arca_homologacion.py
 Debe validar:
 
 - WSAA `loginCms` con token/sign.
-- `consultarPuntosVenta` contiene `GRANALIA_ARCA_POINT_OF_SALE`.
+- `consultarPuntosVentaCAE` contiene `GRANALIA_ARCA_POINT_OF_SALE`.
 - `consultarUltimoComprobanteAutorizado` responde para Factura A (`codigoTipoComprobante=1`).
 
 ## Modo seguro sin generar comprobantes
@@ -70,5 +70,5 @@ Casos minimos:
 
 ## Servicio
 
-Los metodos usados por defecto son de `wsmtxca`: `consultarPuntosVenta`, `consultarUltimoComprobanteAutorizado`, `consultarComprobante` y `autorizarComprobante`.
+Los metodos usados por defecto son de `wsmtxca`: `consultarPuntosVentaCAE`, `consultarUltimoComprobanteAutorizado`, `consultarComprobante` y `autorizarComprobante`.
 El parametro `GRANALIA_ARCA_WSFE_URL` sigue soportado por compatibilidad, pero para WSMTXCA se recomienda `GRANALIA_ARCA_SERVICE_URL`.
