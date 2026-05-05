@@ -124,6 +124,15 @@ def login_cms(config: ArcaConfig, cms: str) -> ArcaAuthTicket:
     try:
         with urllib.request.urlopen(request, timeout=config.timeout_seconds) as response:
             body = response.read().decode("utf-8")
+    except urllib.error.HTTPError as error:
+        body = error.read().decode("utf-8", errors="replace")
+        try:
+            root = ET.fromstring(body)
+            fault = child_text(root, "faultstring") or child_text(root, "exception")
+        except ET.ParseError:
+            fault = body.strip()
+        message = fault or str(error)
+        raise WsaaError(f"Error WSAA {error.code}: {message}") from error
     except urllib.error.URLError as error:
         raise WsaaError(f"Error WSAA: {error}") from error
 
