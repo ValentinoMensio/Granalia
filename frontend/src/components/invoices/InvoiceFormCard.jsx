@@ -36,28 +36,17 @@ function InvoiceFormCard({
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Field label="Cliente histórico">
-          <select className="input" value={form.customerId} onChange={(event) => onApplyCustomer(event.target.value)}>
-            <option value="">Nuevo cliente</option>
-            {customers.map((customer) => (
-              <option key={customer.id} value={customer.id}>{customer.name}</option>
-            ))}
-          </select>
-        </Field>
-
-        <Field label="Fecha">
-          <input className="input" type="date" value={form.date} onChange={(event) => onFieldChange('date', event.target.value)} />
-        </Field>
-
-        <Field label="Modo de facturación">
-          <select className="input" value={billingMode} onChange={(event) => onFieldChange('billingMode', event.target.value)} disabled={Boolean(editingInvoiceId)}>
-            <option value="internal_only">Solo interna</option>
-            <option value="fiscal_only">Solo declarada</option>
-            <option value="split">Dividida</option>
-          </select>
-          {editingInvoiceId ? <p className="mt-1 text-xs text-slate-500">El modo se define al crear la factura.</p> : null}
-        </Field>
+      <div className="border-b border-stone-200 pb-6">
+        <h3 className="subsection-title mb-4 text-lg">Facturación</h3>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field label="Modo de facturación">
+            <select className="input" value={billingMode} onChange={(event) => onFieldChange('billingMode', event.target.value)} disabled={Boolean(editingInvoiceId)}>
+              <option value="internal_only">Solo interna</option>
+              <option value="fiscal_only">Solo declarada</option>
+              <option value="split">Dividida</option>
+            </select>
+            {editingInvoiceId ? <p className="mt-1 text-xs text-slate-500">El modo se define al crear la factura.</p> : null}
+          </Field>
 
         {(billingMode === 'internal_only' || billingMode === 'split') && (
           <Field label="Lista interna">
@@ -91,13 +80,22 @@ function InvoiceFormCard({
             </Field>
           </>
         )}
+        </div>
+      </div>
 
-        {billingMode !== 'split' && (
-          <Field label="Lista activa aplicada">
-            <input className="input bg-slate-50" value={billingMode === 'fiscal_only' ? 'Factura A draft' : 'Comprobante interno'} readOnly />
-            <p className="mt-1 text-xs text-slate-500">Si no elegís otra, se usa la lista activa: {defaultPriceListName}.</p>
-          </Field>
-        )}
+      <div className="mt-6 grid gap-4 md:grid-cols-2">
+        <Field label="Cliente histórico">
+          <select className="input" value={form.customerId} onChange={(event) => onApplyCustomer(event.target.value)}>
+            <option value="">Nuevo cliente</option>
+            {customers.map((customer) => (
+              <option key={customer.id} value={customer.id}>{customer.name}</option>
+            ))}
+          </select>
+        </Field>
+
+        <Field label="Fecha">
+          <input className="input" type="date" value={form.date} onChange={(event) => onFieldChange('date', event.target.value)} />
+        </Field>
 
         <Field label="Cliente" full>
           <input className="input" value={form.clientName} onChange={(event) => onFieldChange('clientName', event.target.value)} />
