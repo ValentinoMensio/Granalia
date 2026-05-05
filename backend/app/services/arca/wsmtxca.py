@@ -129,7 +129,7 @@ class WsmtxcaClient:
         self.ticket = ticket
 
     def get_points_of_sale(self) -> list[int]:
-        root = request_operation(self.config, "consultarPuntosVenta", "consultarPuntosVentaRequest", auth_xml(self.config, self.ticket))
+        root = request_operation(self.config, "consultarPuntosVentaCAE", "consultarPuntosVentaCAERequest", auth_xml(self.config, self.ticket))
         points: list[int] = []
         for item in root.iter():
             if local_name(item.tag) != "puntoVenta":
