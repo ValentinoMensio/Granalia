@@ -51,6 +51,10 @@ def decimal_text(value: Decimal) -> str:
     return f"{value:.2f}"
 
 
+def quantity_text(value: Decimal) -> str:
+    return f"{value:.6f}"
+
+
 def parse_date(value: str) -> date | None:
     if not value:
         return None
@@ -171,17 +175,17 @@ class WsmtxcaClient:
         today = datetime.now().date().isoformat()
         items_xml = "".join(
             f"""<item>
-  <codigo>{request.invoice_id}-{item.Id}</codigo>
-  <descripcion>Productos IVA {item.Id}</descripcion>
-  <cantidad>1.000000</cantidad>
-  <codigoUnidadMedida>7</codigoUnidadMedida>
-  <precioUnitario>{decimal_text(item.BaseImp)}</precioUnitario>
-  <importeBonificacion>0.00</importeBonificacion>
-  <codigoCondicionIVA>{iva_condition_code(item.Id)}</codigoCondicionIVA>
-  <importeIVA>{decimal_text(item.Importe)}</importeIVA>
-  <importeItem>{decimal_text(item.BaseImp + item.Importe)}</importeItem>
+  <codigo>{escape(item.code)}</codigo>
+  <descripcion>{escape(item.description)}</descripcion>
+  <cantidad>{quantity_text(item.quantity)}</cantidad>
+  <codigoUnidadMedida>{item.unit_code}</codigoUnidadMedida>
+  <precioUnitario>{decimal_text(item.unit_price)}</precioUnitario>
+  <importeBonificacion>{decimal_text(item.discount_amount)}</importeBonificacion>
+  <codigoCondicionIVA>{iva_condition_code(item.iva_id)}</codigoCondicionIVA>
+  <importeIVA>{decimal_text(item.iva_amount)}</importeIVA>
+  <importeItem>{decimal_text(item.item_total)}</importeItem>
 </item>"""
-            for item in request.iva
+            for item in request.items
         )
         subtotals_xml = "".join(
             f"""<subtotalIVA>

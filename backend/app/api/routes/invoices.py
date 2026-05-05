@@ -10,7 +10,7 @@ from fastapi.responses import Response
 from ...dependencies import current_role, get_repository, require_admin, validate_invoice_authorization_password
 from ...schemas import ArcaAuthorizationOut, AuthorizationPayload, InvoiceCreateOut, InvoiceDetailOut, InvoiceListItemOut, InvoiceRequest, StatusResponse
 from ...services.arca import ArcaClient, ArcaDisabledError, ArcaNotConfiguredError, ArcaRejectedError, ArcaTechnicalError, get_arca_config
-from ...services.arca.models import ArcaInvoiceRequest, ArcaIvaItem
+from ...services.arca.models import ArcaInvoiceItem, ArcaInvoiceRequest, ArcaIvaItem
 from ...services.pdf import build_invoice_pdf
 from ...services.invoicing import generate_invoice_document
 
@@ -131,6 +131,44 @@ def digits_only(value: object) -> str:
     return "".join(ch for ch in str(value or "") if ch.isdigit())
 
 
+def arca_iva_id_for_rate(value: object) -> int:
+    return 4 if Decimal(str(value)) == Decimal("0.105") else 5
+
+
+def build_arca_invoice_items(invoice: dict) -> list[ArcaInvoiceItem]:
+    items: list[ArcaInvoiceItem] = []
+    for item in invoice.get("items", []):
+        iva_rate = item.get("iva_rate")
+        if iva_rate is None:
+            raise ValueError(f"Falta IVA fiscal para {item.get('label')}")
+        quantity = Decimal(str(item.get("quantity") or 0))
+        if quantity <= 0:
+            continue
+        unit_price = money_decimal(item.get("unit_price"))
+        gross = money_decimal(item.get("gross"))
+        net_amount = money_decimal(item.get("net_amount") if item.get("net_amount") is not None else item.get("total"))
+        iva_amount = money_decimal(item.get("iva_amount"))
+        fiscal_total = money_decimal(item.get("fiscal_total") if item.get("fiscal_total") is not None else net_amount + iva_amount)
+        discount_amount = money_decimal(max(Decimal("0"), gross - net_amount))
+        description = " ".join(str(part or "").strip() for part in (item.get("product_name"), item.get("offering_label")) if str(part or "").strip())
+        items.append(
+            ArcaInvoiceItem(
+                code=str(item.get("product_id") or item.get("id") or item.get("line_number") or ""),
+                description=description or str(item.get("label") or "Producto"),
+                quantity=quantity.quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP),
+                unit_code=7,
+                unit_price=unit_price,
+                discount_amount=discount_amount,
+                iva_id=arca_iva_id_for_rate(iva_rate),
+                iva_amount=iva_amount,
+                item_total=fiscal_total,
+            )
+        )
+    if not items:
+        raise ValueError("La factura no tiene items fiscales para ARCA")
+    return items
+
+
 def build_arca_invoice_request(invoice: dict, tax_breakdown: list[dict], *, point_of_sale: int) -> ArcaInvoiceRequest:
     if not tax_breakdown:
         raise ValueError("La factura no tiene breakdown fiscal por IVA")
@@ -158,6 +196,7 @@ def build_arca_invoice_request(invoice: dict, tax_breakdown: list[dict], *, poin
         imp_iva=imp_iva,
         imp_total=money_decimal(imp_neto + imp_iva),
         iva=iva_items,
+        items=build_arca_invoice_items(invoice),
     )
 
 
@@ -173,6 +212,20 @@ def sanitized_arca_payload(request: ArcaInvoiceRequest) -> dict[str, object]:
         "ImpIVA": str(request.imp_iva),
         "ImpTotal": str(request.imp_total),
         "Iva": [{"Id": item.Id, "BaseImp": str(item.BaseImp), "Importe": str(item.Importe)} for item in request.iva],
+        "Items": [
+            {
+                "codigo": item.code,
+                "descripcion": item.description,
+                "cantidad": str(item.quantity),
+                "codigoUnidadMedida": item.unit_code,
+                "precioUnitario": str(item.unit_price),
+                "importeBonificacion": str(item.discount_amount),
+                "codigoCondicionIVA": item.iva_id,
+                "importeIVA": str(item.iva_amount),
+                "importeItem": str(item.item_total),
+            }
+            for item in request.items
+        ],
     }
 
 
@@ -408,6 +461,7 @@ def authorize_invoice_in_arca(invoice_id: int, payload: AuthorizationPayload, _:
             imp_iva=Decimal("0.00"),
             imp_total=Decimal("0.00"),
             iva=[],
+            items=[],
         )
     else:
         try:
