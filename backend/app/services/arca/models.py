@@ -13,6 +13,19 @@ class ArcaIvaItem:
 
 
 @dataclass(frozen=True)
+class ArcaInvoiceItem:
+    code: str
+    description: str
+    quantity: Decimal
+    unit_code: int
+    unit_price: Decimal
+    discount_amount: Decimal
+    iva_id: int
+    iva_amount: Decimal
+    item_total: Decimal
+
+
+@dataclass(frozen=True)
 class ArcaInvoiceRequest:
     invoice_id: int
     point_of_sale: int
@@ -24,6 +37,7 @@ class ArcaInvoiceRequest:
     imp_iva: Decimal
     imp_total: Decimal
     iva: list[ArcaIvaItem]
+    items: list[ArcaInvoiceItem]
 
 
 @dataclass(frozen=True)
