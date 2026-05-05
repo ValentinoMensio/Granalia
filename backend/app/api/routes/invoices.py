@@ -481,7 +481,42 @@ def authorize_invoice_in_arca(invoice_id: int, payload: AuthorizationPayload, _:
         )
         raise HTTPException(status_code=400, detail=message) from error
 
+    if response.get("result") == "DRY_RUN":
+        repository.update_arca_request(arca_request_id, status="pending", sanitized_response=sanitized_arca_response(response))
+        return ArcaAuthorizationOut.model_validate({
+            "invoice_id": invoice_id,
+            "fiscal_status": str(invoice.get("fiscal_status") or "draft"),
+            "arca_request_id": arca_request_id,
+            "message": "Validacion ARCA OK. No se genero comprobante porque ARCA_DRY_RUN esta activo.",
+        })
+
     repository.update_arca_request(arca_request_id, status="authorized", sanitized_response=sanitized_arca_response(response))
+    if not config.mark_authorized:
+        fiscal_status = str(invoice.get("fiscal_status") or "draft")
+        repository.update_invoice_arca_status(
+            invoice_id,
+            fiscal_status=fiscal_status,
+            arca_environment=config.environment,
+            arca_cuit_emisor=config.cuit,
+            arca_cbte_tipo=arca_request.cbte_tipo,
+            arca_concepto=arca_request.concepto,
+            arca_doc_tipo=arca_request.doc_tipo,
+            arca_doc_nro=arca_request.doc_nro,
+            arca_point_of_sale=arca_request.point_of_sale,
+            arca_request_id=arca_request_id,
+            arca_invoice_number=int(response["invoice_number"]) if response.get("invoice_number") is not None else None,
+            arca_cae=str(response["cae"]) if response.get("cae") is not None else None,
+            arca_cae_expires_at=response.get("cae_expires_at"),
+            arca_result="HOMOLOGACION",
+            arca_observations=response.get("observations"),
+        )
+        return ArcaAuthorizationOut.model_validate({
+            "invoice_id": invoice_id,
+            "fiscal_status": fiscal_status,
+            "arca_request_id": arca_request_id,
+            "message": "Comprobante autorizado en homologacion. La factura no fue marcada como autorizada.",
+        })
+
     repository.update_invoice_arca_status(
         invoice_id,
         fiscal_status="authorized",

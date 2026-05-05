@@ -50,6 +50,15 @@ class ArcaClient:
                 raise ArcaRejectedError(f"Punto de venta {request.point_of_sale} no habilitado en ARCA")
             last_authorized = wsmtxca.get_last_authorized(request.point_of_sale, request.cbte_tipo)
             next_number = last_authorized + 1
+            if self.config.dry_run:
+                return {
+                    "result": "DRY_RUN",
+                    "invoice_number": next_number,
+                    "cae": None,
+                    "cae_expires_at": None,
+                    "observations": [{"Code": "DRY_RUN", "Msg": "Validacion ARCA OK; no se llamo autorizarComprobante"}],
+                    "raw": {"dry_run": True, "points_of_sale": points_of_sale, "last_authorized": last_authorized, "next_number": next_number},
+                }
             try:
                 result = wsmtxca.request_cae(request, next_number)
             except WsmtxcaTechnicalError as error:
@@ -87,6 +96,15 @@ class ArcaClient:
                 raise ArcaRejectedError(f"Punto de venta {request.point_of_sale} no habilitado en ARCA")
             last_authorized = wsfe.get_last_authorized(request.point_of_sale, request.cbte_tipo)
             next_number = last_authorized + 1
+            if self.config.dry_run:
+                return {
+                    "result": "DRY_RUN",
+                    "invoice_number": next_number,
+                    "cae": None,
+                    "cae_expires_at": None,
+                    "observations": [{"Code": "DRY_RUN", "Msg": "Validacion ARCA OK; no se llamo FECAESolicitar"}],
+                    "raw": {"dry_run": True, "points_of_sale": points_of_sale, "last_authorized": last_authorized, "next_number": next_number},
+                }
             try:
                 result = wsfe.request_cae(request, next_number)
             except WsfeTechnicalError as error:

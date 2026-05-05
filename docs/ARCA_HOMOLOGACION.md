@@ -11,6 +11,8 @@ GRANALIA_ARCA_POINT_OF_SALE=<punto_de_venta_wsmtxca>
 GRANALIA_ARCA_CERT_PATH=/ruta/al/certificado.crt
 GRANALIA_ARCA_KEY_PATH=/ruta/a/la/private.key
 GRANALIA_ARCA_KEY_PASSWORD=<si_aplica>
+GRANALIA_ARCA_DRY_RUN=true
+GRANALIA_ARCA_MARK_AUTHORIZED=false
 GRANALIA_INVOICE_AUTH_PASSWORD_HASH=<hash_bcrypt>
 ```
 
@@ -35,9 +37,28 @@ Debe validar:
 - `consultarPuntosVenta` contiene `GRANALIA_ARCA_POINT_OF_SALE`.
 - `consultarUltimoComprobanteAutorizado` responde para Factura A (`codigoTipoComprobante=1`).
 
+## Modo seguro sin generar comprobantes
+
+Con `GRANALIA_ARCA_DRY_RUN=true`, la accion `Autorizar en ARCA` valida WSAA, punto de venta y ultimo comprobante autorizado, pero no llama `autorizarComprobante` y no genera CAE.
+
+Para habilitar emision real en homologacion, cambiar explicitamente:
+
+```bash
+GRANALIA_ARCA_DRY_RUN=false
+GRANALIA_ARCA_MARK_AUTHORIZED=false
+```
+
+Con `GRANALIA_ARCA_ENV=homologacion` y `GRANALIA_ARCA_MARK_AUTHORIZED=false`, el backend llama `autorizarComprobante` y guarda CAE/numeracion de homologacion, pero conserva la factura sin bloquear y no la marca como `authorized`.
+
+Para marcar facturas como autorizadas fiscalmente, usar produccion o configurar explicitamente:
+
+```bash
+GRANALIA_ARCA_MARK_AUTHORIZED=true
+```
+
 ## Pruebas de CAE
 
-Crear facturas fiscales desde la UI y usar `Autorizar en ARCA` en Historial.
+Crear facturas fiscales desde la UI y usar `Autorizar en ARCA` en Historial. Si `GRANALIA_ARCA_DRY_RUN=true`, solo se valida conexion y numeracion tentativa sin generar comprobante.
 
 Casos minimos:
 
