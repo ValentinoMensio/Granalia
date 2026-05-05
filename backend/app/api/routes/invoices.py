@@ -9,7 +9,7 @@ from fastapi.responses import Response
 
 from ...dependencies import current_role, get_repository, require_admin, validate_invoice_authorization_password
 from ...schemas import ArcaAuthorizationOut, AuthorizationPayload, InvoiceCreateOut, InvoiceDetailOut, InvoiceListItemOut, InvoiceRequest, StatusResponse
-from ...services.arca import ArcaClient, ArcaDisabledError, ArcaNotConfiguredError, get_arca_config
+from ...services.arca import ArcaClient, ArcaDisabledError, ArcaNotConfiguredError, ArcaRejectedError, ArcaTechnicalError, get_arca_config
 from ...services.arca.models import ArcaInvoiceRequest, ArcaIvaItem
 from ...services.pdf import build_invoice_pdf
 from ...services.invoicing import generate_invoice_document
@@ -176,6 +176,10 @@ def sanitized_arca_payload(request: ArcaInvoiceRequest) -> dict[str, object]:
     }
 
 
+def sanitized_arca_response(response: dict[str, object]) -> dict[str, object]:
+    return {key: (value.isoformat() if hasattr(value, "isoformat") else value) for key, value in response.items()}
+
+
 def ensure_invoice_authorizable(invoice: dict) -> None:
     fiscal_status = str(invoice.get("fiscal_status") or "")
     if fiscal_status == "authorized":
@@ -188,6 +192,8 @@ def ensure_invoice_authorizable(invoice: dict) -> None:
 
 def arca_error_status(error: Exception) -> str:
     if isinstance(error, (ArcaDisabledError, ArcaNotConfiguredError)):
+        return "error"
+    if isinstance(error, ArcaTechnicalError):
         return "error"
     return "rejected"
 
@@ -416,7 +422,7 @@ def authorize_invoice_in_arca(invoice_id: int, payload: AuthorizationPayload, _:
     sanitized_request = sanitized_arca_payload(arca_request)
     arca_request_id = repository.create_arca_request(
         invoice_id=invoice_id,
-        operation="FECAESolicitar",
+        operation="autorizarComprobante" if config.service == "wsmtxca" else "FECAESolicitar",
         environment=config.environment,
         sanitized_request=sanitized_request,
     )
@@ -448,7 +454,7 @@ def authorize_invoice_in_arca(invoice_id: int, payload: AuthorizationPayload, _:
             arca_error_message=message,
         )
         raise HTTPException(status_code=400, detail=message) from error
-    except RuntimeError as error:
+    except (ArcaRejectedError, ArcaTechnicalError, RuntimeError) as error:
         message = str(error) or "ARCA rechazo la solicitud"
         sanitized_response = {"error": message}
         status = arca_error_status(error)
@@ -475,7 +481,7 @@ def authorize_invoice_in_arca(invoice_id: int, payload: AuthorizationPayload, _:
         )
         raise HTTPException(status_code=400, detail=message) from error
 
-    repository.update_arca_request(arca_request_id, status="authorized", sanitized_response=response)
+    repository.update_arca_request(arca_request_id, status="authorized", sanitized_response=sanitized_arca_response(response))
     repository.update_invoice_arca_status(
         invoice_id,
         fiscal_status="authorized",

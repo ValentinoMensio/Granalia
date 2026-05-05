@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal
 
 
@@ -23,3 +24,20 @@ class ArcaInvoiceRequest:
     imp_iva: Decimal
     imp_total: Decimal
     iva: list[ArcaIvaItem]
+
+
+@dataclass(frozen=True)
+class ArcaAuthTicket:
+    token: str
+    sign: str
+    expiration_time: str
+
+
+@dataclass(frozen=True)
+class ArcaAuthorizationResult:
+    result: str
+    invoice_number: int | None
+    cae: str | None
+    cae_expires_at: date | None
+    observations: list[dict[str, object]]
+    raw: dict[str, object]
