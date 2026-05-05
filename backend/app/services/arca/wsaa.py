@@ -35,6 +35,10 @@ def child_text(root: ET.Element, name: str) -> str:
     return ""
 
 
+def wsaa_service_name(service: str) -> str:
+    return "wsfe" if service == "wsfev1" else service
+
+
 def build_tra(service: str) -> str:
     now = datetime.now(timezone.utc)
     unique_id = str(int(time.time()))
@@ -45,7 +49,7 @@ def build_tra(service: str) -> str:
     <generationTime>{utc_iso(now - timedelta(minutes=10))}</generationTime>
     <expirationTime>{utc_iso(now + timedelta(hours=12))}</expirationTime>
   </header>
-  <service>{escape(service)}</service>
+  <service>{escape(wsaa_service_name(service))}</service>
 </loginTicketRequest>"""
 
 
