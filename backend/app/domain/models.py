@@ -74,6 +74,7 @@ class CatalogProduct:
     name: str
     aliases: list[str] = field(default_factory=list)
     offerings: list[CatalogOffering] = field(default_factory=list)
+    iva_rate: float | None = None
 
     @classmethod
     def from_data(cls, data: CatalogProductData) -> "CatalogProduct":
@@ -82,6 +83,7 @@ class CatalogProduct:
             name=str(data["name"]),
             aliases=[str(item) for item in data.get("aliases", [])],
             offerings=[CatalogOffering.from_data(item) for item in data.get("offerings", [])],
+            iva_rate=float(data["iva_rate"]) if data.get("iva_rate") is not None else None,
         )
 
     def to_data(self) -> CatalogProductData:
@@ -90,6 +92,7 @@ class CatalogProduct:
             "name": self.name,
             "aliases": list(self.aliases),
             "offerings": [item.to_data() for item in self.offerings],
+            "iva_rate": self.iva_rate,
         }
 
 

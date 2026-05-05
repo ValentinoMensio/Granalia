@@ -29,6 +29,7 @@ class PostgresBootstrapMixin(PostgresRepositoryProtocol):
             self._ensure_price_list_invoice_fields(connection=connection)
             self._ensure_offering_net_weight(connection=connection)
             self._ensure_invoice_historical_snapshot_fields(connection=connection)
+            self._ensure_arca_fiscal_base(connection=connection)
 
             active_catalog = connection.execute(
                 select(self.catalogs.c.catalog).where(self.catalogs.c.active.is_(True)).order_by(self.catalogs.c.id.desc()).limit(1)

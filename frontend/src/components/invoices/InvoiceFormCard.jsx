@@ -59,7 +59,7 @@ function InvoiceFormCard({
 
         <Field label="Declaración">
           <select className="input" value={form.declared ? 'true' : 'false'} onChange={(event) => onFieldChange('declared', event.target.value === 'true')}>
-            <option value="false">No declarada</option>
+            <option value="false">Interna</option>
             <option value="true">Declarada</option>
           </select>
         </Field>

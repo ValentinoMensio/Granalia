@@ -140,6 +140,10 @@ class InvoiceRequest(BaseModel):
     profile: CustomerUpsert
 
 
+class AuthorizationPayload(BaseModel):
+    password: str = Field(min_length=1, max_length=500)
+
+
 class TransportUpsert(BaseModel):
     name: NonEmptyStr
     notes: list[str] = Field(default_factory=list, max_length=MAX_NOTES)
@@ -156,6 +160,7 @@ class ProductUpsert(BaseModel):
     id: int | None = None
     name: NonEmptyStr
     aliases: list[str] = Field(default_factory=list, max_length=MAX_ALIASES)
+    iva_rate: float | None = None
 
     _normalize_name = field_validator("name")(_strip_required)
 
@@ -167,6 +172,16 @@ class ProductUpsert(BaseModel):
             if len(item) > MAX_NAME_LENGTH:
                 raise ValueError(f"aliases must be at most {MAX_NAME_LENGTH} characters")
         return list(dict.fromkeys(normalized))
+
+    @field_validator("iva_rate")
+    @classmethod
+    def validate_iva_rate(cls, value: float | None) -> float | None:
+        if value is None:
+            return None
+        numeric = round(float(value), 3)
+        if numeric not in (0.105, 0.21):
+            raise ValueError("iva_rate must be 0.105 or 0.21")
+        return numeric
 
 
 class ProductOfferingUpsert(BaseModel):
@@ -206,6 +221,7 @@ class ProductCatalogOut(BaseModel):
     id: int
     name: str
     aliases: list[str] = Field(default_factory=list)
+    iva_rate: float | None = None
     offerings: list[ProductOfferingOut] = Field(default_factory=list)
 
 
@@ -213,6 +229,7 @@ class ProductOut(BaseModel):
     id: int
     name: str
     aliases: list[str] = Field(default_factory=list)
+    iva_rate: float | None = None
     active: bool
     created_at: str
     updated_at: str
@@ -285,6 +302,7 @@ class InvoiceSummaryOut(BaseModel):
 
 class InvoiceListItemOut(BaseModel):
     invoice_id: int
+    batch_id: int | None = None
     document_type: str = "FACTURA"
     point_of_sale: int = 1
     invoice_number: int = 0
@@ -298,6 +316,9 @@ class InvoiceListItemOut(BaseModel):
     price_list_name: str = ""
     price_list_effective_date: str | None = None
     declared: bool = False
+    split_kind: str | None = None
+    split_percentage: float | None = None
+    fiscal_status: str = "internal"
     total_bultos: float
     gross_total: int
     discount_total: int
@@ -324,10 +345,15 @@ class InvoiceItemOut(BaseModel):
     offering_net_weight_kg: float = 0
     line_type: str = "sale"
     discount_rate: float = 0
+    iva_rate: float | None = None
+    net_amount: float | None = None
+    iva_amount: float | None = None
+    fiscal_total: float | None = None
 
 
 class InvoiceDetailOut(BaseModel):
     id: int
+    batch_id: int | None = None
     document_type: str = "FACTURA"
     point_of_sale: int = 1
     invoice_number: int = 0
@@ -341,6 +367,26 @@ class InvoiceDetailOut(BaseModel):
     price_list_name: str = ""
     price_list_effective_date: str | None = None
     declared: bool = False
+    split_kind: str | None = None
+    split_percentage: float | None = None
+    fiscal_status: str = "internal"
+    fiscal_locked_at: str | None = None
+    fiscal_authorized_at: str | None = None
+    arca_environment: str | None = None
+    arca_cuit_emisor: str | None = None
+    arca_cbte_tipo: int | None = None
+    arca_concepto: int | None = None
+    arca_doc_tipo: int | None = None
+    arca_doc_nro: str | None = None
+    arca_point_of_sale: int | None = None
+    arca_invoice_number: int | None = None
+    arca_cae: str | None = None
+    arca_cae_expires_at: str | None = None
+    arca_result: str | None = None
+    arca_observations: Any | None = None
+    arca_error_code: str | None = None
+    arca_error_message: str | None = None
+    arca_request_id: str | None = None
     secondary_line: str = ""
     transport: str = ""
     notes: list[str] = Field(default_factory=list)

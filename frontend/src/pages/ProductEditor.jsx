@@ -33,6 +33,12 @@ function netWeightForLabel(label) {
   return 0
 }
 
+function ivaRateLabel(value) {
+  if (Number(value) === 0.21) return '21%'
+  if (Number(value) === 0.105) return '10,5%'
+  return 'Sin configurar'
+}
+
 export default function ProductEditor() {
   const { id } = useParams()
   const productId = Number(id)
@@ -88,13 +94,14 @@ export default function ProductEditor() {
 
   useEffect(() => {
     if (isNewProduct) {
-      setFormData({ name: '', aliases: [] })
+      setFormData({ name: '', aliases: [], iva_rate: null })
       setOfferings([])
     } else if (product) {
       setFormData({ 
         id: product.id,
         name: product.name, 
-        aliases: product.aliases || [] 
+        aliases: product.aliases || [],
+        iva_rate: product.iva_rate ?? null,
       })
       setOfferings([...product.offerings])
     }
@@ -121,10 +128,15 @@ export default function ProductEditor() {
         return
       }
 
+      const productPayload = {
+        ...formData,
+        iva_rate: formData.iva_rate === '' ? null : formData.iva_rate,
+      }
+
       await request(`/api/price-lists/${selectedPriceListId}/products`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ product: formData, offerings: normalizedOfferings }),
+        body: JSON.stringify({ product: productPayload, offerings: normalizedOfferings }),
       })
 
       await refreshAll()
@@ -171,6 +183,22 @@ export default function ProductEditor() {
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               className="input"
             />
+          </div>
+
+          <div className="space-y-2 md:col-span-2">
+            <label className="text-sm font-medium text-slate-700">IVA fiscal</label>
+            <select
+              value={formData.iva_rate ?? ''}
+              onChange={(event) => setFormData({ ...formData, iva_rate: event.target.value ? Number(event.target.value) : null })}
+              className="input"
+            >
+              <option value="">Sin configurar</option>
+              <option value="0.21">21% procesados</option>
+              <option value="0.105">10,5% naturales</option>
+            </select>
+            <p className="text-xs text-slate-500">
+              Se guarda a nivel producto y se usará como snapshot al preparar facturas fiscales. Actual: {ivaRateLabel(formData.iva_rate)}.
+            </p>
           </div>
 
           <div className="space-y-2 md:col-span-2">

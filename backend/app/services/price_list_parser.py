@@ -213,7 +213,7 @@ def build_catalog_from_pdf(pdf_bytes: bytes, current_catalog: list[CatalogProduc
         for previous in product.offerings:
             if previous.label not in updated_labels:
                 next_offerings.append(previous)
-        catalog.append(CatalogProduct(id=product.id, name=product.name, aliases=list(product.aliases), offerings=next_offerings))
+        catalog.append(CatalogProduct(id=product.id, name=product.name, aliases=list(product.aliases), offerings=next_offerings, iva_rate=product.iva_rate))
 
     for product_name, spec in PRODUCT_SPECS.items():
         if spec["id"] in used_spec_ids or spec["id"] not in line_map:
@@ -229,6 +229,6 @@ def build_catalog_from_pdf(pdf_bytes: bytes, current_catalog: list[CatalogProduc
         if product.id in used_spec_ids:
             product_display = PRODUCT_DISPLAY_NAMES.get(product.name, product.name)
             if product_display != product.name:
-                catalog[idx] = CatalogProduct(id=product.id, name=product_display, aliases=product.aliases, offerings=product.offerings)
+                catalog[idx] = CatalogProduct(id=product.id, name=product_display, aliases=product.aliases, offerings=product.offerings, iva_rate=product.iva_rate)
 
     return catalog

@@ -76,6 +76,7 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
                 "id": row["id"],
                 "name": row["name"],
                 "aliases": row["aliases"],
+                "iva_rate": float(row["iva_rate"]) if row.get("iva_rate") is not None else None,
                 "offerings": offerings_by_product.get(row["id"], []),
             }
             for row in product_rows
@@ -115,6 +116,7 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
                     .values(
                         name=product_name,
                         aliases=product.get("aliases", []),
+                        iva_rate=product.get("iva_rate"),
                         active=True,
                         updated_at=now,
                     )
@@ -125,6 +127,7 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
                     .values(
                         name=product_name,
                         aliases=product.get("aliases", []),
+                        iva_rate=product.get("iva_rate"),
                         active=True,
                         created_at=now,
                         updated_at=now,
@@ -259,6 +262,7 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
                     .values(
                         name=payload["name"],
                         aliases=payload.get("aliases", []),
+                        iva_rate=payload.get("iva_rate"),
                         active=True,
                         updated_at=now,
                     )
@@ -274,6 +278,7 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
                         .where(self.products.c.id == existing["id"])
                         .values(
                             aliases=payload.get("aliases", []),
+                            iva_rate=payload.get("iva_rate"),
                             active=True,
                             updated_at=now,
                         )
@@ -285,6 +290,7 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
                         .values(
                             name=payload["name"],
                             aliases=payload.get("aliases", []),
+                            iva_rate=payload.get("iva_rate"),
                             active=True,
                             created_at=now,
                             updated_at=now,
@@ -481,6 +487,7 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
                 "id": product_id,
                 "name": product_name,
                 "aliases": product.get("aliases", []),
+                "iva_rate": product.get("iva_rate"),
                 "offerings": next_offerings,
             }
             if target_index is None:

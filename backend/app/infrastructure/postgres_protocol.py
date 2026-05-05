@@ -30,8 +30,10 @@ class PostgresRepositoryProtocol(Protocol):
     customers: Table
     products: Table
     product_offerings: Table
+    invoice_batches: Table
     invoices: Table
     invoice_items: Table
+    invoice_tax_breakdown: Table
     invoice_sequences: Table
     app_users: Table
 

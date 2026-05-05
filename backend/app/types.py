@@ -30,6 +30,7 @@ class CatalogProductData(TypedDict):
     name: str
     aliases: list[str]
     offerings: list[CatalogOfferingData]
+    iva_rate: NotRequired[float | None]
     active: NotRequired[bool]
     created_at: NotRequired[str | datetime]
     updated_at: NotRequired[str | datetime]
@@ -114,6 +115,7 @@ class InvoiceSnapshotData(TypedDict):
 
 class InvoiceListItemData(TypedDict):
     invoice_id: int
+    batch_id: int | None
     document_type: str
     point_of_sale: int
     invoice_number: int
@@ -127,6 +129,9 @@ class InvoiceListItemData(TypedDict):
     price_list_name: str
     price_list_effective_date: NotRequired[str | datetime | None]
     declared: bool
+    split_kind: str | None
+    split_percentage: float | None
+    fiscal_status: str
     customer_cuit: str
     customer_address: str
     customer_business_name: str
@@ -157,10 +162,15 @@ class InvoiceItemDetailData(TypedDict):
     offering_net_weight_kg: NotRequired[float]
     line_type: NotRequired[str]
     discount_rate: NotRequired[float]
+    iva_rate: NotRequired[float | None]
+    net_amount: NotRequired[float | None]
+    iva_amount: NotRequired[float | None]
+    fiscal_total: NotRequired[float | None]
 
 
 class InvoiceDetailData(TypedDict):
     id: int
+    batch_id: int | None
     document_type: str
     point_of_sale: int
     invoice_number: int
@@ -174,6 +184,26 @@ class InvoiceDetailData(TypedDict):
     price_list_name: str
     price_list_effective_date: NotRequired[str | datetime | None]
     declared: bool
+    split_kind: str | None
+    split_percentage: float | None
+    fiscal_status: str
+    fiscal_locked_at: str | datetime | None
+    fiscal_authorized_at: str | datetime | None
+    arca_environment: str | None
+    arca_cuit_emisor: str | None
+    arca_cbte_tipo: int | None
+    arca_concepto: int | None
+    arca_doc_tipo: int | None
+    arca_doc_nro: str | None
+    arca_point_of_sale: int | None
+    arca_invoice_number: int | None
+    arca_cae: str | None
+    arca_cae_expires_at: str | datetime | None
+    arca_result: str | None
+    arca_observations: object | None
+    arca_error_code: str | None
+    arca_error_message: str | None
+    arca_request_id: str | None
     secondary_line: str
     transport: str
     notes: list[str]

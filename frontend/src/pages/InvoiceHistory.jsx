@@ -205,7 +205,7 @@ export default function InvoiceHistory() {
                   </div>
                   <div className="flex justify-between gap-3">
                     <span>Tipo</span>
-                    <span className="font-medium text-slate-800">{invoice.declared ? 'Declarada' : 'No declarada'}</span>
+                    <span className="font-medium text-slate-800">{invoice.declared ? 'Declarada' : 'Interna'}</span>
                   </div>
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
@@ -279,7 +279,7 @@ export default function InvoiceHistory() {
                     <td className="table-cell break-words font-medium leading-snug" title={invoice.client_name}>{invoice.client_name}</td>
                     <td className={`table-cell whitespace-nowrap text-center ${isUpcoming ? 'text-slate-800' : 'text-slate-600'}`}>{invoice.order_date}</td>
                     <td className={`table-cell break-words leading-snug ${isUpcoming ? 'text-slate-800' : 'text-slate-600'}`} title={invoice.transport || 'Sin transporte'}>{invoice.transport || 'Sin transporte'}</td>
-                    <td className="table-cell text-center">{invoice.declared ? 'Declarada' : 'No declarada'}</td>
+                    <td className="table-cell text-center">{invoice.declared ? 'Declarada' : 'Interna'}</td>
                     <td className="table-cell whitespace-nowrap text-right font-medium">${money(invoice.final_total)}</td>
                     <td className="table-cell">
                       <div className="flex items-center justify-center gap-x-2 whitespace-nowrap text-xs leading-tight">
@@ -387,7 +387,7 @@ export default function InvoiceHistory() {
               </div>
               <div>
                 <div className="text-xs uppercase tracking-wide text-slate-400">Tipo</div>
-                <div className="mt-1">{invoiceDetail.declared ? 'Declarada' : 'No declarada'}</div>
+                <div className="mt-1">{invoiceDetail.declared ? 'Declarada' : 'Interna'}</div>
               </div>
               <div>
                 <div className="text-xs uppercase tracking-wide text-slate-400">Lista</div>

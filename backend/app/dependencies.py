@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 from pathlib import Path
 
@@ -62,6 +63,14 @@ def require_admin(request: Request) -> str:
     if payload.get("role") != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permisos de administrador requeridos")
     return str(payload["sub"])
+
+
+def validate_invoice_authorization_password(password: str) -> None:
+    password_hash = os.getenv("GRANALIA_INVOICE_AUTH_PASSWORD_HASH", "").strip()
+    if not password_hash:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Contraseña de autorización no configurada")
+    if not AuthManager.verify_password(password, password_hash):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Contraseña de autorización inválida")
 
 
 def current_role(request: Request) -> str:

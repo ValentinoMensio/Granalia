@@ -23,7 +23,9 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
     invoice_items: Table
     products: Table
     product_offerings: Table
+    invoice_batches: Table
     price_lists: Table
+    invoice_tax_breakdown: Table
     invoice_sequences: Table
 
     def _fiscal_scope(self) -> tuple[str, int]:
@@ -72,6 +74,7 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
             query = (
                 select(
                     self.invoices.c.id.label("invoice_id"),
+                    self.invoices.c.batch_id,
                     self.invoices.c.document_type,
                     self.invoices.c.point_of_sale,
                     self.invoices.c.invoice_number,
@@ -84,6 +87,9 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     self.invoices.c.price_list_name,
                     self.invoices.c.price_list_effective_date,
                     self.invoices.c.declared,
+                    self.invoices.c.split_kind,
+                    self.invoices.c.split_percentage,
+                    self.invoices.c.fiscal_status,
                     self.invoices.c.total_bultos,
                     self.invoices.c.gross_total,
                     self.invoices.c.discount_total,
@@ -188,6 +194,7 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
             invoice_row = connection.execute(
                 select(
                     self.invoices.c.id,
+                    self.invoices.c.batch_id,
                     self.invoices.c.document_type,
                     self.invoices.c.point_of_sale,
                     self.invoices.c.invoice_number,
@@ -204,6 +211,26 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     self.invoices.c.customer_business_name,
                     self.invoices.c.customer_email,
                     self.invoices.c.declared,
+                    self.invoices.c.split_kind,
+                    self.invoices.c.split_percentage,
+                    self.invoices.c.fiscal_status,
+                    self.invoices.c.fiscal_locked_at,
+                    self.invoices.c.fiscal_authorized_at,
+                    self.invoices.c.arca_environment,
+                    self.invoices.c.arca_cuit_emisor,
+                    self.invoices.c.arca_cbte_tipo,
+                    self.invoices.c.arca_concepto,
+                    self.invoices.c.arca_doc_tipo,
+                    self.invoices.c.arca_doc_nro,
+                    self.invoices.c.arca_point_of_sale,
+                    self.invoices.c.arca_invoice_number,
+                    self.invoices.c.arca_cae,
+                    self.invoices.c.arca_cae_expires_at,
+                    self.invoices.c.arca_result,
+                    self.invoices.c.arca_observations,
+                    self.invoices.c.arca_error_code,
+                    self.invoices.c.arca_error_message,
+                    self.invoices.c.arca_request_id,
                     self.invoices.c.secondary_line,
                     self.invoices.c.transport,
                     self.invoices.c.notes,
@@ -266,6 +293,7 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
             "invoice_number": 1,
             "client_name": order["client_name"],
             "declared": bool(order.get("declared", False)),
+            "fiscal_status": "draft" if bool(order.get("declared", False)) else "internal",
             "price_list_name": str(order.get("price_list_name") or ""),
             "price_list_effective_date": None,
             "customer_cuit": str(profile.get("cuit", "") or ""),
@@ -431,6 +459,7 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     price_list_id=order.get("price_list_id"),
                     client_name=order["client_name"],
                     declared=bool(order.get("declared", False)),
+                    fiscal_status="draft" if bool(order.get("declared", False)) else "internal",
                     price_list_name=price_list_name,
                     price_list_effective_date=price_list_effective_date,
                     customer_cuit=str(profile.get("cuit", "") or ""),

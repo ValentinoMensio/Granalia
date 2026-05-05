@@ -7,6 +7,12 @@ import Button from '../components/ui/Button'
 import PageSectionHeader from '../components/ui/PageSectionHeader'
 import PriceListPanel from '../components/sidebar/PriceListPanel'
 
+function ivaRateLabel(value) {
+  if (Number(value) === 0.21) return '21%'
+  if (Number(value) === 0.105) return '10,5%'
+  return 'Sin IVA fiscal'
+}
+
 export default function Management() {
   const { setStatus, customers, bootstrap, catalog, priceListUploadName, priceListUploadTargetId, uploading, setPdfFile, setPriceListUploadName, setPriceListUploadTargetId, uploadPriceList, deletePriceList, renamePriceList, refreshAll } = useGranalia()
   const navigate = useNavigate()
@@ -316,6 +322,10 @@ export default function Management() {
                   </div>
                   <div className="mobile-field-grid">
                     <div className="mobile-field">
+                      <span className="mobile-field-label">IVA fiscal</span>
+                      <span className="mobile-field-value">{ivaRateLabel(p.iva_rate)}</span>
+                    </div>
+                    <div className="mobile-field">
                       <span className="mobile-field-label">Presentaciones</span>
                       <span className="mobile-field-value break-words">
                         {p.offerings?.length
@@ -347,6 +357,7 @@ export default function Management() {
                   <tr>
                     <th>ID</th>
                     <th>Nombre</th>
+                    <th>IVA fiscal</th>
                     <th>Presentaciones</th>
                     <th className="text-right">Acciones</th>
                   </tr>
@@ -356,6 +367,7 @@ export default function Management() {
                     <tr key={p.id} className="table-row">
                       <td className="table-cell font-mono text-xs">{p.id}</td>
                       <td className="table-cell font-medium">{p.name}</td>
+                      <td className="table-cell text-slate-600">{ivaRateLabel(p.iva_rate)}</td>
                       <td className="table-cell text-slate-600">
                         {p.offerings?.length
                           ? p.offerings.map((offering) => offering.label).join(', ')
@@ -373,7 +385,7 @@ export default function Management() {
                   ))}
                   {filteredProducts.length === 0 && (
                     <tr>
-                      <td colSpan="4" className="table-cell py-8 text-center text-slate-400 italic">No hay productos que coincidan con la búsqueda.</td>
+                      <td colSpan="5" className="table-cell py-8 text-center text-slate-400 italic">No hay productos que coincidan con la búsqueda.</td>
                     </tr>
                   )}
                 </tbody>

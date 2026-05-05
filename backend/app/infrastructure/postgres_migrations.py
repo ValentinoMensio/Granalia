@@ -16,7 +16,10 @@ class PostgresMigrationMixin(PostgresRepositoryProtocol):
     customers: Table
     products: Table
     product_offerings: Table
+    invoice_batches: Table
     invoices: Table
+    invoice_items: Table
+    invoice_tax_breakdown: Table
 
     def _column_exists(self, connection, table_name: str, column_name: str) -> bool:
         return bool(
@@ -107,6 +110,7 @@ class PostgresMigrationMixin(PostgresRepositoryProtocol):
                     "id": product_row["id"] if product_row else product.get("id"),
                     "name": product_name,
                     "aliases": product.get("aliases", []),
+                    "iva_rate": float(product_row["iva_rate"]) if product_row and product_row.get("iva_rate") is not None else product.get("iva_rate"),
                     "offerings": [],
                 }
                 for offering in product.get("offerings", []):
@@ -589,6 +593,88 @@ class PostgresMigrationMixin(PostgresRepositoryProtocol):
                 """
             )
         )
+
+    def _ensure_arca_fiscal_base(self, *, connection) -> None:
+        if self._table_exists(connection, "products") and not self._column_exists(connection, "products", "iva_rate"):
+            connection.execute(text("ALTER TABLE products ADD COLUMN iva_rate NUMERIC(5, 3)"))
+
+        if not self._table_exists(connection, "invoice_batches"):
+            connection.execute(
+                text(
+                    """
+                    CREATE TABLE invoice_batches (
+                        id BIGSERIAL PRIMARY KEY,
+                        customer_id BIGINT REFERENCES customers(id) ON DELETE SET NULL,
+                        client_name VARCHAR(255) NOT NULL,
+                        order_date DATE NOT NULL,
+                        billing_mode VARCHAR(30) NOT NULL,
+                        declared_percentage NUMERIC(5, 2),
+                        internal_percentage NUMERIC(5, 2),
+                        internal_price_list_id BIGINT REFERENCES price_lists(id) ON DELETE SET NULL,
+                        fiscal_price_list_id BIGINT REFERENCES price_lists(id) ON DELETE SET NULL,
+                        created_by_user_id BIGINT,
+                        created_at TIMESTAMPTZ NOT NULL
+                    )
+                    """
+                )
+            )
+
+        if self._table_exists(connection, "invoices"):
+            invoice_fields = [
+                ("batch_id", "BIGINT REFERENCES invoice_batches(id) ON DELETE SET NULL"),
+                ("split_kind", "VARCHAR(20)"),
+                ("split_percentage", "NUMERIC(5, 2)"),
+                ("fiscal_status", "VARCHAR(20) NOT NULL DEFAULT 'internal'"),
+                ("fiscal_locked_at", "TIMESTAMPTZ"),
+                ("fiscal_authorized_at", "TIMESTAMPTZ"),
+                ("arca_environment", "VARCHAR(20)"),
+                ("arca_cuit_emisor", "VARCHAR(32)"),
+                ("arca_cbte_tipo", "INTEGER"),
+                ("arca_concepto", "INTEGER"),
+                ("arca_doc_tipo", "INTEGER"),
+                ("arca_doc_nro", "VARCHAR(32)"),
+                ("arca_point_of_sale", "INTEGER"),
+                ("arca_invoice_number", "BIGINT"),
+                ("arca_cae", "VARCHAR(32)"),
+                ("arca_cae_expires_at", "DATE"),
+                ("arca_result", "VARCHAR(20)"),
+                ("arca_observations", "JSONB"),
+                ("arca_error_code", "VARCHAR(50)"),
+                ("arca_error_message", "TEXT"),
+                ("arca_request_id", "VARCHAR(120)"),
+            ]
+            for column_name, definition in invoice_fields:
+                if not self._column_exists(connection, "invoices", column_name):
+                    connection.execute(text(f"ALTER TABLE invoices ADD COLUMN {column_name} {definition}"))
+
+        if self._table_exists(connection, "invoice_items"):
+            item_fields = [
+                ("iva_rate", "NUMERIC(5, 3)"),
+                ("net_amount", "NUMERIC(12, 2)"),
+                ("iva_amount", "NUMERIC(12, 2)"),
+                ("fiscal_total", "NUMERIC(12, 2)"),
+            ]
+            for column_name, definition in item_fields:
+                if not self._column_exists(connection, "invoice_items", column_name):
+                    connection.execute(text(f"ALTER TABLE invoice_items ADD COLUMN {column_name} {definition}"))
+
+        if not self._table_exists(connection, "invoice_tax_breakdown"):
+            connection.execute(
+                text(
+                    """
+                    CREATE TABLE invoice_tax_breakdown (
+                        id BIGSERIAL PRIMARY KEY,
+                        invoice_id BIGINT NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+                        iva_rate NUMERIC(5, 3) NOT NULL,
+                        arca_iva_id INTEGER NOT NULL,
+                        base_amount NUMERIC(12, 2) NOT NULL,
+                        iva_amount NUMERIC(12, 2) NOT NULL,
+                        created_at TIMESTAMPTZ NOT NULL,
+                        UNIQUE (invoice_id, iva_rate)
+                    )
+                    """
+                )
+            )
 
     def _drop_transport_redundancy(self, *, connection) -> None:
         if self._table_exists(connection, "customers"):
