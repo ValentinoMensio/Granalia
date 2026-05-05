@@ -20,6 +20,7 @@ class PostgresMigrationMixin(PostgresRepositoryProtocol):
     invoices: Table
     invoice_items: Table
     invoice_tax_breakdown: Table
+    arca_requests: Table
 
     def _column_exists(self, connection, table_name: str, column_name: str) -> bool:
         return bool(
@@ -671,6 +672,27 @@ class PostgresMigrationMixin(PostgresRepositoryProtocol):
                         iva_amount NUMERIC(12, 2) NOT NULL,
                         created_at TIMESTAMPTZ NOT NULL,
                         UNIQUE (invoice_id, iva_rate)
+                    )
+                    """
+                )
+            )
+
+        if not self._table_exists(connection, "arca_requests"):
+            connection.execute(
+                text(
+                    """
+                    CREATE TABLE arca_requests (
+                        id BIGSERIAL PRIMARY KEY,
+                        invoice_id BIGINT NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+                        operation VARCHAR(80) NOT NULL,
+                        environment VARCHAR(20) NOT NULL,
+                        request_hash VARCHAR(64) NOT NULL,
+                        sanitized_request JSONB NOT NULL,
+                        sanitized_response JSONB,
+                        status VARCHAR(20) NOT NULL,
+                        error_code VARCHAR(50),
+                        error_message TEXT,
+                        created_at TIMESTAMPTZ NOT NULL
                     )
                     """
                 )

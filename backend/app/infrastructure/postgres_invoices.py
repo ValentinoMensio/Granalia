@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+import hashlib
+import json
 from decimal import Decimal, ROUND_HALF_UP
 from datetime import date, datetime
 from typing import cast
@@ -27,6 +29,7 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
     invoice_batches: Table
     price_lists: Table
     invoice_tax_breakdown: Table
+    arca_requests: Table
     invoice_sequences: Table
 
     def _round_money(self, value: Decimal) -> Decimal:
@@ -629,6 +632,118 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                 .order_by(self.invoices.c.id)
             ).mappings().all()
         return [{key: serialize_value(value) for key, value in row.items()} for row in rows]
+
+    def get_invoice_tax_breakdown(self, invoice_id: int) -> list[dict[str, object]]:
+        with self.engine.connect() as connection:
+            rows = connection.execute(
+                select(
+                    self.invoice_tax_breakdown.c.iva_rate,
+                    self.invoice_tax_breakdown.c.arca_iva_id,
+                    self.invoice_tax_breakdown.c.base_amount,
+                    self.invoice_tax_breakdown.c.iva_amount,
+                )
+                .where(self.invoice_tax_breakdown.c.invoice_id == invoice_id)
+                .order_by(self.invoice_tax_breakdown.c.iva_rate)
+            ).mappings().all()
+        return [{key: serialize_value(value) for key, value in row.items()} for row in rows]
+
+    def create_arca_request(
+        self,
+        *,
+        invoice_id: int,
+        operation: str,
+        environment: str,
+        sanitized_request: dict[str, object],
+        status: str = "pending",
+        sanitized_response: dict[str, object] | None = None,
+        error_code: str | None = None,
+        error_message: str | None = None,
+    ) -> int:
+        created_at = utc_now()
+        encoded_request = json.dumps(sanitized_request, sort_keys=True, default=str).encode("utf-8")
+        request_hash = hashlib.sha256(encoded_request).hexdigest()
+        with self.engine.begin() as connection:
+            arca_request_id = int(
+                connection.execute(
+                    self.arca_requests.insert()
+                    .values(
+                        invoice_id=invoice_id,
+                        operation=operation,
+                        environment=environment,
+                        request_hash=request_hash,
+                        sanitized_request=sanitized_request,
+                        sanitized_response=sanitized_response,
+                        status=status,
+                        error_code=error_code,
+                        error_message=error_message,
+                        created_at=created_at,
+                    )
+                    .returning(self.arca_requests.c.id)
+                ).scalar_one()
+            )
+            connection.execute(update(self.invoices).where(self.invoices.c.id == invoice_id).values(arca_request_id=str(arca_request_id)))
+        return arca_request_id
+
+    def update_arca_request(
+        self,
+        arca_request_id: int,
+        *,
+        status: str,
+        sanitized_response: dict[str, object] | None = None,
+        error_code: str | None = None,
+        error_message: str | None = None,
+    ) -> None:
+        with self.engine.begin() as connection:
+            connection.execute(
+                update(self.arca_requests)
+                .where(self.arca_requests.c.id == arca_request_id)
+                .values(status=status, sanitized_response=sanitized_response, error_code=error_code, error_message=error_message)
+            )
+
+    def update_invoice_arca_status(
+        self,
+        invoice_id: int,
+        *,
+        fiscal_status: str,
+        arca_environment: str,
+        arca_cuit_emisor: str,
+        arca_cbte_tipo: int,
+        arca_concepto: int,
+        arca_doc_tipo: int,
+        arca_doc_nro: str,
+        arca_point_of_sale: int,
+        arca_request_id: int,
+        arca_invoice_number: int | None = None,
+        arca_cae: str | None = None,
+        arca_cae_expires_at: date | None = None,
+        arca_result: str | None = None,
+        arca_observations: object | None = None,
+        arca_error_code: str | None = None,
+        arca_error_message: str | None = None,
+    ) -> None:
+        now = utc_now()
+        values = {
+            "fiscal_status": fiscal_status,
+            "fiscal_locked_at": now if fiscal_status == "authorized" else None,
+            "fiscal_authorized_at": now if fiscal_status == "authorized" else None,
+            "arca_environment": arca_environment,
+            "arca_cuit_emisor": arca_cuit_emisor,
+            "arca_cbte_tipo": arca_cbte_tipo,
+            "arca_concepto": arca_concepto,
+            "arca_doc_tipo": arca_doc_tipo,
+            "arca_doc_nro": arca_doc_nro,
+            "arca_point_of_sale": arca_point_of_sale,
+            "arca_invoice_number": arca_invoice_number,
+            "arca_cae": arca_cae,
+            "arca_cae_expires_at": arca_cae_expires_at,
+            "arca_result": arca_result,
+            "arca_observations": arca_observations,
+            "arca_error_code": arca_error_code,
+            "arca_error_message": arca_error_message,
+            "arca_request_id": str(arca_request_id),
+        }
+        with self.engine.begin() as connection:
+            connection.execute(update(self.invoices).where(self.invoices.c.id == invoice_id).values(**values))
 
     def update_invoice(
         self,

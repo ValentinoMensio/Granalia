@@ -160,6 +160,13 @@ class AuthorizationPayload(BaseModel):
     password: str = Field(min_length=1, max_length=500)
 
 
+class ArcaAuthorizationOut(BaseModel):
+    invoice_id: int
+    fiscal_status: str
+    arca_request_id: int
+    message: str
+
+
 class InvoiceRequest(BaseModel):
     order: InvoiceCreate
     profile: CustomerUpsert

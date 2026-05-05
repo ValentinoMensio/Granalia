@@ -372,6 +372,20 @@ function useGranaliaData() {
     setStatus(`Factura ${invoiceId} eliminada.`)
   }
 
+  async function authorizeInvoiceInArca(invoiceId, password) {
+    const data = await request(`/api/invoices/${invoiceId}/arca/authorize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    })
+    await refreshInvoices()
+    if (String(invoiceDetail?.id || '') === String(invoiceId)) {
+      await loadInvoiceDetail(invoiceId)
+    }
+    setStatus(data.message || `Factura ${invoiceId} autorizada en ARCA.`)
+    return data
+  }
+
   async function saveCustomer() {
     if (!form.clientName.trim()) {
       setStatus('Ingresá un cliente.')
@@ -545,6 +559,7 @@ function useGranaliaData() {
     clearCurrentInvoice,
     startInvoiceEdit,
     deleteInvoice,
+    authorizeInvoiceInArca,
     invoiceDownloadUrl,
     invoicePdfUrl,
     downloadInvoice,

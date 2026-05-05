@@ -32,6 +32,7 @@ class PostgresRepository(
     invoices: Table
     invoice_items: Table
     invoice_tax_breakdown: Table
+    arca_requests: Table
     invoice_sequences: Table
     app_users: Table
 

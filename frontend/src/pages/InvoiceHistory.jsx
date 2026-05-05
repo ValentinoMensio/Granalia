@@ -15,14 +15,24 @@ function shortInvoiceNumber(invoice) {
   return `#${invoice?.invoice_id || invoice?.id}`
 }
 
+function canAuthorizeInArca(invoice) {
+  if (!invoice) return false
+  const status = String(invoice.fiscal_status || '')
+  return (invoice.declared || invoice.split_kind === 'fiscal') && ['draft', 'rejected', 'error'].includes(status)
+}
+
 export default function InvoiceHistory() {
   const navigate = useNavigate()
   const { session } = useAuth()
   const isAdmin = session?.role === 'admin'
-  const { bootstrap, invoices, customers, invoiceDetail, loadInvoiceDetail, clearInvoiceDetail, invoicePdfUrl, startInvoiceEdit, deleteInvoice } = useGranalia()
+  const { bootstrap, invoices, customers, invoiceDetail, loadInvoiceDetail, clearInvoiceDetail, invoicePdfUrl, startInvoiceEdit, deleteInvoice, authorizeInvoiceInArca } = useGranalia()
   const [filters, setFilters] = useState(EMPTY_FILTERS)
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [deletingInvoiceId, setDeletingInvoiceId] = useState(null)
+  const [authorizingInvoiceId, setAuthorizingInvoiceId] = useState(null)
+  const [authorizationTarget, setAuthorizationTarget] = useState(null)
+  const [authorizationPassword, setAuthorizationPassword] = useState('')
+  const [authorizationError, setAuthorizationError] = useState('')
   const [page, setPage] = useState(1)
   const todayKey = new Date().toLocaleDateString('en-CA')
 
@@ -92,6 +102,35 @@ export default function InvoiceHistory() {
       await deleteInvoice(invoiceId)
     } finally {
       setDeletingInvoiceId(null)
+    }
+  }
+
+  function openAuthorizationModal(invoice) {
+    setAuthorizationTarget(invoice)
+    setAuthorizationPassword('')
+    setAuthorizationError('')
+  }
+
+  function closeAuthorizationModal() {
+    if (authorizingInvoiceId) return
+    setAuthorizationTarget(null)
+    setAuthorizationPassword('')
+    setAuthorizationError('')
+  }
+
+  async function handleAuthorizeInvoice(event) {
+    event.preventDefault()
+    if (!authorizationTarget) return
+    const invoiceId = authorizationTarget.invoice_id || authorizationTarget.id
+    setAuthorizingInvoiceId(invoiceId)
+    setAuthorizationError('')
+    try {
+      await authorizeInvoiceInArca(invoiceId, authorizationPassword)
+      closeAuthorizationModal()
+    } catch (error) {
+      setAuthorizationError(error.message)
+    } finally {
+      setAuthorizingInvoiceId(null)
     }
   }
 
@@ -217,6 +256,11 @@ export default function InvoiceHistory() {
                       Editar
                     </Button>
                   )}
+                  {isAdmin && canAuthorizeInArca(invoice) && (
+                    <Button variant="secondary" className="col-span-2" onClick={() => openAuthorizationModal(invoice)}>
+                      Autorizar en ARCA
+                    </Button>
+                  )}
                   <span className="btn-secondary w-full cursor-not-allowed opacity-50" aria-disabled="true">XLSX</span>
                   <a
                     href={invoicePdfUrl(invoice.invoice_id)}
@@ -289,6 +333,11 @@ export default function InvoiceHistory() {
                         {isAdmin && (
                           <Button variant="ghost" className="px-0 py-0 text-brand-ink" onClick={() => handleEditInvoice(invoice.invoice_id)}>
                             Editar
+                          </Button>
+                        )}
+                        {isAdmin && canAuthorizeInArca(invoice) && (
+                          <Button variant="ghost" className="px-0 py-0 text-xs text-brand-red" onClick={() => openAuthorizationModal(invoice)}>
+                            ARCA
                           </Button>
                         )}
                         <a
@@ -478,6 +527,11 @@ export default function InvoiceHistory() {
                   Editar factura
                 </Button>
               )}
+              {isAdmin && canAuthorizeInArca(invoiceDetail) && (
+                <Button variant="secondary" className="w-full sm:w-auto" onClick={() => openAuthorizationModal(invoiceDetail)}>
+                  Autorizar en ARCA
+                </Button>
+              )}
               <span className="btn-secondary w-full cursor-not-allowed opacity-50 sm:w-auto" aria-disabled="true">Descargar XLSX</span>
               <a
                 href={invoicePdfUrl(invoiceDetail.id)}
@@ -502,6 +556,39 @@ export default function InvoiceHistory() {
         )}
       </aside>
       </div>
+
+      {authorizationTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-6">
+          <form onSubmit={handleAuthorizeInvoice} className="surface w-full max-w-md p-5 shadow-xl">
+            <h3 className="subsection-title text-xl">Autorizar en ARCA</h3>
+            <p className="mt-2 text-sm text-slate-600">
+              Ingresá la contraseña de autorización para enviar la factura {shortInvoiceNumber(authorizationTarget)} a ARCA.
+            </p>
+            <input
+              className="input mt-4"
+              type="password"
+              value={authorizationPassword}
+              onChange={(event) => setAuthorizationPassword(event.target.value)}
+              placeholder="Contraseña de autorización"
+              autoComplete="current-password"
+              autoFocus
+            />
+            {authorizationError && (
+              <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {authorizationError}
+              </div>
+            )}
+            <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
+              <Button type="button" variant="secondary" onClick={closeAuthorizationModal} disabled={Boolean(authorizingInvoiceId)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={!authorizationPassword || Boolean(authorizingInvoiceId)}>
+                {authorizingInvoiceId ? 'Autorizando...' : 'Autorizar'}
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   )
 }
