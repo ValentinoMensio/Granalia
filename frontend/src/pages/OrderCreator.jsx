@@ -54,12 +54,13 @@ function buildSplitPreview(form, productsById, fiscalCatalog) {
 
     const declaredQuantity = Math.ceil(quantity * declaredPercentage / 100)
     const internalQuantity = Math.max(0, quantity - declaredQuantity)
+    const internalBonus = Math.max(0, Math.round(Number(item.bonus_quantity || 0)))
     const internalUnitPrice = item.unit_price === '' || item.unit_price === undefined ? Number(offering.price || 0) : Number(item.unit_price || 0)
     const fiscalUnitPrice = Number(fiscalOffering?.price || 0)
     const rowInternalTotal = internalQuantity * internalUnitPrice
     const rowFiscalTotal = declaredQuantity * fiscalUnitPrice
 
-    internalQuantityTotal += internalQuantity
+    internalQuantityTotal += internalQuantity + internalBonus
     declaredQuantityTotal += declaredQuantity
     internalTotal += rowInternalTotal
     fiscalTotal += rowFiscalTotal
@@ -68,6 +69,7 @@ function buildSplitPreview(form, productsById, fiscalCatalog) {
       offeringLabel: offering.label,
       totalQuantity: quantity,
       internalQuantity,
+      internalBonus,
       declaredQuantity,
       internalTotal: rowInternalTotal,
       fiscalTotal: rowFiscalTotal,

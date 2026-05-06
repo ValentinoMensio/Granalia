@@ -146,10 +146,10 @@ def build_arca_invoice_items(invoice: dict) -> list[ArcaInvoiceItem]:
             continue
         unit_price = money_decimal(item.get("unit_price"))
         gross = money_decimal(item.get("gross"))
-        net_amount = money_decimal(item.get("net_amount") if item.get("net_amount") is not None else item.get("total"))
+        net_amount = money_decimal(item.get("effective_total") if item.get("effective_total") is not None else item.get("net_amount") if item.get("net_amount") is not None else item.get("total"))
         iva_amount = money_decimal(item.get("iva_amount") if item.get("iva_amount") is not None else net_amount * Decimal(str(iva_rate)))
         fiscal_total = money_decimal(item.get("fiscal_total") if item.get("fiscal_total") is not None else net_amount + iva_amount)
-        discount_amount = money_decimal(max(Decimal("0"), gross - net_amount))
+        discount_amount = money_decimal(item.get("effective_discount") if item.get("effective_discount") is not None else max(Decimal("0"), gross - net_amount))
         description = " ".join(str(part or "").strip() for part in (item.get("product_name"), item.get("offering_label")) if str(part or "").strip())
         items.append(
             ArcaInvoiceItem(
@@ -174,22 +174,12 @@ def build_arca_invoice_request(invoice: dict, tax_breakdown: list[dict], *, poin
     if len(doc_nro) != 11:
         raise ValueError("Cliente con CUIT invalido")
     arca_items = build_arca_invoice_items(invoice)
-    if tax_breakdown:
-        iva_items = [
-            ArcaIvaItem(
-                Id=int(item["arca_iva_id"]),
-                BaseImp=money_decimal(item["base_amount"]),
-                Importe=money_decimal(item["iva_amount"]),
-            )
-            for item in tax_breakdown
-        ]
-    else:
-        iva_breakdown: dict[int, dict[str, Decimal]] = {}
-        for item in arca_items:
-            current = iva_breakdown.setdefault(item.iva_id, {"base": Decimal("0"), "iva": Decimal("0")})
-            current["base"] += item.item_total - item.iva_amount
-            current["iva"] += item.iva_amount
-        iva_items = [ArcaIvaItem(Id=iva_id, BaseImp=money_decimal(values["base"]), Importe=money_decimal(values["iva"])) for iva_id, values in sorted(iva_breakdown.items())]
+    iva_breakdown: dict[int, dict[str, Decimal]] = {}
+    for item in arca_items:
+        current = iva_breakdown.setdefault(item.iva_id, {"base": Decimal("0"), "iva": Decimal("0")})
+        current["base"] += item.item_total - item.iva_amount
+        current["iva"] += item.iva_amount
+    iva_items = [ArcaIvaItem(Id=iva_id, BaseImp=money_decimal(values["base"]), Importe=money_decimal(values["iva"])) for iva_id, values in sorted(iva_breakdown.items())]
     imp_neto = money_decimal(sum(item.BaseImp for item in iva_items))
     imp_iva = money_decimal(sum(item.Importe for item in iva_items))
     return ArcaInvoiceRequest(
@@ -281,17 +271,17 @@ def build_split_orders(order: dict, internal_catalog: list[dict], fiscal_catalog
             raise ValueError(f"Falta configurar IVA fiscal para {fiscal_product.get('name')}")
 
         internal_quantity, fiscal_quantity = split_quantity(item.get("quantity"), declared_percentage)
-        internal_bonus, fiscal_bonus = split_quantity(item.get("bonus_quantity", 0), declared_percentage)
+        internal_bonus = int(item.get("bonus_quantity") or 0)
         if internal_quantity > 0 or internal_bonus > 0:
             internal_items.append({**item, "quantity": internal_quantity, "bonus_quantity": internal_bonus})
-        if fiscal_quantity > 0 or fiscal_bonus > 0:
+        if fiscal_quantity > 0:
             fiscal_items.append(
                 {
                     **item,
                     "product_id": int(fiscal_product["id"]),
                     "offering_id": int(fiscal_offering["id"]),
                     "quantity": fiscal_quantity,
-                    "bonus_quantity": fiscal_bonus,
+                    "bonus_quantity": 0,
                     "unit_price": int(fiscal_offering.get("price") or 0),
                 }
             )
@@ -431,6 +421,7 @@ def create_invoice(payload: InvoiceRequest, role: str = Depends(current_role)) -
         if billing_mode == "fiscal_only":
             order["declared"] = True
             order["price_list_id"] = order.get("fiscal_price_list_id") or order.get("price_list_id")
+            order["items"] = [{**item, "bonus_quantity": 0} for item in order.get("items", [])]
             catalog = repository.get_catalog_for_price_list(int(order["price_list_id"])) if order.get("price_list_id") else repository.get_active_catalog()
             filename, xlsx_bytes, snapshot = generate_invoice_document(order, profile, catalog)
             snapshot = fiscalize_snapshot(snapshot, catalog)

@@ -11,6 +11,7 @@ import {
   buildProductsById,
   buildProfilePayload,
   buildTotals,
+  removeAutomaticBonusFromItems,
 } from './helpers'
 
 function useGranaliaData() {
@@ -178,7 +179,9 @@ function useGranaliaData() {
             ...current,
             ...extraUpdates,
             priceListId: value,
-            items: applyAutomaticBonusRulesToItems(repriceItemsForCatalog(current.items, nextCatalog), current.automaticBonusRules),
+            items: (extraUpdates.billingMode || current.billingMode) === 'fiscal_only'
+              ? removeAutomaticBonusFromItems(repriceItemsForCatalog(current.items, nextCatalog))
+              : applyAutomaticBonusRulesToItems(repriceItemsForCatalog(current.items, nextCatalog), current.automaticBonusRules),
           }))
         })
         .catch((error) => setStatus(error.message))
@@ -189,7 +192,9 @@ function useGranaliaData() {
         ...current,
         ...extraUpdates,
         priceListId: value,
-        items: applyAutomaticBonusRulesToItems(repriceItemsForCatalog(current.items, nextCatalog), current.automaticBonusRules),
+        items: (extraUpdates.billingMode || current.billingMode) === 'fiscal_only'
+          ? removeAutomaticBonusFromItems(repriceItemsForCatalog(current.items, nextCatalog))
+          : applyAutomaticBonusRulesToItems(repriceItemsForCatalog(current.items, nextCatalog), current.automaticBonusRules),
       }))
     }
   }
@@ -205,7 +210,12 @@ function useGranaliaData() {
       if (targetPriceListId !== form.priceListId) {
         applyPriceListChange(targetPriceListId, { billingMode: value, declared })
       } else {
-        setForm((current) => ({ ...current, billingMode: value, declared }))
+        setForm((current) => ({
+          ...current,
+          billingMode: value,
+          declared,
+          items: value === 'fiscal_only' ? removeAutomaticBonusFromItems(current.items) : applyAutomaticBonusRulesToItems(current.items, current.automaticBonusRules),
+        }))
       }
       return
     }
@@ -269,7 +279,7 @@ function useGranaliaData() {
       return {
         ...current,
         automaticBonusRules,
-        items: applyAutomaticBonusRulesToItems(current.items, automaticBonusRules),
+        items: current.billingMode === 'fiscal_only' ? removeAutomaticBonusFromItems(current.items) : applyAutomaticBonusRulesToItems(current.items, automaticBonusRules),
       }
     })
   }
@@ -290,7 +300,7 @@ function useGranaliaData() {
       return {
         ...current,
         automaticBonusRules,
-        items: applyAutomaticBonusRulesToItems(current.items, automaticBonusRules),
+        items: current.billingMode === 'fiscal_only' ? removeAutomaticBonusFromItems(current.items) : applyAutomaticBonusRulesToItems(current.items, automaticBonusRules),
       }
     })
   }
@@ -301,7 +311,7 @@ function useGranaliaData() {
       return {
         ...current,
         automaticBonusRules,
-        items: applyAutomaticBonusRulesToItems(current.items, automaticBonusRules),
+        items: current.billingMode === 'fiscal_only' ? removeAutomaticBonusFromItems(current.items) : applyAutomaticBonusRulesToItems(current.items, automaticBonusRules),
       }
     })
   }
@@ -328,9 +338,9 @@ function useGranaliaData() {
       }
       if (field === 'bonus_quantity') {
         items[index].bonus_quantity_manual = true
-        return { ...current, items: applyAutomaticBonusRulesToItems(items, current.automaticBonusRules) }
+        return { ...current, items: current.billingMode === 'fiscal_only' ? removeAutomaticBonusFromItems(items) : applyAutomaticBonusRulesToItems(items, current.automaticBonusRules) }
       }
-      return { ...current, items: applyAutomaticBonusRulesToItems(items, current.automaticBonusRules) }
+      return { ...current, items: current.billingMode === 'fiscal_only' ? removeAutomaticBonusFromItems(items) : applyAutomaticBonusRulesToItems(items, current.automaticBonusRules) }
     })
   }
 
