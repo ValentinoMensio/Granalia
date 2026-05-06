@@ -157,7 +157,7 @@ function ProductRowsCard({
                         type="number"
                         min="0"
                         step="1"
-                        value={item.bonus_quantity || ''}
+                        value={item.bonus_quantity ?? ''}
                         onChange={(event) =>
                           onUpdateItem(index, 'bonus_quantity', event.target.value === '' ? 0 : Math.round(Number(event.target.value)))
                         }
@@ -284,7 +284,7 @@ function ProductRowsCard({
                         type="number"
                         min="0"
                         step="1"
-                        value={item.bonus_quantity || ''}
+                        value={item.bonus_quantity ?? ''}
                         onChange={(event) =>
                           onUpdateItem(index, 'bonus_quantity', event.target.value === '' ? 0 : Math.round(Number(event.target.value)))
                         }
