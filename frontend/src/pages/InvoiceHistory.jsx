@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext'
 const PAGE_SIZE = 10
 const EMPTY_FILTERS = { customerId: '', dateFrom: '', dateTo: '', transport: '', minTotal: '', maxTotal: '' }
 const fiscalMoney = (value) => new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value || 0))
+const fiscalPercent = (value) => new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value || 0))
 
 function shortInvoiceNumber(invoice) {
   if (invoice?.invoice_number) return String(invoice.invoice_number).padStart(8, '0')
@@ -53,6 +54,12 @@ function itemFiscalTotal(item) {
   if (item?.iva_rate != null) return net * (1 + Number(item.iva_rate || 0))
   if (item?.fiscal_total != null) return Number(item.fiscal_total)
   return net + Number(item?.iva_amount || 0)
+}
+
+function itemDiscountPercent(item) {
+  const gross = Number(item?.gross || 0)
+  if (!gross) return 0
+  return (Number(item?.effective_discount ?? item?.discount ?? 0) / gross) * 100
 }
 
 function fiscalNetTotal(invoice) {
@@ -479,14 +486,6 @@ export default function InvoiceHistory() {
                 <div className="mt-1">{invoiceDetail.total_bultos}</div>
               </div>
               <div>
-                <div className="text-xs uppercase tracking-wide text-slate-400">Cliente asociado</div>
-                <div className="mt-1">{invoiceDetail.customer_name || 'Sin asociar'}</div>
-              </div>
-              <div>
-                <div className="text-xs uppercase tracking-wide text-slate-400">Transporte asociado</div>
-                <div className="mt-1">{invoiceDetail.transport_name || (invoiceDetail.transport_id ? `#${invoiceDetail.transport_id}` : 'Sin asociar')}</div>
-              </div>
-              <div>
                 <div className="text-xs uppercase tracking-wide text-slate-400">Tipo</div>
                 <div className="mt-1">{invoiceDetail.declared ? 'Declarada' : 'Interna'}</div>
               </div>
@@ -531,7 +530,7 @@ export default function InvoiceHistory() {
                       {isFiscalInvoice(invoiceDetail) && (
                         <div className="mobile-field">
                           <span className="mobile-field-label">Unidad</span>
-                          <span className="mobile-field-value">Unidades</span>
+                          <span className="mobile-field-value">Packs</span>
                         </div>
                       )}
                       <div className="mobile-field">
@@ -542,7 +541,7 @@ export default function InvoiceHistory() {
                         <>
                           <div className="mobile-field">
                             <span className="mobile-field-label">Bonf</span>
-                            <span className="mobile-field-value">${fiscalMoney(item.effective_discount ?? item.discount)}</span>
+                            <span className="mobile-field-value">{fiscalPercent(itemDiscountPercent(item))}</span>
                           </div>
                           <div className="mobile-field">
                             <span className="mobile-field-label">IVA</span>
@@ -593,9 +592,9 @@ export default function InvoiceHistory() {
                         <td className="table-cell text-right">{item.quantity}</td>
                         {isFiscalInvoice(invoiceDetail) ? (
                           <>
-                            <td className="table-cell">Unidades</td>
+                            <td className="table-cell">Packs</td>
                             <td className="table-cell text-right">${fiscalMoney(item.unit_price)}</td>
-                            <td className="table-cell text-right">${fiscalMoney(item.effective_discount ?? item.discount)}</td>
+                            <td className="table-cell text-right">{fiscalPercent(itemDiscountPercent(item))}</td>
                             <td className="table-cell text-right">${fiscalMoney(item.gross)}</td>
                             <td className="table-cell text-right">{Number(item.iva_rate || 0) * 100}%</td>
                             <td className="table-cell text-right font-medium">${fiscalMoney(itemFiscalTotal(item))}</td>
