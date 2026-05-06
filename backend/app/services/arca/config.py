@@ -25,18 +25,15 @@ class ArcaConfig:
 
     @property
     def is_configured(self) -> bool:
-        return bool(self.enabled and self.cuit and self.point_of_sale and self.cert_path and self.key_path and self.service in {"wsmtxca", "wsfev1"})
+        return bool(self.enabled and self.cuit and self.point_of_sale and self.cert_path and self.key_path and self.service == "wsfev1")
 
 
 def get_arca_config() -> ArcaConfig:
     point_of_sale = os.getenv("GRANALIA_ARCA_POINT_OF_SALE", "").strip()
     environment = os.getenv("GRANALIA_ARCA_ENV", "homologacion").strip() or "homologacion"
-    service = os.getenv("GRANALIA_ARCA_SERVICE", "wsmtxca").strip().lower() or "wsmtxca"
+    service = "wsfev1"
     default_wsaa_url = "https://wsaahomo.afip.gov.ar/ws/services/LoginCms" if environment == "homologacion" else "https://wsaa.afip.gov.ar/ws/services/LoginCms"
-    if service == "wsmtxca":
-        default_service_url = "https://fwshomo.afip.gov.ar/wsmtxca/services/MTXCAService" if environment == "homologacion" else "https://serviciosjava.afip.gob.ar/wsmtxca/services/MTXCAService"
-    else:
-        default_service_url = "https://wswhomo.afip.gov.ar/wsfev1/service.asmx" if environment == "homologacion" else "https://servicios1.afip.gov.ar/wsfev1/service.asmx"
+    default_service_url = "https://wswhomo.afip.gov.ar/wsfev1/service.asmx" if environment == "homologacion" else "https://servicios1.afip.gov.ar/wsfev1/service.asmx"
     timeout = os.getenv("GRANALIA_ARCA_TIMEOUT_SECONDS", "30").strip()
     mark_authorized = os.getenv("GRANALIA_ARCA_MARK_AUTHORIZED", "").strip().lower()
     receiver_iva_condition_id = os.getenv("GRANALIA_ARCA_RECEIVER_IVA_CONDITION_ID", "1").strip()

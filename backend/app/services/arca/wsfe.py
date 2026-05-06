@@ -159,7 +159,7 @@ class WsfeClient:
         )
 
     def request_cae(self, request: ArcaInvoiceRequest, cbte_nro: int) -> ArcaAuthorizationResult:
-        today = datetime.now().strftime("%Y%m%d")
+        cbte_date = request.cbte_date.strftime("%Y%m%d")
         iva_xml = "".join(
             f"""<ar:AlicIva>
   <ar:Id>{item.Id}</ar:Id>
@@ -182,7 +182,7 @@ class WsfeClient:
       <ar:DocNro>{escape(request.doc_nro)}</ar:DocNro>
       <ar:CbteDesde>{cbte_nro}</ar:CbteDesde>
       <ar:CbteHasta>{cbte_nro}</ar:CbteHasta>
-      <ar:CbteFch>{today}</ar:CbteFch>
+      <ar:CbteFch>{cbte_date}</ar:CbteFch>
       <ar:ImpTotal>{decimal_text(request.imp_total)}</ar:ImpTotal>
       <ar:ImpTotConc>0.00</ar:ImpTotConc>
       <ar:ImpNeto>{decimal_text(request.imp_neto)}</ar:ImpNeto>

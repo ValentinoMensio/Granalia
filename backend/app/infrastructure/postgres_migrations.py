@@ -500,7 +500,6 @@ class PostgresMigrationMixin(PostgresRepositoryProtocol):
             for column_name, definition in invoice_fields:
                 if not self._column_exists(connection, "invoices", column_name):
                     connection.execute(text(f"ALTER TABLE invoices ADD COLUMN {column_name} {definition}"))
-
             connection.execute(
                 text(
                     """
@@ -628,6 +627,7 @@ class PostgresMigrationMixin(PostgresRepositoryProtocol):
                 ("fiscal_status", "VARCHAR(20) NOT NULL DEFAULT 'internal'"),
                 ("fiscal_locked_at", "TIMESTAMPTZ"),
                 ("fiscal_authorized_at", "TIMESTAMPTZ"),
+                ("internal_invoice_number", "BIGINT"),
                 ("arca_environment", "VARCHAR(20)"),
                 ("arca_cuit_emisor", "VARCHAR(32)"),
                 ("arca_cbte_tipo", "INTEGER"),
@@ -647,7 +647,72 @@ class PostgresMigrationMixin(PostgresRepositoryProtocol):
             for column_name, definition in invoice_fields:
                 if not self._column_exists(connection, "invoices", column_name):
                     connection.execute(text(f"ALTER TABLE invoices ADD COLUMN {column_name} {definition}"))
-
+            connection.execute(
+                text(
+                    """
+                    UPDATE invoices
+                    SET document_type = regexp_replace(document_type, '_DRAFT$', '')
+                    WHERE right(document_type, 6) = '_DRAFT'
+                    """
+                )
+            )
+            connection.execute(
+                text(
+                    """
+                    UPDATE invoices
+                    SET internal_invoice_number = invoice_number
+                    WHERE fiscal_status = 'internal'
+                      AND internal_invoice_number IS NULL
+                    """
+                )
+            )
+            connection.execute(
+                text(
+                    """
+                    UPDATE invoices
+                    SET fiscal_status = 'authorized'
+                    WHERE arca_cae IS NOT NULL
+                      AND arca_invoice_number IS NOT NULL
+                      AND fiscal_status <> 'authorized'
+                    """
+                )
+            )
+            connection.execute(text("ALTER TABLE invoices DROP CONSTRAINT IF EXISTS uq_invoices_fiscal_number"))
+            connection.execute(text("ALTER TABLE invoices ALTER COLUMN invoice_number DROP NOT NULL"))
+            connection.execute(text("ALTER TABLE invoices DROP CONSTRAINT IF EXISTS ck_invoices_invoice_number_positive"))
+            connection.execute(text("ALTER TABLE invoices ADD CONSTRAINT ck_invoices_invoice_number_positive CHECK (invoice_number IS NULL OR invoice_number > 0)"))
+            connection.execute(text("ALTER TABLE invoices DROP CONSTRAINT IF EXISTS ck_invoices_fiscal_status_valid"))
+            connection.execute(text("ALTER TABLE invoices ADD CONSTRAINT ck_invoices_fiscal_status_valid CHECK (fiscal_status IN ('internal', 'draft', 'authorizing', 'authorized', 'rejected', 'error'))"))
+            connection.execute(
+                text(
+                    """
+                    DO $$
+                    BEGIN
+                        IF NOT EXISTS (
+                            SELECT 1 FROM pg_constraint WHERE conname = 'ck_invoices_internal_invoice_number_positive'
+                        ) THEN
+                            ALTER TABLE invoices ADD CONSTRAINT ck_invoices_internal_invoice_number_positive CHECK (internal_invoice_number IS NULL OR internal_invoice_number > 0);
+                        END IF;
+                    END $$;
+                    """
+                )
+            )
+            connection.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_invoices_internal_number ON invoices (document_type, point_of_sale, internal_invoice_number) WHERE internal_invoice_number IS NOT NULL"))
+            connection.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_invoices_arca_number ON invoices (arca_environment, arca_cbte_tipo, arca_point_of_sale, arca_invoice_number) WHERE arca_invoice_number IS NOT NULL"))
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO invoice_sequences (document_type, point_of_sale, next_number, created_at, updated_at)
+                    SELECT document_type || '_INTERNAL', point_of_sale, COALESCE(MAX(internal_invoice_number), 0) + 1, now(), now()
+                    FROM invoices
+                    WHERE internal_invoice_number IS NOT NULL
+                    GROUP BY document_type, point_of_sale
+                    ON CONFLICT (document_type, point_of_sale) DO UPDATE
+                    SET next_number = GREATEST(invoice_sequences.next_number, EXCLUDED.next_number),
+                        updated_at = now()
+                    """
+                )
+            )
         if self._table_exists(connection, "invoice_items"):
             item_fields = [
                 ("iva_rate", "NUMERIC(5, 3)"),

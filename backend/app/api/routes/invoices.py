@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 from decimal import Decimal, ROUND_HALF_UP
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
@@ -174,16 +174,24 @@ def build_arca_invoice_request(invoice: dict, tax_breakdown: list[dict], *, poin
     if len(doc_nro) != 11:
         raise ValueError("Cliente con CUIT invalido")
     arca_items = build_arca_invoice_items(invoice)
-    iva_breakdown: dict[int, dict[str, Decimal]] = {}
-    for item in arca_items:
-        current = iva_breakdown.setdefault(item.iva_id, {"base": Decimal("0"), "iva": Decimal("0")})
-        current["base"] += item.item_total - item.iva_amount
-        current["iva"] += item.iva_amount
-    iva_items = [ArcaIvaItem(Id=iva_id, BaseImp=money_decimal(values["base"]), Importe=money_decimal(values["iva"])) for iva_id, values in sorted(iva_breakdown.items())]
+    if tax_breakdown:
+        iva_items = [ArcaIvaItem(Id=int(item["arca_iva_id"]), BaseImp=money_decimal(item["base_amount"]), Importe=money_decimal(item["iva_amount"])) for item in tax_breakdown]
+    else:
+        iva_breakdown: dict[int, dict[str, Decimal]] = {}
+        for item in arca_items:
+            current = iva_breakdown.setdefault(item.iva_id, {"base": Decimal("0"), "iva": Decimal("0")})
+            current["base"] += item.item_total - item.iva_amount
+            current["iva"] += item.iva_amount
+        iva_items = [ArcaIvaItem(Id=iva_id, BaseImp=money_decimal(values["base"]), Importe=money_decimal(values["iva"])) for iva_id, values in sorted(iva_breakdown.items())]
     imp_neto = money_decimal(sum(item.BaseImp for item in iva_items))
     imp_iva = money_decimal(sum(item.Importe for item in iva_items))
+    try:
+        cbte_date = datetime.strptime(str(invoice.get("order_date")), "%Y-%m-%d").date()
+    except ValueError:
+        cbte_date = date.today()
     return ArcaInvoiceRequest(
         invoice_id=int(invoice["id"]),
+        cbte_date=cbte_date,
         point_of_sale=point_of_sale,
         cbte_tipo=1,
         concepto=1,
@@ -228,12 +236,30 @@ def sanitized_arca_payload(request: ArcaInvoiceRequest) -> dict[str, object]:
     }
 
 
+def sanitized_wsfe_payload(request: ArcaInvoiceRequest) -> dict[str, object]:
+    return {
+        "invoice_id": request.invoice_id,
+        "CbteTipo": request.cbte_tipo,
+        "Concepto": request.concepto,
+        "DocTipo": request.doc_tipo,
+        "DocNro": request.doc_nro,
+        "CondicionIVAReceptorId": request.condicion_iva_receptor_id,
+        "PtoVta": request.point_of_sale,
+        "ImpNeto": str(request.imp_neto),
+        "ImpIVA": str(request.imp_iva),
+        "ImpTotal": str(request.imp_total),
+        "Iva": [{"Id": item.Id, "BaseImp": str(item.BaseImp), "Importe": str(item.Importe)} for item in request.iva],
+    }
+
+
 def sanitized_arca_response(response: dict[str, object]) -> dict[str, object]:
     return {key: (value.isoformat() if hasattr(value, "isoformat") else value) for key, value in response.items()}
 
 
 def ensure_invoice_authorizable(invoice: dict) -> None:
     fiscal_status = str(invoice.get("fiscal_status") or "")
+    if fiscal_status == "authorizing":
+        raise HTTPException(status_code=409, detail="La factura fiscal ya se esta autorizando")
     if fiscal_status == "authorized":
         raise HTTPException(status_code=400, detail="La factura fiscal ya esta autorizada")
     if fiscal_status not in {"draft", "rejected", "error"}:
@@ -300,7 +326,7 @@ def ensure_invoice_editable(invoice: dict) -> None:
 
 
 def ensure_invoice_deletable(invoice: dict) -> None:
-    if str(invoice.get("fiscal_status") or "") == "authorized":
+    if str(invoice.get("fiscal_status") or "") == "authorized" and str(invoice.get("arca_environment") or "") != "homologacion":
         raise HTTPException(status_code=400, detail="No se puede eliminar un comprobante fiscal autorizado")
 
 
@@ -308,7 +334,7 @@ def ensure_batch_editable(repository, batch_id: int | None) -> None:
     if not batch_id:
         return
     statuses = repository.list_batch_invoice_statuses(batch_id)
-    if any(str(item.get("fiscal_status") or "") == "authorized" for item in statuses):
+    if any(str(item.get("fiscal_status") or "") == "authorized" and str(item.get("arca_environment") or "") != "homologacion" for item in statuses):
         raise HTTPException(status_code=400, detail="No se puede editar un batch split con parte fiscal autorizada")
 
 
@@ -446,12 +472,23 @@ def authorize_invoice_in_arca(invoice_id: int, payload: AuthorizationPayload, _:
     invoice = repository.get_invoice_detail(invoice_id)
     if not invoice:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
+    if invoice.get("arca_cae") and invoice.get("arca_invoice_number"):
+        return ArcaAuthorizationOut.model_validate({"invoice_id": invoice_id, "fiscal_status": "authorized", "arca_request_id": invoice.get("arca_request_id"), "message": "La factura ya tiene CAE y numero ARCA."})
     ensure_invoice_authorizable(invoice)
+    if not repository.reserve_invoice_arca_authorization(invoice_id):
+        current_invoice = repository.get_invoice_detail(invoice_id)
+        if current_invoice and current_invoice.get("arca_cae") and current_invoice.get("arca_invoice_number"):
+            return ArcaAuthorizationOut.model_validate({"invoice_id": invoice_id, "fiscal_status": "authorized", "arca_request_id": current_invoice.get("arca_request_id"), "message": "La factura ya tiene CAE y numero ARCA."})
+        if current_invoice and str(current_invoice.get("fiscal_status") or "") == "authorizing":
+            raise HTTPException(status_code=409, detail="La factura fiscal ya se esta autorizando")
+        raise HTTPException(status_code=409, detail="No se pudo reservar la autorizacion ARCA")
+    invoice = repository.get_invoice_detail(invoice_id) or invoice
 
     config = get_arca_config()
     if not config.is_configured:
         arca_request = ArcaInvoiceRequest(
             invoice_id=invoice_id,
+            cbte_date=date.today(),
             point_of_sale=config.point_of_sale or 0,
             cbte_tipo=1,
             concepto=1,
@@ -473,12 +510,13 @@ def authorize_invoice_in_arca(invoice_id: int, payload: AuthorizationPayload, _:
                 receiver_iva_condition_id=config.receiver_iva_condition_id,
             )
         except ValueError as error:
+            repository.release_invoice_arca_authorization(invoice_id, "draft")
             raise HTTPException(status_code=400, detail=str(error)) from error
 
-    sanitized_request = sanitized_arca_payload(arca_request)
+    sanitized_request = sanitized_wsfe_payload(arca_request)
     arca_request_id = repository.create_arca_request(
         invoice_id=invoice_id,
-        operation="autorizarComprobante" if config.service == "wsmtxca" else "FECAESolicitar",
+        operation="FECAESolicitar",
         environment=config.environment,
         sanitized_request=sanitized_request,
     )
@@ -539,19 +577,19 @@ def authorize_invoice_in_arca(invoice_id: int, payload: AuthorizationPayload, _:
 
     if response.get("result") == "DRY_RUN":
         repository.update_arca_request(arca_request_id, status="pending", sanitized_response=sanitized_arca_response(response))
+        repository.release_invoice_arca_authorization(invoice_id, "draft")
         return ArcaAuthorizationOut.model_validate({
             "invoice_id": invoice_id,
-            "fiscal_status": str(invoice.get("fiscal_status") or "draft"),
+            "fiscal_status": "draft",
             "arca_request_id": arca_request_id,
             "message": "Validacion ARCA OK. No se genero comprobante porque ARCA_DRY_RUN esta activo.",
         })
 
     repository.update_arca_request(arca_request_id, status="authorized", sanitized_response=sanitized_arca_response(response))
     if not config.mark_authorized:
-        fiscal_status = str(invoice.get("fiscal_status") or "draft")
         repository.update_invoice_arca_status(
             invoice_id,
-            fiscal_status=fiscal_status,
+            fiscal_status="authorized",
             arca_environment=config.environment,
             arca_cuit_emisor=config.cuit,
             arca_cbte_tipo=arca_request.cbte_tipo,
@@ -568,9 +606,9 @@ def authorize_invoice_in_arca(invoice_id: int, payload: AuthorizationPayload, _:
         )
         return ArcaAuthorizationOut.model_validate({
             "invoice_id": invoice_id,
-            "fiscal_status": fiscal_status,
+            "fiscal_status": "authorized",
             "arca_request_id": arca_request_id,
-            "message": "Comprobante autorizado en homologacion. La factura no fue marcada como autorizada.",
+            "message": "Comprobante autorizado en homologacion.",
         })
 
     repository.update_invoice_arca_status(

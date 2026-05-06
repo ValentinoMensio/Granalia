@@ -13,7 +13,7 @@ const fiscalMoney = (value) => new Intl.NumberFormat('es-AR', { minimumFractionD
 const fiscalPercent = (value) => new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value || 0))
 
 function shortInvoiceNumber(invoice) {
-  if (invoice?.invoice_number) return String(invoice.invoice_number).padStart(8, '0')
+  if (invoice?.internal_invoice_number) return String(invoice.internal_invoice_number).padStart(8, '0')
   return `#${invoice?.invoice_id || invoice?.id}`
 }
 
@@ -23,9 +23,8 @@ function isFiscalInvoice(invoice) {
 
 function displayInvoiceNumber(invoice) {
   if (!isFiscalInvoice(invoice)) return shortInvoiceNumber(invoice)
-  const fiscalNumber = invoice?.arca_invoice_number || invoice?.invoice_number
-  if (fiscalNumber) return String(fiscalNumber).padStart(8, '0')
-  return `#${invoice?.invoice_id || invoice?.id}`
+  if (invoice?.arca_invoice_number) return String(invoice.arca_invoice_number).padStart(8, '0')
+  return '-'
 }
 
 function displayInvoiceTotal(invoice) {
@@ -38,6 +37,7 @@ function fiscalStatusLabel(invoice) {
   const labels = {
     internal: 'Interna',
     draft: 'Pendiente',
+    authorizing: 'Autorizando',
     authorized: 'Autorizada',
     rejected: 'Rechazada',
     error: 'Error',
