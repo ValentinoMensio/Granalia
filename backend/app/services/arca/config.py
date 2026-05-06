@@ -31,6 +31,8 @@ class ArcaConfig:
 def get_arca_config() -> ArcaConfig:
     point_of_sale = os.getenv("GRANALIA_ARCA_POINT_OF_SALE", "").strip()
     environment = os.getenv("GRANALIA_ARCA_ENV", "homologacion").strip() or "homologacion"
+    if environment not in {"homologacion", "produccion"}:
+        environment = "homologacion"
     service = "wsfev1"
     default_wsaa_url = "https://wsaahomo.afip.gov.ar/ws/services/LoginCms" if environment == "homologacion" else "https://wsaa.afip.gov.ar/ws/services/LoginCms"
     default_service_url = "https://wswhomo.afip.gov.ar/wsfev1/service.asmx" if environment == "homologacion" else "https://servicios1.afip.gov.ar/wsfev1/service.asmx"

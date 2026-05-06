@@ -874,7 +874,6 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
         values = {
             "fiscal_status": fiscal_status,
             "fiscal_locked_at": now if fiscal_status == "authorized" else None,
-            "fiscal_authorized_at": now if fiscal_status == "authorized" else None,
             "arca_environment": arca_environment,
             "arca_cuit_emisor": arca_cuit_emisor,
             "arca_cbte_tipo": arca_cbte_tipo,
@@ -882,15 +881,25 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
             "arca_doc_tipo": arca_doc_tipo,
             "arca_doc_nro": arca_doc_nro,
             "arca_point_of_sale": arca_point_of_sale,
-            "arca_invoice_number": arca_invoice_number,
-            "arca_cae": arca_cae,
-            "arca_cae_expires_at": arca_cae_expires_at,
-            "arca_result": arca_result,
-            "arca_observations": arca_observations,
             "arca_error_code": arca_error_code,
             "arca_error_message": arca_error_message,
             "arca_request_id": str(arca_request_id),
         }
+        if fiscal_status == "authorized":
+            values.update(
+                {
+                    "fiscal_authorized_at": now,
+                    "arca_invoice_number": arca_invoice_number,
+                    "arca_cae": arca_cae,
+                    "arca_cae_expires_at": arca_cae_expires_at,
+                    "arca_result": arca_result,
+                    "arca_observations": arca_observations,
+                    "arca_error_code": None,
+                    "arca_error_message": None,
+                }
+            )
+        elif arca_result is not None or arca_observations is not None:
+            values.update({"arca_result": arca_result, "arca_observations": arca_observations})
         with self.engine.begin() as connection:
             connection.execute(update(self.invoices).where(self.invoices.c.id == invoice_id).values(**values))
 

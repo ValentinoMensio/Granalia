@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import base64
+import contextlib
+import fcntl
 import json
 import subprocess
 import tempfile
@@ -18,6 +20,19 @@ from .models import ArcaAuthTicket
 
 class WsaaError(RuntimeError):
     pass
+
+
+@contextlib.contextmanager
+def ticket_cache_lock(config: ArcaConfig):
+    cache_path = Path(config.token_cache_path)
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = cache_path.with_suffix(cache_path.suffix + ".lock")
+    with lock_path.open("w") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 
 def utc_iso(value: datetime) -> str:
@@ -155,9 +170,10 @@ def login_cms(config: ArcaConfig, cms: str) -> ArcaAuthTicket:
 
 
 def get_auth_ticket(config: ArcaConfig) -> ArcaAuthTicket:
-    cached = load_cached_ticket(config)
-    if cached:
-        return cached
-    ticket = login_cms(config, sign_tra(config, build_tra(config.service)))
-    save_cached_ticket(config, ticket)
-    return ticket
+    with ticket_cache_lock(config):
+        cached = load_cached_ticket(config)
+        if cached:
+            return cached
+        ticket = login_cms(config, sign_tra(config, build_tra(config.service)))
+        save_cached_ticket(config, ticket)
+        return ticket
