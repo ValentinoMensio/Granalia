@@ -367,7 +367,7 @@ function ProductRowsCard({
                   <tr key={index} className="table-row">
                     <td className="table-cell font-medium">{row.productName} / {row.offeringLabel}</td>
                     <td className="table-cell text-right">{row.totalQuantity}</td>
-                    <td className="table-cell text-right">{row.internalQuantity}</td>
+                    <td className="table-cell text-right">{row.internalQuantity}{row.internalBonus ? ` + ${row.internalBonus} bonif.` : ''}</td>
                     <td className="table-cell text-right">{row.declaredQuantity}</td>
                     <td className="table-cell text-right">${money(row.internalTotal)}</td>
                     <td className="table-cell text-right">${money(row.fiscalTotal)}</td>

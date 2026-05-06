@@ -118,6 +118,10 @@ function applyAutomaticBonusRulesToItems(items, rules) {
   })
 }
 
+function removeAutomaticBonusFromItems(items) {
+  return items.map((item) => ({ ...item, bonus_quantity: 0 }))
+}
+
 function applyCustomerToForm(current, profile) {
   const next = {
     ...current,
@@ -181,7 +185,7 @@ function buildInvoicePayload(form, currentCustomer) {
           product_id: item.product_id,
           offering_id: item.offering_id,
           quantity: toQuantity(item.quantity, item.offering_label),
-          bonus_quantity: toNonNegativeInteger(item.bonus_quantity),
+          bonus_quantity: billingMode === 'fiscal_only' ? 0 : toNonNegativeInteger(item.bonus_quantity),
           unit_price: item.unit_price === '' || item.unit_price === undefined ? undefined : Number(item.unit_price || 0),
         })),
     },
@@ -240,6 +244,7 @@ function buildFormFromInvoiceDetail(invoiceDetail, customers) {
 export {
   applyCustomerToForm,
   applyAutomaticBonusRulesToItems,
+  removeAutomaticBonusFromItems,
   buildAvailableDiscountGroups,
   buildFormFromInvoiceDetail,
   buildInvoicePayload,

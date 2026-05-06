@@ -288,6 +288,14 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
         invoice = {key: serialize_value(value) for key, value in invoice_row.items()}
         invoice["fiscal_number"] = self._format_fiscal_number(str(invoice.get("document_type") or "FACTURA"), int(invoice.get("point_of_sale") or 1), int(invoice.get("invoice_number") or 0))
         items = [{key: serialize_value(value) for key, value in row.items()} for row in item_rows]
+        current_discount = sum(int(item.get("discount") or 0) for item in items)
+        invoice_discount = int(invoice.get("discount_total") or current_discount)
+        delta = invoice_discount - current_discount
+        allocations = self._allocate_integer_amount(delta, [int(item.get("gross") or 0) for item in items])
+        for item, allocation in zip(items, allocations):
+            effective_discount = int(item.get("discount") or 0) + allocation
+            item["effective_discount"] = effective_discount
+            item["effective_total"] = int(item.get("gross") or 0) - effective_discount
         for item in items:
             if item.get("iva_rate") is None and item.get("product_iva_rate") is not None:
                 item["iva_rate"] = item["product_iva_rate"]
