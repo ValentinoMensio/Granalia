@@ -156,7 +156,7 @@ def build_arca_invoice_items(invoice: dict) -> list[ArcaInvoiceItem]:
                 code=str(item.get("product_id") or item.get("id") or item.get("line_number") or ""),
                 description=description or str(item.get("label") or "Producto"),
                 quantity=quantity.quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP),
-                unit_code=7,
+                unit_code=62,
                 unit_price=unit_price,
                 discount_amount=discount_amount,
                 iva_id=arca_iva_id_for_rate(iva_rate),
