@@ -39,7 +39,7 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
         iva_rate = item.get("iva_rate")
         if iva_rate is None:
             return {}
-        net_amount = self._round_money(Decimal(str(item.get("total") or 0)))
+        net_amount = self._round_money(Decimal(str(item.get("effective_total") if item.get("effective_total") is not None else item.get("total") or 0)))
         iva_amount = self._round_money(net_amount * Decimal(str(iva_rate)))
         return {
             "iva_rate": Decimal(str(iva_rate)),
@@ -47,6 +47,21 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
             "iva_amount": iva_amount,
             "fiscal_total": self._round_money(net_amount + iva_amount),
         }
+
+    def _apply_effective_fiscal_values(self, item_payloads: list[dict[str, object]], discount_total: int) -> None:
+        current_discount = sum(int(item.get("discount") or 0) for item in item_payloads)
+        delta = int(discount_total or current_discount) - current_discount
+        allocations = self._allocate_integer_amount(delta, [int(item.get("gross") or 0) for item in item_payloads])
+        for item, allocation in zip(item_payloads, allocations):
+            if item.get("iva_rate") is None:
+                continue
+            effective_discount = int(item.get("discount") or 0) + allocation
+            effective_total = int(item.get("gross") or 0) - effective_discount
+            net_amount = self._round_money(Decimal(str(effective_total)))
+            iva_amount = self._round_money(net_amount * Decimal(str(item["iva_rate"])))
+            item["net_amount"] = net_amount
+            item["iva_amount"] = iva_amount
+            item["fiscal_total"] = self._round_money(net_amount + iva_amount)
 
     def _arca_iva_id(self, iva_rate: Decimal) -> int:
         return 4 if iva_rate == Decimal("0.105") else 5
@@ -92,6 +107,34 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
         )
         return invoice_number
 
+    def _next_internal_invoice_number(self, *, connection, document_type: str, point_of_sale: int, now) -> int:
+        sequence_scope = f"{document_type}_INTERNAL"
+        invoice_number = self._next_fiscal_number(connection=connection, document_type=sequence_scope, point_of_sale=point_of_sale, now=now)
+        max_number = int(
+            connection.execute(
+                select(self.invoices.c.internal_invoice_number)
+                .where(
+                    self.invoices.c.document_type == document_type,
+                    self.invoices.c.point_of_sale == point_of_sale,
+                    self.invoices.c.internal_invoice_number.is_not(None),
+                )
+                .order_by(self.invoices.c.internal_invoice_number.desc())
+                .limit(1)
+            ).scalar_one_or_none()
+            or 0
+        )
+        if invoice_number <= max_number:
+            invoice_number = max_number + 1
+            connection.execute(
+                update(self.invoice_sequences)
+                .where(
+                    self.invoice_sequences.c.document_type == sequence_scope,
+                    self.invoice_sequences.c.point_of_sale == point_of_sale,
+                )
+                .values(next_number=invoice_number + 1, updated_at=now)
+            )
+        return invoice_number
+
     def list_invoices(self, limit: int = 50, date_from: date | None = None) -> list[InvoiceListItemData]:
         with self.engine.connect() as connection:
             query = (
@@ -101,6 +144,7 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     self.invoices.c.document_type,
                     self.invoices.c.point_of_sale,
                     self.invoices.c.invoice_number,
+                    self.invoices.c.internal_invoice_number,
                     self.invoices.c.customer_id,
                     self.invoices.c.transport_id,
                     self.invoices.c.client_name,
@@ -136,7 +180,11 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
             rows = connection.execute(query).mappings().all()
         payload: list[InvoiceListItemData] = cast(list[InvoiceListItemData], [{key: serialize_value(value) for key, value in row.items()} for row in rows])
         for item in payload:
-            item["fiscal_number"] = self._format_fiscal_number(str(item.get("document_type") or "FACTURA"), int(item.get("point_of_sale") or 1), int(item.get("invoice_number") or 0))
+            if bool(item.get("declared")) or item.get("split_kind") == "fiscal":
+                item["fiscal_number"] = str(item.get("arca_invoice_number")).zfill(8) if item.get("arca_invoice_number") else "-"
+            else:
+                visible_number = item.get("internal_invoice_number") or item.get("invoice_number")
+                item["fiscal_number"] = self._format_fiscal_number(str(item.get("document_type") or "FACTURA"), int(item.get("point_of_sale") or 1), int(visible_number or 0))
         invoice_ids = [int(item["invoice_id"]) for item in payload if bool(item.get("declared")) or item.get("split_kind") == "fiscal"]
         if invoice_ids:
             with self.engine.connect() as connection:
@@ -192,6 +240,7 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     self.invoices.c.document_type,
                     self.invoices.c.point_of_sale,
                     self.invoices.c.invoice_number,
+                    self.invoices.c.internal_invoice_number,
                     self.invoices.c.customer_id,
                     self.invoices.c.transport_id,
                     self.invoices.c.client_name,
@@ -275,6 +324,7 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     self.invoices.c.document_type,
                     self.invoices.c.point_of_sale,
                     self.invoices.c.invoice_number,
+                    self.invoices.c.internal_invoice_number,
                     self.invoices.c.customer_id,
                     self.invoices.c.transport_id,
                     self.invoices.c.legacy_key,
@@ -340,7 +390,11 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
             ).mappings().all()
 
         invoice = {key: serialize_value(value) for key, value in invoice_row.items()}
-        invoice["fiscal_number"] = self._format_fiscal_number(str(invoice.get("document_type") or "FACTURA"), int(invoice.get("point_of_sale") or 1), int(invoice.get("invoice_number") or 0))
+        if bool(invoice.get("declared")) or invoice.get("split_kind") == "fiscal":
+            invoice["fiscal_number"] = str(invoice.get("arca_invoice_number")).zfill(8) if invoice.get("arca_invoice_number") else "-"
+        else:
+            visible_number = invoice.get("internal_invoice_number") or invoice.get("invoice_number")
+            invoice["fiscal_number"] = self._format_fiscal_number(str(invoice.get("document_type") or "FACTURA"), int(invoice.get("point_of_sale") or 1), int(visible_number or 0))
         items = [{key: serialize_value(value) for key, value in row.items()} for row in item_rows]
         current_discount = sum(int(item.get("discount") or 0) for item in items)
         invoice_discount = int(invoice.get("discount_total") or current_discount)
@@ -384,7 +438,8 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
             "legacy_key": f"invoice:{int(created_at.timestamp())}:{order['client_name']}",
             "document_type": "FACTURA",
             "point_of_sale": 1,
-            "invoice_number": 1,
+            "invoice_number": None,
+            "internal_invoice_number": None,
             "client_name": order["client_name"],
             "declared": bool(order.get("declared", False)),
             "split_kind": split_kind,
@@ -435,12 +490,13 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
             document_type, point_of_sale = self._fiscal_scope()
             invoice_payload["document_type"] = document_type
             invoice_payload["point_of_sale"] = point_of_sale
-            invoice_payload["invoice_number"] = self._next_fiscal_number(
-                connection=connection,
-                document_type=document_type,
-                point_of_sale=point_of_sale,
-                now=created_at,
-            )
+            if not bool(invoice_payload["declared"]):
+                invoice_payload["internal_invoice_number"] = self._next_internal_invoice_number(
+                    connection=connection,
+                    document_type=document_type,
+                    point_of_sale=point_of_sale,
+                    now=created_at,
+                )
             if invoice_payload["price_list_id"]:
                 price_list_row = connection.execute(
                     select(self.price_lists.c.name, self.price_lists.c.uploaded_at).where(self.price_lists.c.id == invoice_payload["price_list_id"])
@@ -482,6 +538,7 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     raise ValueError("Cliente no encontrado")
             invoice_payload["customer_id"] = int(customer_id) if customer_id is not None else None
             invoice_payload["transport_id"] = transport_id
+            self._apply_effective_fiscal_values(item_payloads, int(invoice_payload["discount_total"]))
             invoice_id = connection.execute(self.invoices.insert().values(**invoice_payload).returning(self.invoices.c.id)).scalar_one()
             if item_payloads:
                 for item_payload in item_payloads:
@@ -604,6 +661,7 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     if price_list_row:
                         price_list_name = str(price_list_row["name"] or "")
                         price_list_effective_date = price_list_row["uploaded_at"]
+                declared = bool(order.get("declared", False))
                 invoice_payload = {
                     "customer_id": int(customer_id) if customer_id is not None else None,
                     "transport_id": transport_id,
@@ -612,9 +670,10 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     "legacy_key": f"invoice:{int(created_at.timestamp())}:{order['client_name']}:{doc.get('split_kind')}",
                     "document_type": document_type,
                     "point_of_sale": point_of_sale,
-                    "invoice_number": self._next_fiscal_number(connection=connection, document_type=document_type, point_of_sale=point_of_sale, now=created_at),
+                    "invoice_number": None,
+                    "internal_invoice_number": None if declared else self._next_internal_invoice_number(connection=connection, document_type=document_type, point_of_sale=point_of_sale, now=created_at),
                     "client_name": order["client_name"],
-                    "declared": bool(order.get("declared", False)),
+                    "declared": declared,
                     "split_kind": doc.get("split_kind"),
                     "split_percentage": doc.get("split_percentage"),
                     "fiscal_status": str(doc.get("fiscal_status") or ("draft" if order.get("declared") else "internal")),
@@ -663,6 +722,7 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     item_payload.update(self._fiscal_item_values(cast(dict[str, object], item)))
                     item_payloads.append(item_payload)
                 if item_payloads:
+                    self._apply_effective_fiscal_values(item_payloads, int(invoice_payload["discount_total"]))
                     connection.execute(self.invoice_items.insert(), item_payloads)
                     breakdown: dict[Decimal, dict[str, Decimal]] = {}
                     for item_payload in item_payloads:
@@ -693,7 +753,7 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
     def list_batch_invoice_statuses(self, batch_id: int) -> list[dict[str, object]]:
         with self.engine.connect() as connection:
             rows = connection.execute(
-                select(self.invoices.c.id.label("invoice_id"), self.invoices.c.split_kind, self.invoices.c.fiscal_status)
+                select(self.invoices.c.id.label("invoice_id"), self.invoices.c.split_kind, self.invoices.c.fiscal_status, self.invoices.c.arca_environment)
                 .where(self.invoices.c.batch_id == batch_id)
                 .order_by(self.invoices.c.id)
             ).mappings().all()
@@ -749,6 +809,29 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
             )
             connection.execute(update(self.invoices).where(self.invoices.c.id == invoice_id).values(arca_request_id=str(arca_request_id)))
         return arca_request_id
+
+    def reserve_invoice_arca_authorization(self, invoice_id: int) -> bool:
+        now = utc_now()
+        with self.engine.begin() as connection:
+            result = connection.execute(
+                update(self.invoices)
+                .where(
+                    self.invoices.c.id == invoice_id,
+                    self.invoices.c.fiscal_status.in_(["draft", "rejected", "error"]),
+                    self.invoices.c.arca_cae.is_(None),
+                    self.invoices.c.arca_invoice_number.is_(None),
+                )
+                .values(fiscal_status="authorizing", fiscal_locked_at=now, arca_error_code=None, arca_error_message=None)
+            )
+        return bool(result.rowcount)
+
+    def release_invoice_arca_authorization(self, invoice_id: int, fiscal_status: str = "draft") -> None:
+        with self.engine.begin() as connection:
+            connection.execute(
+                update(self.invoices)
+                .where(self.invoices.c.id == invoice_id, self.invoices.c.fiscal_status == "authorizing")
+                .values(fiscal_status=fiscal_status, fiscal_locked_at=None)
+            )
 
     def update_arca_request(
         self,
@@ -903,11 +986,13 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
             connection.execute(
                 self.invoice_items.delete().where(self.invoice_items.c.invoice_id == invoice_id)
             )
+            connection.execute(
+                self.invoice_tax_breakdown.delete().where(self.invoice_tax_breakdown.c.invoice_id == invoice_id)
+            )
 
             item_payloads = []
             for index, item in enumerate(snapshot["rows"], start=1):
-                item_payloads.append(
-                    {
+                item_payload = {
                         "invoice_id": invoice_id,
                         "line_number": index,
                         "product_id": item.get("product_id"),
@@ -924,27 +1009,53 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                         "discount": int(item["discount"]),
                         "total": int(item["total"]),
                     }
-                )
+                item_payload.update(self._fiscal_item_values(cast(dict[str, object], item)))
+                item_payloads.append(item_payload)
             if item_payloads:
+                self._apply_effective_fiscal_values(item_payloads, int(snapshot["summary"]["discount_total"]))
                 connection.execute(self.invoice_items.insert(), item_payloads)
+                breakdown: dict[Decimal, dict[str, Decimal]] = {}
+                for item_payload in item_payloads:
+                    iva_rate = item_payload.get("iva_rate")
+                    if iva_rate is None:
+                        continue
+                    rate = Decimal(str(iva_rate))
+                    current = breakdown.setdefault(rate, {"base_amount": Decimal("0"), "iva_amount": Decimal("0")})
+                    current["base_amount"] += Decimal(str(item_payload.get("net_amount") or 0))
+                    current["iva_amount"] += Decimal(str(item_payload.get("iva_amount") or 0))
+                if breakdown:
+                    connection.execute(
+                        self.invoice_tax_breakdown.insert(),
+                        [
+                            {
+                                "invoice_id": invoice_id,
+                                "iva_rate": rate,
+                                "arca_iva_id": self._arca_iva_id(rate),
+                                "base_amount": values["base_amount"],
+                                "iva_amount": values["iva_amount"],
+                                "created_at": updated_at,
+                            }
+                            for rate, values in breakdown.items()
+                        ],
+                    )
 
         return invoice_id
 
     def delete_invoice(self, invoice_id: int) -> None:
         with self.engine.begin() as connection:
             existing_invoice = connection.execute(
-                select(self.invoices.c.id, self.invoices.c.batch_id, self.invoices.c.fiscal_status).where(self.invoices.c.id == invoice_id)
+                select(self.invoices.c.id, self.invoices.c.batch_id, self.invoices.c.fiscal_status, self.invoices.c.arca_environment).where(self.invoices.c.id == invoice_id)
             ).mappings().first()
             if not existing_invoice:
                 raise ValueError("Factura no encontrada")
-            if str(existing_invoice["fiscal_status"] or "") == "authorized":
+            if str(existing_invoice["fiscal_status"] or "") == "authorized" and str(existing_invoice["arca_environment"] or "") != "homologacion":
                 raise ValueError("No se puede eliminar un comprobante fiscal autorizado")
             batch_id = existing_invoice.get("batch_id")
             if batch_id is not None:
                 batch_rows = connection.execute(
-                    select(self.invoices.c.fiscal_status).where(self.invoices.c.batch_id == batch_id).with_for_update()
+                    select(self.invoices.c.fiscal_status, self.invoices.c.arca_environment).where(self.invoices.c.batch_id == batch_id).with_for_update()
                 ).mappings().all()
-                if any(str(row["fiscal_status"] or "") == "authorized" for row in batch_rows):
+                if any(str(row["fiscal_status"] or "") == "authorized" and str(row["arca_environment"] or "") != "homologacion" for row in batch_rows):
                     raise ValueError("No se puede eliminar un batch split con parte fiscal autorizada")
                 connection.execute(self.invoices.delete().where(self.invoices.c.batch_id == batch_id))
                 connection.execute(self.invoice_batches.delete().where(self.invoice_batches.c.id == batch_id))

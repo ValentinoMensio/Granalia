@@ -2,7 +2,10 @@ import Panel from '../ui/Panel'
 import { money } from '../../lib/format'
 
 function shortInvoiceNumber(invoice) {
-  if (invoice?.invoice_number) return String(invoice.invoice_number).padStart(8, '0')
+  if (invoice?.declared || invoice?.split_kind === 'fiscal') {
+    return invoice?.arca_invoice_number ? String(invoice.arca_invoice_number).padStart(8, '0') : '-'
+  }
+  if (invoice?.internal_invoice_number) return String(invoice.internal_invoice_number).padStart(8, '0')
   return `#${invoice?.invoice_id}`
 }
 

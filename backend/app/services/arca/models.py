@@ -28,6 +28,7 @@ class ArcaInvoiceItem:
 @dataclass(frozen=True)
 class ArcaInvoiceRequest:
     invoice_id: int
+    cbte_date: date
     point_of_sale: int
     cbte_tipo: int
     concepto: int

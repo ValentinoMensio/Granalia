@@ -334,7 +334,8 @@ class InvoiceListItemOut(BaseModel):
     batch_id: int | None = None
     document_type: str = "FACTURA"
     point_of_sale: int = 1
-    invoice_number: int = 0
+    invoice_number: int | None = None
+    internal_invoice_number: int | None = None
     fiscal_number: str = ""
     customer_id: int | None = None
     transport_id: int | None = None
@@ -395,7 +396,8 @@ class InvoiceDetailOut(BaseModel):
     batch_id: int | None = None
     document_type: str = "FACTURA"
     point_of_sale: int = 1
-    invoice_number: int = 0
+    invoice_number: int | None = None
+    internal_invoice_number: int | None = None
     fiscal_number: str = ""
     customer_id: int | None = None
     transport_id: int | None = None

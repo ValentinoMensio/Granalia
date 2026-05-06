@@ -122,7 +122,8 @@ class InvoiceListItemData(TypedDict):
     batch_id: int | None
     document_type: str
     point_of_sale: int
-    invoice_number: int
+    invoice_number: int | None
+    internal_invoice_number: NotRequired[int | None]
     fiscal_number: str
     customer_id: int | None
     transport_id: int | None
@@ -187,7 +188,8 @@ class InvoiceDetailData(TypedDict):
     batch_id: int | None
     document_type: str
     point_of_sale: int
-    invoice_number: int
+    invoice_number: int | None
+    internal_invoice_number: int | None
     fiscal_number: str
     customer_id: int | None
     transport_id: int | None

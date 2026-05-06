@@ -196,7 +196,7 @@ class WsmtxcaClient:
         )
 
     def request_cae(self, request: ArcaInvoiceRequest, cbte_nro: int) -> ArcaAuthorizationResult:
-        today = datetime.now().date().isoformat()
+        cbte_date = request.cbte_date.isoformat()
         items_xml = "".join(
             f"""<item>
   <codigo>{escape(item.code)}</codigo>
@@ -223,7 +223,7 @@ class WsmtxcaClient:
   <codigoTipoComprobante>{request.cbte_tipo}</codigoTipoComprobante>
   <numeroPuntoVenta>{request.point_of_sale}</numeroPuntoVenta>
   <numeroComprobante>{cbte_nro}</numeroComprobante>
-  <fechaEmision>{today}</fechaEmision>
+  <fechaEmision>{cbte_date}</fechaEmision>
   <codigoTipoDocumento>{request.doc_tipo}</codigoTipoDocumento>
   <numeroDocumento>{escape(request.doc_nro)}</numeroDocumento>
   <condicionIVAReceptor>1</condicionIVAReceptor>

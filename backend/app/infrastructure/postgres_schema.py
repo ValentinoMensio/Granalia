@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import BigInteger, Boolean, CheckConstraint, Column, Date, DateTime, ForeignKey, Integer, LargeBinary, MetaData, Numeric, String, Table, Text, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, Column, Date, DateTime, ForeignKey, Index, Integer, LargeBinary, MetaData, Numeric, String, Table, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 
 
@@ -151,7 +151,8 @@ def build_metadata() -> tuple[MetaData, dict[str, Table]]:
             Column("legacy_key", String(255), unique=True),
             Column("document_type", String(30), nullable=False, server_default="FACTURA"),
             Column("point_of_sale", Integer, nullable=False, server_default="1"),
-            Column("invoice_number", BigInteger, nullable=False),
+            Column("invoice_number", BigInteger),
+            Column("internal_invoice_number", BigInteger),
             Column("client_name", String(255), nullable=False),
             Column("declared", Boolean, nullable=False, server_default="false"),
             Column("split_kind", String(20)),
@@ -197,11 +198,12 @@ def build_metadata() -> tuple[MetaData, dict[str, Table]]:
             CheckConstraint("legacy_key IS NULL OR char_length(btrim(legacy_key)) > 0", name="ck_invoices_legacy_key_not_blank"),
             CheckConstraint("char_length(btrim(document_type)) > 0", name="ck_invoices_document_type_not_blank"),
             CheckConstraint("point_of_sale > 0", name="ck_invoices_point_of_sale_positive"),
-            CheckConstraint("invoice_number > 0", name="ck_invoices_invoice_number_positive"),
+            CheckConstraint("invoice_number IS NULL OR invoice_number > 0", name="ck_invoices_invoice_number_positive"),
+            CheckConstraint("internal_invoice_number IS NULL OR internal_invoice_number > 0", name="ck_invoices_internal_invoice_number_positive"),
             CheckConstraint("char_length(btrim(client_name)) > 0", name="ck_invoices_client_name_not_blank"),
             CheckConstraint("split_kind IS NULL OR split_kind IN ('internal', 'fiscal')", name="ck_invoices_split_kind_valid"),
             CheckConstraint("split_percentage IS NULL OR (split_percentage >= 0 AND split_percentage <= 100)", name="ck_invoices_split_percentage_range"),
-            CheckConstraint("fiscal_status IN ('internal', 'draft', 'authorized', 'rejected', 'error')", name="ck_invoices_fiscal_status_valid"),
+            CheckConstraint("fiscal_status IN ('internal', 'draft', 'authorizing', 'authorized', 'rejected', 'error')", name="ck_invoices_fiscal_status_valid"),
             CheckConstraint("arca_environment IS NULL OR arca_environment IN ('homologacion', 'produccion')", name="ck_invoices_arca_environment_valid"),
             CheckConstraint("arca_point_of_sale IS NULL OR arca_point_of_sale > 0", name="ck_invoices_arca_point_of_sale_positive"),
             CheckConstraint("arca_invoice_number IS NULL OR arca_invoice_number > 0", name="ck_invoices_arca_invoice_number_positive"),
@@ -224,7 +226,8 @@ def build_metadata() -> tuple[MetaData, dict[str, Table]]:
             CheckConstraint("char_length(btrim(output_filename)) > 0", name="ck_invoices_output_filename_not_blank"),
             CheckConstraint("xlsx_size > 0", name="ck_invoices_xlsx_size_positive"),
             CheckConstraint("octet_length(xlsx_data) = xlsx_size", name="ck_invoices_xlsx_size_matches"),
-            UniqueConstraint("document_type", "point_of_sale", "invoice_number", name="uq_invoices_fiscal_number"),
+            Index("uq_invoices_internal_number", "document_type", "point_of_sale", "internal_invoice_number", unique=True, postgresql_where=text("internal_invoice_number IS NOT NULL")),
+            Index("uq_invoices_arca_number", "arca_environment", "arca_cbte_tipo", "arca_point_of_sale", "arca_invoice_number", unique=True, postgresql_where=text("arca_invoice_number IS NOT NULL")),
         ),
         "invoice_sequences": Table(
             "invoice_sequences",
