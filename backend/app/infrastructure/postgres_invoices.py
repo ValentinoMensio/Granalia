@@ -198,6 +198,8 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     self.invoices.c.transport,
                     self.invoices.c.order_date,
                     self.invoices.c.price_list_effective_date,
+                    self.invoices.c.declared,
+                    self.invoices.c.split_kind,
                     self.invoices.c.gross_total.label("invoice_gross_total"),
                     self.invoices.c.discount_total.label("invoice_discount_total"),
                     self.invoices.c.final_total.label("invoice_final_total"),
