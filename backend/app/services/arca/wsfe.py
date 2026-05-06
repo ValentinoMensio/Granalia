@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import socket
+import ssl
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -77,8 +78,10 @@ def request_operation(config: ArcaConfig, operation: str, body: str) -> ET.Eleme
         headers={"Content-Type": "text/xml; charset=utf-8", "SOAPAction": f"{NS}{operation}"},
         method="POST",
     )
+    context = ssl.create_default_context()
+    context.set_ciphers("DEFAULT:@SECLEVEL=1")
     try:
-        with urllib.request.urlopen(request, timeout=config.timeout_seconds) as response:
+        with urllib.request.urlopen(request, timeout=config.timeout_seconds, context=context) as response:
             response_body = response.read().decode("utf-8")
     except (socket.timeout, TimeoutError, urllib.error.URLError) as error:
         raise WsfeTechnicalError(f"Error tecnico WSFE: {error}") from error
