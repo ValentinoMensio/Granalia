@@ -73,24 +73,6 @@ def _fiscal_document_number(value: object) -> str:
     return str(number).zfill(8) if number else "-"
 
 
-def _fiscal_document_number_unpadded(value: object) -> str:
-    number = int(value or 0)
-    return str(number) if number else "sin-numero"
-
-
-def invoice_pdf_filename(invoice: dict) -> str:
-    """Nombre sugerido para guardar el PDF.
-
-    Para facturas declaradas usa el número de comprobante de ARCA sin ceros
-    a la izquierda, por ejemplo: factura-1838.pdf.
-    """
-    if _is_fiscal_invoice(invoice):
-        number = invoice.get("arca_invoice_number") or invoice.get("fiscal_number") or invoice.get("id")
-        return f"factura-{_fiscal_document_number_unpadded(number)}.pdf"
-
-    return f"factura-{_digits(invoice.get('id')) or invoice.get('id')}.pdf"
-
-
 def _is_fiscal_invoice(invoice: dict) -> bool:
     return bool(invoice.get("declared")) or invoice.get("split_kind") == "fiscal"
 
@@ -462,10 +444,10 @@ def _issuer_data(invoice: dict) -> dict[str, str]:
     return {
         "business_name": _env("GRANALIA_ISSUER_BUSINESS_NAME", "GRANALIA"),
         "fantasy_name": _env("GRANALIA_ISSUER_FANTASY_NAME", "Granalia"),
-        "address": _env("GRANALIA_ISSUER_ADDRESS", "Celestina Aguero 609 Piso:0 Dpto:0 - Alta Gracia, Córdoba"),
+        "address": _env("GRANALIA_ISSUER_ADDRESS", "Domicilio fiscal no configurado"),
         "iva_condition": _env("GRANALIA_ISSUER_IVA_CONDITION", "IVA Responsable Inscripto"),
-        "iibb": _env("GRANALIA_ISSUER_IIBB", "280405086"),
-        "activity_start": _env("GRANALIA_ISSUER_ACTIVITY_START", "01/03/2011"),
+        "iibb": _env("GRANALIA_ISSUER_IIBB", "No configurado"),
+        "activity_start": _env("GRANALIA_ISSUER_ACTIVITY_START", "No configurado"),
         "cuit": str(invoice.get("arca_cuit_emisor") or _env("GRANALIA_ARCA_CUIT", "20225790346")),
     }
 
@@ -541,312 +523,141 @@ def _arca_qr_url(invoice: dict) -> str | None:
     return f"{ARCA_QR_URL}{quote(encoded, safe='')}"
 
 
-def _fiscal_date(value: object) -> str:
-    try:
-        return datetime.strptime(str(value), "%Y-%m-%d").strftime("%d/%m/%Y")
-    except ValueError:
-        return str(value or "")
-
-
-def _fiscal_percent_display(value: object) -> str:
-    percent = Decimal(str(value or 0)) * Decimal("100")
-    rounded = percent.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    if rounded == rounded.to_integral():
-        return f"{int(rounded)}%"
-    return f"{rounded:.1f}".replace(".", ",") + "%"
-
-
-def _fiscal_amount(value: object, *, currency: bool = False) -> str:
-    amount = Decimal(str(value or 0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    text = f"{amount:.2f}".replace(".", ",")
-    return f"$ {text}" if currency else text
-
-
-def _invoice_unit(item: dict) -> str:
-    return str(item.get("unit") or item.get("uom") or item.get("unit_label") or "packs").lower()
-
-
 def _draw_fiscal_header(pdf: canvas.Canvas, invoice: dict, width: float, height: float, copy_label: str) -> float:
     issuer = _issuer_data(invoice)
     point_of_sale = int(invoice.get("arca_point_of_sale") or _env("GRANALIA_ARCA_POINT_OF_SALE", "1") or 1)
     invoice_number = _fiscal_document_number(invoice.get("arca_invoice_number"))
-    left = 15
-    right = width - 15
-    top = height - 18
-    top_band_bottom = top - 28
-    header_bottom = top - 156
-    mid_x = left + ((right - left) / 2)
+    top = height - 36
 
-    letter_box_w = 46
-    letter_box_h = 42
-    letter_left = mid_x - (letter_box_w / 2)
-    letter_right = mid_x + (letter_box_w / 2)
-    letter_top = top_band_bottom + 3
-    letter_bottom = letter_top - letter_box_h
-    left_inner_right = letter_left - 10
-    right_inner_left = letter_right + 18
+    pdf.setLineWidth(1)
+    pdf.rect(MARGIN, top - 118, width - (MARGIN * 2), 118)
+    pdf.line(width / 2, top, width / 2, top - 118)
 
-    pdf.setLineWidth(0.6)
-    pdf.rect(left, header_bottom, right - left, top - header_bottom)
-    pdf.line(left, top_band_bottom, right, top_band_bottom)
-    pdf.line(mid_x, top_band_bottom, mid_x, letter_top)
-    pdf.line(mid_x, letter_bottom, mid_x, header_bottom)
+    pdf.setFont(FONT_BOLD, 18)
+    pdf.drawString(MARGIN + 12, top - 26, issuer["business_name"])
+    pdf.setFont(FONT_REGULAR, 9)
+    pdf.drawString(MARGIN + 12, top - 43, issuer["fantasy_name"])
+    pdf.drawString(MARGIN + 12, top - 58, f"Domicilio Comercial: {issuer['address']}")
+    pdf.drawString(MARGIN + 12, top - 73, f"Condición frente al IVA: {issuer['iva_condition']}")
+    pdf.drawString(MARGIN + 12, top - 88, f"CUIT: {issuer['cuit']}")
+    pdf.drawString(MARGIN + 12, top - 103, f"Ingresos Brutos: {issuer['iibb']} - Inicio Actividades: {issuer['activity_start']}")
 
-    pdf.setFont(FONT_BOLD, 16)
-    pdf.drawCentredString(width / 2, top - 20, copy_label)
-
-    pdf.setFillColorRGB(1, 1, 1)
-    pdf.rect(letter_left, letter_bottom, letter_box_w, letter_box_h, fill=1, stroke=1)
-    _set_color(pdf, COLOR_TEXT)
+    box_x = width / 2 - 18
+    pdf.rect(box_x, top - 42, 36, 36)
     pdf.setFont(FONT_BOLD, 24)
-    pdf.drawCentredString(mid_x, letter_top - 21, "A")
-    pdf.setFont(FONT_BOLD, 7)
-    pdf.drawCentredString(mid_x, letter_bottom + 8, "COD. 01")
+    pdf.drawCentredString(width / 2, top - 31, "A")
+    pdf.setFont(FONT_REGULAR, 8)
+    pdf.drawCentredString(width / 2, top - 39, "COD. 01")
 
+    pdf.setFont(FONT_BOLD, 17)
+    pdf.drawString(width / 2 + 34, top - 26, "FACTURA")
     pdf.setFont(FONT_BOLD, 11)
-    pdf.drawCentredString((left + left_inner_right) / 2, top_band_bottom - 22, issuer["business_name"])
+    pdf.drawString(width / 2 + 34, top - 46, copy_label)
+    pdf.setFont(FONT_REGULAR, 10)
+    pdf.drawString(width / 2 + 34, top - 65, f"Punto de Venta: {point_of_sale:04d}")
+    pdf.drawString(width / 2 + 180, top - 65, f"Comp. Nro: {invoice_number}")
+    pdf.drawString(width / 2 + 34, top - 83, f"Fecha de Emisión: {_date(invoice.get('order_date') or invoice.get('date'))}")
 
-    left_label_x = left + 6
-    left_value_x = left + 106
-    left_value_width = left_inner_right - left_value_x - 4
-    row1_y = top_band_bottom - 60
-    row2_y = top_band_bottom - 88
-    row3_y = top_band_bottom - 120
+    if str(invoice.get("arca_environment") or _env("GRANALIA_ARCA_ENV", "")).lower() == "homologacion":
+        pdf.setFont(FONT_BOLD, 10)
+        pdf.drawCentredString(width / 2, top - 135, "COMPROBANTE DE PRUEBA - HOMOLOGACIÓN - SIN VALIDEZ FISCAL")
 
-    pdf.setFont(FONT_BOLD, 9)
-    pdf.drawString(left_label_x, row1_y, "Razón Social:")
-    pdf.setFont(FONT_REGULAR, 9)
-    pdf.drawString(
-        left + 73,
-        row1_y,
-        _truncate(
-            str(invoice.get("issuer_business_name") or _env("GRANALIA_LEGAL_NAME", "MENSIO OSCAR LEANDRO")),
-            FONT_REGULAR,
-            9,
-            left_inner_right - (left + 73) - 4,
-        ),
-    )
-
-    pdf.setFont(FONT_BOLD, 9)
-    pdf.drawString(left_label_x, row2_y, "Domicilio Comercial:")
-    pdf.setFont(FONT_REGULAR, 9)
-    issuer_address = str(invoice.get("issuer_address") or issuer["address"])
-    address_lines = _wrap_text(issuer_address, FONT_REGULAR, 9, left_value_width)[:2]
-    for index, line in enumerate(address_lines):
-        pdf.drawString(left_value_x, row2_y - (index * 10), line)
-
-    pdf.setFont(FONT_BOLD, 9)
-    pdf.drawString(left_label_x, row3_y, "Condición frente al IVA:")
-    pdf.drawString(left + 116, row3_y, _truncate(issuer["iva_condition"], FONT_BOLD, 9, left_inner_right - (left + 116) - 4))
-
-    pdf.setFont(FONT_BOLD, 20)
-    pdf.drawString(right_inner_left, top_band_bottom - 26, "FACTURA")
-
-    info_y1 = top_band_bottom - 50
-    info_y2 = top_band_bottom - 70
-    info_y3 = top_band_bottom - 88
-    info_y4 = top_band_bottom - 104
-    info_y5 = top_band_bottom - 120
-    pos_label_x = right_inner_left
-    pos_value_x = pos_label_x + 92
-    comp_label_x = pos_label_x + 130
-    comp_value_right = right - 16
-
-    pdf.setFont(FONT_BOLD, 9)
-    pdf.drawString(pos_label_x, info_y1, "Punto de Venta:")
-    pdf.drawString(pos_value_x, info_y1, f"{point_of_sale:05d}")
-    pdf.drawString(comp_label_x, info_y1, "Comp. Nro:")
-    pdf.drawRightString(comp_value_right, info_y1, invoice_number)
-
-    pdf.drawString(pos_label_x, info_y2, "Fecha de Emisión:")
-    pdf.drawString(pos_value_x + 3, info_y2, _fiscal_date(invoice.get("order_date") or invoice.get("date")))
-
-    pdf.drawString(pos_label_x, info_y3, "CUIT:")
-    pdf.setFont(FONT_REGULAR, 9)
-    pdf.drawString(pos_label_x + 35, info_y3, issuer["cuit"])
-
-    pdf.setFont(FONT_BOLD, 9)
-    pdf.drawString(pos_label_x, info_y4, "Ingresos Brutos:")
-    pdf.setFont(FONT_REGULAR, 9)
-    pdf.drawString(pos_label_x + 82, info_y4, issuer["iibb"])
-
-    pdf.setFont(FONT_BOLD, 9)
-    pdf.drawString(pos_label_x, info_y5, "Fecha de Inicio de Actividades:")
-    pdf.setFont(FONT_REGULAR, 9)
-    pdf.drawRightString(right - 16, info_y5, issuer["activity_start"])
-
-    return header_bottom - 8
+    return top - 158
 
 
 def _draw_fiscal_receiver(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> float:
-    left = 15
-    right = width - 15
-    top = y
-    height_box = 64
-    bottom = top - height_box
+    pdf.rect(MARGIN, y - 68, width - (MARGIN * 2), 68)
     name = invoice.get("customer_business_name") or invoice.get("client_name") or invoice.get("customer_name") or ""
     address = invoice.get("customer_address") or ""
     cuit = invoice.get("arca_doc_nro") or invoice.get("customer_cuit") or ""
-    iva_condition = invoice.get("customer_iva_condition") or "IVA Responsable Inscripto"
-    sale_condition = invoice.get("payment_condition") or invoice.get("sale_condition") or "Cuenta Corriente"
 
-    pdf.setLineWidth(0.6)
-    pdf.rect(left, bottom, right - left, height_box)
-    pdf.setFont(FONT_BOLD, 8)
-    pdf.drawString(left + 6, top - 13, "CUIT:")
-    pdf.setFont(FONT_REGULAR, 8)
-    pdf.drawString(left + 39, top - 13, str(cuit))
-
-    pdf.setFont(FONT_BOLD, 8)
-    pdf.drawString(left + 214, top - 13, "Apellido y Nombre / Razón Social:")
-    pdf.setFont(FONT_REGULAR, 8)
-    pdf.drawString(left + 365, top - 13, _truncate(str(name), FONT_REGULAR, 8, 210))
-
-    pdf.setFont(FONT_BOLD, 8)
-    pdf.drawString(left + 6, top - 34, "Condición frente al IVA:")
-    pdf.setFont(FONT_REGULAR, 8)
-    pdf.drawString(left + 112, top - 34, str(iva_condition))
-
-    pdf.setFont(FONT_BOLD, 8)
-    pdf.drawString(left + 260, top - 34, "Domicilio Comercial:")
-    pdf.setFont(FONT_REGULAR, 8)
-    pdf.drawString(left + 361, top - 34, _truncate(str(address), FONT_REGULAR, 8, 215))
-
-    pdf.setFont(FONT_BOLD, 8)
-    pdf.drawString(left + 6, top - 54, "Condición de venta:")
-    pdf.setFont(FONT_REGULAR, 8)
-    pdf.drawString(left + 100, top - 54, str(sale_condition))
-    return bottom - 46
+    pdf.setFont(FONT_REGULAR, 9)
+    pdf.drawString(MARGIN + 10, y - 18, f"CUIT: {cuit}")
+    pdf.drawString(MARGIN + 210, y - 18, "Condición frente al IVA: IVA Responsable Inscripto")
+    pdf.drawString(MARGIN + 10, y - 36, f"Apellido y Nombre / Razón Social: {_truncate(str(name), FONT_REGULAR, 9, 330)}")
+    pdf.drawString(MARGIN + 10, y - 54, f"Domicilio Comercial: {_truncate(str(address), FONT_REGULAR, 9, 330)}")
+    pdf.drawString(MARGIN + 380, y - 54, "Condición de venta: Cuenta corriente")
+    return y - 84
 
 
 def _draw_fiscal_items_header(pdf: canvas.Canvas, width: float, y: float) -> float:
-    left = 15
-    right = width - 15
-    row_h = 19
-    pdf.setFillColorRGB(0.78, 0.78, 0.78)
-    pdf.rect(left, y - row_h, right - left, row_h, fill=1, stroke=1)
+    pdf.setFillColorRGB(*COLOR_FISCAL_LIGHT)
+    pdf.rect(MARGIN, y - 20, width - (MARGIN * 2), 20, fill=1, stroke=1)
     _set_color(pdf, COLOR_TEXT)
-    pdf.setFont(FONT_BOLD, 6.7)
-    separators = (left + 40, left + 220, left + 275, left + 317, left + 381, left + 414, left + 480, left + 515)
-    for x in separators:
-        pdf.line(x, y, x, y - row_h)
-    pdf.drawString(left + 5, y - 9, "Código")
-    pdf.drawString(left + 43, y - 9, "Producto / Servicio")
-    pdf.drawCentredString((left + 220 + left + 275) / 2, y - 9, "Cantidad")
-    pdf.drawCentredString((left + 275 + left + 317) / 2, y - 9, "U. medida")
-    pdf.drawCentredString((left + 317 + left + 381) / 2, y - 9, "Precio Unit.")
-    pdf.drawCentredString((left + 381 + left + 414) / 2, y - 9, "% Bonif")
-    pdf.drawCentredString((left + 414 + left + 480) / 2, y - 9, "Subtotal")
-    pdf.drawCentredString((left + 480 + left + 515) / 2, y - 8, "Alicuota")
-    pdf.drawCentredString((left + 480 + left + 515) / 2, y - 15, "IVA")
-    pdf.drawCentredString((left + 515 + right) / 2, y - 9, "Subtotal c/IVA")
-    return y - row_h - 16
+    pdf.setFont(FONT_BOLD, 7)
+    headers = [
+        (MARGIN + 5, "Código"),
+        (MARGIN + 52, "Producto / Servicio"),
+        (MARGIN + 205, "Cantidad"),
+        (MARGIN + 250, "Unidad"),
+        (MARGIN + 292, "Precio Unit."),
+        (MARGIN + 356, "Bonf"),
+        (MARGIN + 407, "Subtotal"),
+        (MARGIN + 449, "IVA"),
+        (width - MARGIN - 5, "Subtotal"),
+    ]
+    for x, text in headers[:-1]:
+        pdf.drawString(x, y - 13, text)
+    pdf.drawRightString(headers[-1][0], y - 13, headers[-1][1])
+    return y - 35
 
 
 def _draw_fiscal_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: int) -> float:
     gross, discount, net, _iva, total = _fiscal_item_values(item)
     discount_rate = (discount / gross) if gross else Decimal("0")
     iva_rate = Decimal(str(item.get("iva_rate") or 0))
-    left = 15
-    right = width - 15
 
-    pdf.setFont(FONT_REGULAR, 8)
-    pdf.drawString(left + 5, y, str(item.get("product_id") or item.get("code") or ""))
-    pdf.drawString(left + 43, y, _truncate(str(item.get("label") or ""), FONT_REGULAR, 8, 175))
-    pdf.drawRightString(left + 266, y, _fiscal_amount(item.get("quantity") or 0))
-    pdf.drawString(left + 286, y, _invoice_unit(item))
-    pdf.drawRightString(left + 376, y, _fiscal_amount(item.get("unit_price") or 0))
-    pdf.drawRightString(left + 411, y, _fiscal_amount(discount_rate * Decimal("100")))
-    pdf.drawRightString(left + 475, y, _fiscal_amount(net))
-    pdf.drawRightString(left + 510, y, _fiscal_percent_display(iva_rate))
-    pdf.drawRightString(right - 3, y, _fiscal_amount(total))
-    return y - 16
-
-
-def _iva_amount_for_rate(breakdown: list[dict[str, Decimal]], rate: Decimal) -> Decimal:
-    for item in breakdown:
-        if Decimal(item["rate"]).quantize(Decimal("0.001")) == rate.quantize(Decimal("0.001")):
-            return item["iva"]
-    return Decimal("0.00")
-
-
-def _draw_arca_mark(pdf: canvas.Canvas, x: float, y: float) -> None:
-    pdf.setFont(FONT_BOLD, 23)
-    _set_color(pdf, (0.25, 0.25, 0.25))
-    pdf.drawString(x, y, "ARCA")
-    pdf.setFont(FONT_REGULAR, 4.5)
-    pdf.drawString(x, y - 7, "AGENCIA DE RECAUDACIÓN")
-    pdf.drawString(x, y - 12, "Y CONTROL ADUANERO")
+    pdf.setFont(FONT_REGULAR, 7.5)
+    pdf.drawString(MARGIN + 5, y, str(item.get("product_id") or index + 1))
+    pdf.drawString(MARGIN + 52, y, _truncate(str(item.get("label") or ""), FONT_REGULAR, 7.5, 145))
+    pdf.drawRightString(MARGIN + 240, y, format_quantity(item.get("quantity") or 0))
+    pdf.drawString(MARGIN + 250, y, "Packs")
+    pdf.drawRightString(MARGIN + 345, y, _fiscal_money(item.get("unit_price") or 0))
+    pdf.drawRightString(MARGIN + 385, y, _fiscal_percent(discount_rate))
+    pdf.drawRightString(MARGIN + 440, y, _fiscal_money(net))
+    pdf.drawRightString(MARGIN + 480, y, _fiscal_percent(iva_rate))
+    pdf.drawRightString(width - MARGIN - 5, y, _fiscal_money(total))
+    pdf.setStrokeColorRGB(0.8, 0.8, 0.8)
+    pdf.line(MARGIN, y - 6, width - MARGIN, y - 6)
     _set_color(pdf, COLOR_TEXT)
+    return y - 15
 
 
 def _draw_fiscal_footer(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> None:
     breakdown = _fiscal_tax_breakdown(invoice)
     net_total = sum((item["base"] for item in breakdown), Decimal("0.00"))
     total = _fiscal_total(invoice)
-    iva_27 = _iva_amount_for_rate(breakdown, Decimal("0.27"))
-    iva_21 = _iva_amount_for_rate(breakdown, Decimal("0.21"))
-    iva_105 = _iva_amount_for_rate(breakdown, Decimal("0.105"))
-    iva_5 = _iva_amount_for_rate(breakdown, Decimal("0.05"))
-    iva_25 = _iva_amount_for_rate(breakdown, Decimal("0.025"))
-    iva_0 = _iva_amount_for_rate(breakdown, Decimal("0"))
-    left = 15
-    right = width - 15
-    top = 330
-    bottom = 168
+    totals_x = width - MARGIN - 5
+    label_x = width - MARGIN - 170
 
-    pdf.setLineWidth(0.6)
-    pdf.rect(left, bottom, right - left, top - bottom)
-
+    y = min(y, 210)
+    pdf.line(MARGIN, y, width - MARGIN, y)
+    y -= 18
     pdf.setFont(FONT_REGULAR, 9)
-    pdf.drawRightString(width / 2 - 15, top - 30, "Importe Otros Tributos: $")
-    pdf.drawRightString(width / 2 + 45, top - 30, "0,00")
+    pdf.drawString(label_x, y, "Importe Neto Gravado")
+    pdf.drawRightString(totals_x, y, _fiscal_money(net_total))
+    for item in breakdown:
+        y -= 16
+        pdf.drawString(label_x, y, f"IVA {_fiscal_percent(item['rate'])}%")
+        pdf.drawRightString(totals_x, y, _fiscal_money(item["iva"]))
+    y -= 20
+    pdf.setFont(FONT_BOLD, 11)
+    pdf.drawString(label_x, y, "Importe Total")
+    pdf.drawRightString(totals_x, y, _fiscal_money(total))
 
-    label_x = right - 78
-    value_x = right - 7
-    rows = [
-        ("Importe Neto Gravado: $", net_total),
-        ("IVA 27%: $", iva_27),
-        ("IVA 21%: $", iva_21),
-        ("IVA 10.5%: $", iva_105),
-        ("IVA 5%: $", iva_5),
-        ("IVA 2.5%: $", iva_25),
-        ("IVA 0%: $", iva_0),
-        ("Importe Otros Tributos: $", Decimal("0.00")),
-        ("Importe Total: $", total),
-    ]
-    row_y = top - 56
-    row_step = 12
-    for idx, (label, value) in enumerate(rows):
-        pdf.setFont(FONT_BOLD, 9 if idx < len(rows) - 1 else 10)
-        pdf.drawRightString(label_x, row_y, label)
-        pdf.drawRightString(value_x, row_y, _fiscal_amount(value))
-        row_y -= row_step
-
-    fantasy = _issuer_data(invoice)["fantasy_name"]
-    pdf.rect(left, bottom - 28, right - left, 26)
-    pdf.setFont(FONT_REGULAR, 11)
-    pdf.drawCentredString(width / 2, bottom - 19, f'"{fantasy.upper()}"')
+    cae_y = 86
+    pdf.setFont(FONT_BOLD, 9)
+    pdf.drawString(MARGIN, cae_y + 38, "CAE N°:")
+    pdf.drawString(MARGIN, cae_y + 20, "Fecha Vto. CAE:")
+    pdf.setFont(FONT_REGULAR, 9)
+    pdf.drawString(MARGIN + 82, cae_y + 38, str(invoice.get("arca_cae") or "Pendiente"))
+    pdf.drawString(MARGIN + 82, cae_y + 20, _date(invoice.get("arca_cae_expires_at")) if invoice.get("arca_cae_expires_at") else "Pendiente")
 
     qr_url = _arca_qr_url(invoice)
     if qr_url:
-        _draw_qr(pdf, qr_url, left + 10, 58, 70)
-    else:
-        # Mantiene el espacio del QR como en los comprobantes autorizados.
-        pdf.rect(left + 10, 58, 70, 70)
-
-    _draw_arca_mark(pdf, left + 105, 111)
-    pdf.setFont(FONT_BOLD, 9)
-    pdf.drawString(left + 105, 85, "Comprobante Autorizado" if invoice.get("arca_cae") else "Comprobante Pendiente")
-    pdf.setFont(FONT_BOLD, 6)
-    pdf.drawString(left + 105, 66, "Esta Agencia no se responsabiliza por los datos ingresados en el detalle de la operación")
-
-    pdf.setFont(FONT_BOLD, 9)
-    pdf.drawCentredString(width / 2, 112, "Pág. 1/1")
-    pdf.drawRightString(right - 102, 107, "CAE N°:")
-    pdf.drawString(right - 96, 107, str(invoice.get("arca_cae") or "Pendiente"))
-    pdf.drawRightString(right - 102, 88, "Fecha de Vto. de CAE:")
-    pdf.drawString(right - 96, 88, _fiscal_date(invoice.get("arca_cae_expires_at")) if invoice.get("arca_cae_expires_at") else "Pendiente")
+        _draw_qr(pdf, qr_url, width - MARGIN - 88, 42, 82)
+        pdf.setFont(FONT_REGULAR, 6)
+        pdf.drawRightString(width - MARGIN, 34, "Código QR ARCA")
 
 
 def _draw_fiscal_copy(pdf: canvas.Canvas, invoice: dict, width: float, height: float, copy_label: str) -> None:
@@ -854,7 +665,7 @@ def _draw_fiscal_copy(pdf: canvas.Canvas, invoice: dict, width: float, height: f
     y = _draw_fiscal_receiver(pdf, invoice, width, y)
     y = _draw_fiscal_items_header(pdf, width, y)
     for index, item in enumerate(invoice.get("items", [])):
-        if y < 370:
+        if y < 150:
             pdf.showPage()
             y = _draw_fiscal_header(pdf, invoice, width, height, copy_label)
             y = _draw_fiscal_items_header(pdf, width, y)
@@ -866,9 +677,9 @@ def build_fiscal_invoice_pdf(invoice: dict) -> bytes:
     buffer = BytesIO()
     pdf = canvas.Canvas(buffer, pagesize=PAGE_SIZE)
     width, height = PAGE_SIZE
-    pdf.setTitle(invoice_pdf_filename(invoice).removesuffix(".pdf"))
+    pdf.setTitle(f"Factura A {invoice.get('arca_invoice_number') or invoice.get('id')}")
 
-    for index, copy_label in enumerate(("ORIGINAL", "DUPLICADO", "TRIPLICADO", "CUADRUPLICADO")):
+    for index, copy_label in enumerate(("ORIGINAL", "DUPLICADO", "TRIPLICADO")):
         if index:
             pdf.showPage()
         _draw_fiscal_copy(pdf, invoice, width, height, copy_label)
