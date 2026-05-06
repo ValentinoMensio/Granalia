@@ -169,7 +169,7 @@ def build_arca_invoice_items(invoice: dict) -> list[ArcaInvoiceItem]:
     return items
 
 
-def build_arca_invoice_request(invoice: dict, tax_breakdown: list[dict], *, point_of_sale: int) -> ArcaInvoiceRequest:
+def build_arca_invoice_request(invoice: dict, tax_breakdown: list[dict], *, point_of_sale: int, receiver_iva_condition_id: int) -> ArcaInvoiceRequest:
     doc_nro = digits_only(invoice.get("customer_cuit"))
     if len(doc_nro) != 11:
         raise ValueError("Cliente con CUIT invalido")
@@ -199,6 +199,7 @@ def build_arca_invoice_request(invoice: dict, tax_breakdown: list[dict], *, poin
         concepto=1,
         doc_tipo=80,
         doc_nro=doc_nro,
+        condicion_iva_receptor_id=receiver_iva_condition_id,
         imp_neto=imp_neto,
         imp_iva=imp_iva,
         imp_total=money_decimal(imp_neto + imp_iva),
@@ -214,6 +215,7 @@ def sanitized_arca_payload(request: ArcaInvoiceRequest) -> dict[str, object]:
         "Concepto": request.concepto,
         "DocTipo": request.doc_tipo,
         "DocNro": request.doc_nro,
+        "CondicionIVAReceptorId": request.condicion_iva_receptor_id,
         "PtoVta": request.point_of_sale,
         "ImpNeto": str(request.imp_neto),
         "ImpIVA": str(request.imp_iva),
@@ -464,6 +466,7 @@ def authorize_invoice_in_arca(invoice_id: int, payload: AuthorizationPayload, _:
             concepto=1,
             doc_tipo=80,
             doc_nro=digits_only(invoice.get("customer_cuit")),
+            condicion_iva_receptor_id=config.receiver_iva_condition_id,
             imp_neto=Decimal("0.00"),
             imp_iva=Decimal("0.00"),
             imp_total=Decimal("0.00"),
@@ -476,6 +479,7 @@ def authorize_invoice_in_arca(invoice_id: int, payload: AuthorizationPayload, _:
                 invoice,
                 repository.get_invoice_tax_breakdown(invoice_id),
                 point_of_sale=config.point_of_sale,
+                receiver_iva_condition_id=config.receiver_iva_condition_id,
             )
         except ValueError as error:
             raise HTTPException(status_code=400, detail=str(error)) from error

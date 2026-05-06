@@ -21,6 +21,7 @@ class ArcaConfig:
     timeout_seconds: int
     dry_run: bool
     mark_authorized: bool
+    receiver_iva_condition_id: int
 
     @property
     def is_configured(self) -> bool:
@@ -38,6 +39,7 @@ def get_arca_config() -> ArcaConfig:
         default_service_url = "https://wswhomo.afip.gov.ar/wsfev1/service.asmx" if environment == "homologacion" else "https://servicios1.afip.gov.ar/wsfev1/service.asmx"
     timeout = os.getenv("GRANALIA_ARCA_TIMEOUT_SECONDS", "30").strip()
     mark_authorized = os.getenv("GRANALIA_ARCA_MARK_AUTHORIZED", "").strip().lower()
+    receiver_iva_condition_id = os.getenv("GRANALIA_ARCA_RECEIVER_IVA_CONDITION_ID", "1").strip()
     return ArcaConfig(
         enabled=os.getenv("GRANALIA_ARCA_ENABLED", "false").strip().lower() == "true",
         environment=environment,
@@ -53,4 +55,5 @@ def get_arca_config() -> ArcaConfig:
         timeout_seconds=int(timeout) if timeout.isdigit() else 30,
         dry_run=os.getenv("GRANALIA_ARCA_DRY_RUN", "true").strip().lower() != "false",
         mark_authorized=(environment != "homologacion") if not mark_authorized else mark_authorized == "true",
+        receiver_iva_condition_id=int(receiver_iva_condition_id) if receiver_iva_condition_id.isdigit() else 1,
     )
