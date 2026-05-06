@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext'
 
 const PAGE_SIZE = 10
 const EMPTY_FILTERS = { customerId: '', dateFrom: '', dateTo: '', transport: '', minTotal: '', maxTotal: '' }
+const fiscalMoney = (value) => new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value || 0))
 
 function shortInvoiceNumber(invoice) {
   if (invoice?.invoice_number) return String(invoice.invoice_number).padStart(8, '0')
@@ -21,10 +22,9 @@ function isFiscalInvoice(invoice) {
 
 function displayInvoiceNumber(invoice) {
   if (!isFiscalInvoice(invoice)) return shortInvoiceNumber(invoice)
-  if (invoice?.arca_point_of_sale && invoice?.arca_invoice_number) {
-    return `A ${String(invoice.arca_point_of_sale).padStart(4, '0')}-${String(invoice.arca_invoice_number).padStart(8, '0')}`
-  }
-  return `ARCA pendiente #${invoice?.invoice_id || invoice?.id}`
+  const fiscalNumber = invoice?.arca_invoice_number || invoice?.invoice_number
+  if (fiscalNumber) return String(fiscalNumber).padStart(8, '0')
+  return `#${invoice?.invoice_id || invoice?.id}`
 }
 
 function displayInvoiceTotal(invoice) {
@@ -36,10 +36,10 @@ function fiscalStatusLabel(invoice) {
   const status = String(invoice?.fiscal_status || '')
   const labels = {
     internal: 'Interna',
-    draft: 'Pendiente ARCA',
-    authorized: 'Autorizada ARCA',
-    rejected: 'Rechazada ARCA',
-    error: 'Error ARCA',
+    draft: 'Pendiente',
+    authorized: 'Autorizada',
+    rejected: 'Rechazada',
+    error: 'Error',
   }
   return labels[status] || status || 'Sin estado'
 }
@@ -282,7 +282,7 @@ export default function InvoiceHistory() {
                     <div className="font-mono text-xs text-slate-500">{displayInvoiceNumber(invoice)}</div>
                     <h3 className="mt-1 truncate font-semibold text-brand-ink">{invoice.client_name}</h3>
                   </div>
-                  <div className="shrink-0 whitespace-nowrap text-right text-sm font-semibold text-brand-red">${money(displayInvoiceTotal(invoice))}</div>
+                  <div className="shrink-0 whitespace-nowrap text-right text-sm font-semibold text-brand-red">${isFiscalInvoice(invoice) ? fiscalMoney(displayInvoiceTotal(invoice)) : money(displayInvoiceTotal(invoice))}</div>
                 </div>
                 <div className="mt-3 grid gap-2 text-sm text-slate-600">
                   <div className="flex justify-between gap-3">
@@ -377,7 +377,7 @@ export default function InvoiceHistory() {
                     <td className={`table-cell break-words leading-snug ${isUpcoming ? 'text-slate-800' : 'text-slate-600'}`} title={invoice.transport || 'Sin transporte'}>{invoice.transport || 'Sin transporte'}</td>
                     <td className="table-cell text-center">{invoice.declared ? 'Declarada' : 'Interna'}</td>
                     <td className="table-cell text-center">{fiscalStatusLabel(invoice)}</td>
-                    <td className="table-cell whitespace-nowrap text-right font-medium">${money(displayInvoiceTotal(invoice))}</td>
+                    <td className="table-cell whitespace-nowrap text-right font-medium">${isFiscalInvoice(invoice) ? fiscalMoney(displayInvoiceTotal(invoice)) : money(displayInvoiceTotal(invoice))}</td>
                     <td className="table-cell">
                       <div className="flex items-center justify-center gap-x-2 whitespace-nowrap text-xs leading-tight">
                         <Button variant="ghost" className="px-0 py-0 text-brand-red" onClick={() => handleSelectInvoice(invoice.invoice_id)}>
@@ -475,6 +475,10 @@ export default function InvoiceHistory() {
                 <div className="mt-1">{invoiceDetail.transport || 'Sin transporte'}</div>
               </div>
               <div>
+                <div className="text-xs uppercase tracking-wide text-slate-400">Bultos</div>
+                <div className="mt-1">{invoiceDetail.total_bultos}</div>
+              </div>
+              <div>
                 <div className="text-xs uppercase tracking-wide text-slate-400">Cliente asociado</div>
                 <div className="mt-1">{invoiceDetail.customer_name || 'Sin asociar'}</div>
               </div>
@@ -517,7 +521,7 @@ export default function InvoiceHistory() {
                           <div className="mt-1 text-xs text-slate-400">{itemSecondaryLabel(item)}</div>
                         ) : null}
                       </div>
-                      <div className="shrink-0 text-right text-sm font-semibold text-brand-red">${money(isFiscalInvoice(invoiceDetail) ? itemFiscalTotal(item) : item.total)}</div>
+                      <div className="shrink-0 text-right text-sm font-semibold text-brand-red">${isFiscalInvoice(invoiceDetail) ? fiscalMoney(itemFiscalTotal(item)) : money(item.total)}</div>
                     </div>
                     <div className="mobile-field-grid">
                       <div className="mobile-field">
@@ -532,13 +536,13 @@ export default function InvoiceHistory() {
                       )}
                       <div className="mobile-field">
                         <span className="mobile-field-label">Precio</span>
-                        <span className="mobile-field-value">${money(item.unit_price)}</span>
+                        <span className="mobile-field-value">${isFiscalInvoice(invoiceDetail) ? fiscalMoney(item.unit_price) : money(item.unit_price)}</span>
                       </div>
                       {isFiscalInvoice(invoiceDetail) && (
                         <>
                           <div className="mobile-field">
                             <span className="mobile-field-label">Bonf</span>
-                            <span className="mobile-field-value">${money(item.effective_discount ?? item.discount)}</span>
+                            <span className="mobile-field-value">${fiscalMoney(item.effective_discount ?? item.discount)}</span>
                           </div>
                           <div className="mobile-field">
                             <span className="mobile-field-label">IVA</span>
@@ -590,11 +594,11 @@ export default function InvoiceHistory() {
                         {isFiscalInvoice(invoiceDetail) ? (
                           <>
                             <td className="table-cell">Unidades</td>
-                            <td className="table-cell text-right">${money(item.unit_price)}</td>
-                            <td className="table-cell text-right">${money(item.effective_discount ?? item.discount)}</td>
-                            <td className="table-cell text-right">${money(item.gross)}</td>
+                            <td className="table-cell text-right">${fiscalMoney(item.unit_price)}</td>
+                            <td className="table-cell text-right">${fiscalMoney(item.effective_discount ?? item.discount)}</td>
+                            <td className="table-cell text-right">${fiscalMoney(item.gross)}</td>
                             <td className="table-cell text-right">{Number(item.iva_rate || 0) * 100}%</td>
-                            <td className="table-cell text-right font-medium">${money(itemFiscalTotal(item))}</td>
+                            <td className="table-cell text-right font-medium">${fiscalMoney(itemFiscalTotal(item))}</td>
                           </>
                         ) : (
                           <>
@@ -613,11 +617,11 @@ export default function InvoiceHistory() {
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="metric-card">
                   <div className="text-xs uppercase tracking-wide text-slate-400">Total sin IVA</div>
-                  <div className="mt-2 text-lg font-semibold">${money(fiscalNetTotal(invoiceDetail))}</div>
+                  <div className="mt-2 text-lg font-semibold">${fiscalMoney(fiscalNetTotal(invoiceDetail))}</div>
                 </div>
                 <div className="metric-card">
                   <div className="text-xs uppercase tracking-wide text-slate-400">Total con IVA</div>
-                  <div className="mt-2 text-lg font-semibold text-brand-red">${money(fiscalTotal(invoiceDetail))}</div>
+                  <div className="mt-2 text-lg font-semibold text-brand-red">${fiscalMoney(fiscalTotal(invoiceDetail))}</div>
                 </div>
               </div>
             ) : (
