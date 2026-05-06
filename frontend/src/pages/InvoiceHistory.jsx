@@ -15,6 +15,56 @@ function shortInvoiceNumber(invoice) {
   return `#${invoice?.invoice_id || invoice?.id}`
 }
 
+function isFiscalInvoice(invoice) {
+  return Boolean(invoice?.declared || invoice?.split_kind === 'fiscal')
+}
+
+function displayInvoiceNumber(invoice) {
+  if (!isFiscalInvoice(invoice)) return shortInvoiceNumber(invoice)
+  if (invoice?.arca_point_of_sale && invoice?.arca_invoice_number) {
+    return `A ${String(invoice.arca_point_of_sale).padStart(4, '0')}-${String(invoice.arca_invoice_number).padStart(8, '0')}`
+  }
+  return `ARCA pendiente #${invoice?.invoice_id || invoice?.id}`
+}
+
+function displayInvoiceTotal(invoice) {
+  if (isFiscalInvoice(invoice) && invoice?.fiscal_total != null) return Number(invoice.fiscal_total)
+  return Number(invoice?.final_total || 0)
+}
+
+function fiscalStatusLabel(invoice) {
+  const status = String(invoice?.fiscal_status || '')
+  const labels = {
+    internal: 'Interna',
+    draft: 'Pendiente ARCA',
+    authorized: 'Autorizada ARCA',
+    rejected: 'Rechazada ARCA',
+    error: 'Error ARCA',
+  }
+  return labels[status] || status || 'Sin estado'
+}
+
+function itemNetSubtotal(item) {
+  return Number(item?.effective_total ?? item?.net_amount ?? item?.total ?? 0)
+}
+
+function itemFiscalTotal(item) {
+  const net = itemNetSubtotal(item)
+  if (item?.iva_rate != null) return net * (1 + Number(item.iva_rate || 0))
+  if (item?.fiscal_total != null) return Number(item.fiscal_total)
+  return net + Number(item?.iva_amount || 0)
+}
+
+function fiscalNetTotal(invoice) {
+  return (invoice?.items || []).reduce((sum, item) => sum + itemNetSubtotal(item), 0)
+}
+
+function fiscalTotal(invoice) {
+  const itemTotal = (invoice?.items || []).reduce((sum, item) => sum + itemFiscalTotal(item), 0)
+  if (itemTotal) return itemTotal
+  return Number(invoice?.fiscal_total || 0)
+}
+
 function canAuthorizeInArca(invoice) {
   if (!invoice) return false
   const status = String(invoice.fiscal_status || '')
@@ -46,8 +96,9 @@ export default function InvoiceHistory() {
       const matchesDateTo = !filters.dateTo || invoice.order_date <= filters.dateTo
       const matchesDate = matchesDateFrom && matchesDateTo
       const matchesTransport = !filters.transport || String(invoice.transport_id || '') === String(filters.transport)
-      const matchesMinTotal = minTotal === null || Number(invoice.final_total || 0) >= minTotal
-      const matchesMaxTotal = maxTotal === null || Number(invoice.final_total || 0) <= maxTotal
+      const invoiceTotal = displayInvoiceTotal(invoice)
+      const matchesMinTotal = minTotal === null || invoiceTotal >= minTotal
+      const matchesMaxTotal = maxTotal === null || invoiceTotal <= maxTotal
       return matchesCustomer && matchesDate && matchesTransport && matchesMinTotal && matchesMaxTotal
     })
   }, [filters, invoices])
@@ -228,10 +279,10 @@ export default function InvoiceHistory() {
               <article key={invoice.invoice_id} className={`rounded-2xl border p-4 ${isUpcoming ? 'border-slate-300 bg-stone-100' : 'border-slate-200 bg-white'}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="font-mono text-xs text-slate-500">{shortInvoiceNumber(invoice)}</div>
+                    <div className="font-mono text-xs text-slate-500">{displayInvoiceNumber(invoice)}</div>
                     <h3 className="mt-1 truncate font-semibold text-brand-ink">{invoice.client_name}</h3>
                   </div>
-                  <div className="shrink-0 whitespace-nowrap text-right text-sm font-semibold text-brand-red">${money(invoice.final_total)}</div>
+                  <div className="shrink-0 whitespace-nowrap text-right text-sm font-semibold text-brand-red">${money(displayInvoiceTotal(invoice))}</div>
                 </div>
                 <div className="mt-3 grid gap-2 text-sm text-slate-600">
                   <div className="flex justify-between gap-3">
@@ -246,6 +297,10 @@ export default function InvoiceHistory() {
                     <span>Tipo</span>
                     <span className="font-medium text-slate-800">{invoice.declared ? 'Declarada' : 'Interna'}</span>
                   </div>
+                  <div className="flex justify-between gap-3">
+                    <span>Estado</span>
+                    <span className="font-medium text-slate-800">{fiscalStatusLabel(invoice)}</span>
+                  </div>
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
                   <Button variant="secondary" className="w-full" onClick={() => handleSelectInvoice(invoice.invoice_id)}>
@@ -254,11 +309,6 @@ export default function InvoiceHistory() {
                   {isAdmin && (
                     <Button variant="secondary" className="w-full" onClick={() => handleEditInvoice(invoice.invoice_id)}>
                       Editar
-                    </Button>
-                  )}
-                  {isAdmin && canAuthorizeInArca(invoice) && (
-                    <Button variant="secondary" className="col-span-2" onClick={() => openAuthorizationModal(invoice)}>
-                      Autorizar en ARCA
                     </Button>
                   )}
                   <span className="btn-secondary w-full cursor-not-allowed opacity-50" aria-disabled="true">XLSX</span>
@@ -294,13 +344,14 @@ export default function InvoiceHistory() {
         <div className="table-shell mt-6 hidden lg:block">
           <table className="table-base min-w-[960px] table-fixed">
             <colgroup>
-              <col className="w-[6%]" />
-              <col className="w-[19%]" />
-              <col className="w-[10%]" />
-              <col className="w-[14%]" />
-              <col className="w-[11%]" />
               <col className="w-[12%]" />
-              <col className="w-[28%]" />
+              <col className="w-[17%]" />
+              <col className="w-[10%]" />
+              <col className="w-[13%]" />
+              <col className="w-[10%]" />
+              <col className="w-[12%]" />
+              <col className="w-[11%]" />
+              <col className="w-[25%]" />
             </colgroup>
             <thead className="table-head">
               <tr>
@@ -309,6 +360,7 @@ export default function InvoiceHistory() {
                 <th className="text-center">Fecha</th>
                 <th>Transporte</th>
                 <th className="text-center">Tipo</th>
+                <th className="text-center">Estado</th>
                 <th className="text-right">Total</th>
                 <th className="text-center">Acciones</th>
               </tr>
@@ -319,12 +371,13 @@ export default function InvoiceHistory() {
 
                 return (
                   <tr key={invoice.invoice_id} className={`table-row ${isUpcoming ? 'bg-stone-100 text-brand-ink' : ''}`}>
-                    <td className="table-cell text-center font-mono text-xs">{shortInvoiceNumber(invoice)}</td>
+                    <td className="table-cell text-center font-mono text-xs">{displayInvoiceNumber(invoice)}</td>
                     <td className="table-cell break-words font-medium leading-snug" title={invoice.client_name}>{invoice.client_name}</td>
                     <td className={`table-cell whitespace-nowrap text-center ${isUpcoming ? 'text-slate-800' : 'text-slate-600'}`}>{date(invoice.order_date)}</td>
                     <td className={`table-cell break-words leading-snug ${isUpcoming ? 'text-slate-800' : 'text-slate-600'}`} title={invoice.transport || 'Sin transporte'}>{invoice.transport || 'Sin transporte'}</td>
                     <td className="table-cell text-center">{invoice.declared ? 'Declarada' : 'Interna'}</td>
-                    <td className="table-cell whitespace-nowrap text-right font-medium">${money(invoice.final_total)}</td>
+                    <td className="table-cell text-center">{fiscalStatusLabel(invoice)}</td>
+                    <td className="table-cell whitespace-nowrap text-right font-medium">${money(displayInvoiceTotal(invoice))}</td>
                     <td className="table-cell">
                       <div className="flex items-center justify-center gap-x-2 whitespace-nowrap text-xs leading-tight">
                         <Button variant="ghost" className="px-0 py-0 text-brand-red" onClick={() => handleSelectInvoice(invoice.invoice_id)}>
@@ -333,11 +386,6 @@ export default function InvoiceHistory() {
                         {isAdmin && (
                           <Button variant="ghost" className="px-0 py-0 text-brand-ink" onClick={() => handleEditInvoice(invoice.invoice_id)}>
                             Editar
-                          </Button>
-                        )}
-                        {isAdmin && canAuthorizeInArca(invoice) && (
-                          <Button variant="ghost" className="px-0 py-0 text-xs text-brand-red" onClick={() => openAuthorizationModal(invoice)}>
-                            ARCA
                           </Button>
                         )}
                         <a
@@ -365,7 +413,7 @@ export default function InvoiceHistory() {
               })}
               {filteredInvoices.length === 0 && (
                 <tr>
-                  <td colSpan="7" className="table-cell py-10 text-center text-slate-400">No hay facturas que coincidan con los filtros.</td>
+                  <td colSpan="8" className="table-cell py-10 text-center text-slate-400">No hay facturas que coincidan con los filtros.</td>
                 </tr>
               )}
             </tbody>
@@ -412,7 +460,7 @@ export default function InvoiceHistory() {
             <div className="surface-muted grid gap-4 p-4 text-sm md:grid-cols-3 xl:grid-cols-8">
               <div>
                 <div className="text-xs uppercase tracking-wide text-slate-400">Factura</div>
-                <div className="mt-1 font-mono">{shortInvoiceNumber(invoiceDetail)}</div>
+                <div className="mt-1 font-mono">{displayInvoiceNumber(invoiceDetail)}</div>
               </div>
               <div>
                 <div className="text-xs uppercase tracking-wide text-slate-400">Fecha</div>
@@ -439,9 +487,19 @@ export default function InvoiceHistory() {
                 <div className="mt-1">{invoiceDetail.declared ? 'Declarada' : 'Interna'}</div>
               </div>
               <div>
+                <div className="text-xs uppercase tracking-wide text-slate-400">Estado ARCA</div>
+                <div className="mt-1">{fiscalStatusLabel(invoiceDetail)}</div>
+              </div>
+              <div>
                 <div className="text-xs uppercase tracking-wide text-slate-400">Lista</div>
                 <div className="mt-1">{invoiceDetail.price_list_name || 'Sin lista'}</div>
               </div>
+              {invoiceDetail.arca_cae && (
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-slate-400">CAE</div>
+                  <div className="mt-1 font-mono">{invoiceDetail.arca_cae}</div>
+                </div>
+              )}
             </div>
 
             <div>
@@ -459,17 +517,35 @@ export default function InvoiceHistory() {
                           <div className="mt-1 text-xs text-slate-400">{itemSecondaryLabel(item)}</div>
                         ) : null}
                       </div>
-                      <div className="shrink-0 text-right text-sm font-semibold text-brand-red">${money(item.total)}</div>
+                      <div className="shrink-0 text-right text-sm font-semibold text-brand-red">${money(isFiscalInvoice(invoiceDetail) ? itemFiscalTotal(item) : item.total)}</div>
                     </div>
                     <div className="mobile-field-grid">
                       <div className="mobile-field">
                         <span className="mobile-field-label">Cantidad</span>
                         <span className="mobile-field-value">{item.quantity}</span>
                       </div>
+                      {isFiscalInvoice(invoiceDetail) && (
+                        <div className="mobile-field">
+                          <span className="mobile-field-label">Unidad</span>
+                          <span className="mobile-field-value">Unidades</span>
+                        </div>
+                      )}
                       <div className="mobile-field">
                         <span className="mobile-field-label">Precio</span>
                         <span className="mobile-field-value">${money(item.unit_price)}</span>
                       </div>
+                      {isFiscalInvoice(invoiceDetail) && (
+                        <>
+                          <div className="mobile-field">
+                            <span className="mobile-field-label">Bonf</span>
+                            <span className="mobile-field-value">${money(item.effective_discount ?? item.discount)}</span>
+                          </div>
+                          <div className="mobile-field">
+                            <span className="mobile-field-label">IVA</span>
+                            <span className="mobile-field-value">{Number(item.iva_rate || 0) * 100}%</span>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </article>
                 ))}
@@ -478,13 +554,27 @@ export default function InvoiceHistory() {
               <div className="table-shell hidden lg:block">
                 <table className="table-base">
                   <thead className="table-head">
-                    <tr>
-                      <th>#</th>
-                      <th>Producto</th>
-                      <th className="text-right">Cant.</th>
-                      <th className="text-right">Precio</th>
-                      <th className="text-right">Total</th>
-                    </tr>
+                    {isFiscalInvoice(invoiceDetail) ? (
+                      <tr>
+                        <th>#</th>
+                        <th>Producto</th>
+                        <th className="text-right">Cantidad</th>
+                        <th>Unidad</th>
+                        <th className="text-right">Precio unitario</th>
+                        <th className="text-right">Bonf</th>
+                        <th className="text-right">Subtotal</th>
+                        <th className="text-right">Alicuota IVA</th>
+                        <th className="text-right">Subtotal</th>
+                      </tr>
+                    ) : (
+                      <tr>
+                        <th>#</th>
+                        <th>Producto</th>
+                        <th className="text-right">Cant.</th>
+                        <th className="text-right">Precio</th>
+                        <th className="text-right">Total</th>
+                      </tr>
+                    )}
                   </thead>
                   <tbody className="bg-white">
                     {invoiceDetail.items.map((item) => (
@@ -497,8 +587,21 @@ export default function InvoiceHistory() {
                           ) : null}
                         </td>
                         <td className="table-cell text-right">{item.quantity}</td>
-                        <td className="table-cell text-right">${money(item.unit_price)}</td>
-                        <td className="table-cell text-right font-medium">${money(item.total)}</td>
+                        {isFiscalInvoice(invoiceDetail) ? (
+                          <>
+                            <td className="table-cell">Unidades</td>
+                            <td className="table-cell text-right">${money(item.unit_price)}</td>
+                            <td className="table-cell text-right">${money(item.effective_discount ?? item.discount)}</td>
+                            <td className="table-cell text-right">${money(item.gross)}</td>
+                            <td className="table-cell text-right">{Number(item.iva_rate || 0) * 100}%</td>
+                            <td className="table-cell text-right font-medium">${money(itemFiscalTotal(item))}</td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="table-cell text-right">${money(item.unit_price)}</td>
+                            <td className="table-cell text-right font-medium">${money(item.total)}</td>
+                          </>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -506,30 +609,38 @@ export default function InvoiceHistory() {
               </div>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-3">
-              <div className="metric-card">
-                <div className="text-xs uppercase tracking-wide text-slate-400">Bruto</div>
-                <div className="mt-2 text-lg font-semibold">${money(invoiceDetail.gross_total)}</div>
+            {isFiscalInvoice(invoiceDetail) ? (
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="metric-card">
+                  <div className="text-xs uppercase tracking-wide text-slate-400">Total sin IVA</div>
+                  <div className="mt-2 text-lg font-semibold">${money(fiscalNetTotal(invoiceDetail))}</div>
+                </div>
+                <div className="metric-card">
+                  <div className="text-xs uppercase tracking-wide text-slate-400">Total con IVA</div>
+                  <div className="mt-2 text-lg font-semibold text-brand-red">${money(fiscalTotal(invoiceDetail))}</div>
+                </div>
               </div>
-              <div className="metric-card">
-                <div className="text-xs uppercase tracking-wide text-slate-400">Descuento</div>
-                <div className="mt-2 text-lg font-semibold">${money(invoiceDetail.discount_total)}</div>
+            ) : (
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="metric-card">
+                  <div className="text-xs uppercase tracking-wide text-slate-400">Bruto</div>
+                  <div className="mt-2 text-lg font-semibold">${money(invoiceDetail.gross_total)}</div>
+                </div>
+                <div className="metric-card">
+                  <div className="text-xs uppercase tracking-wide text-slate-400">Descuento</div>
+                  <div className="mt-2 text-lg font-semibold">${money(invoiceDetail.discount_total)}</div>
+                </div>
+                <div className="metric-card">
+                  <div className="text-xs uppercase tracking-wide text-slate-400">Final</div>
+                  <div className="mt-2 text-lg font-semibold text-brand-red">${money(invoiceDetail.final_total)}</div>
+                </div>
               </div>
-              <div className="metric-card">
-                <div className="text-xs uppercase tracking-wide text-slate-400">Final</div>
-                <div className="mt-2 text-lg font-semibold text-brand-red">${money(invoiceDetail.final_total)}</div>
-              </div>
-            </div>
+            )}
 
             <div className="flex flex-col gap-3 border-t border-stone-200 pt-4 sm:flex-row sm:flex-wrap sm:justify-end">
               {isAdmin && (
                 <Button variant="secondary" className="w-full sm:w-auto" onClick={() => handleEditInvoice(invoiceDetail.id)}>
                   Editar factura
-                </Button>
-              )}
-              {isAdmin && canAuthorizeInArca(invoiceDetail) && (
-                <Button variant="secondary" className="w-full sm:w-auto" onClick={() => openAuthorizationModal(invoiceDetail)}>
-                  Autorizar en ARCA
                 </Button>
               )}
               <span className="btn-secondary w-full cursor-not-allowed opacity-50 sm:w-auto" aria-disabled="true">Descargar XLSX</span>
@@ -541,6 +652,11 @@ export default function InvoiceHistory() {
               >
                 Descargar PDF
               </a>
+              {isAdmin && canAuthorizeInArca(invoiceDetail) && (
+                <Button variant="primary" className="w-full bg-blue-600 shadow-blue-600/20 hover:bg-blue-700 sm:w-auto" onClick={() => openAuthorizationModal(invoiceDetail)}>
+                  Autorizar en ARCA
+                </Button>
+              )}
               {isAdmin && (
                 <Button
                   variant="danger"
@@ -562,7 +678,7 @@ export default function InvoiceHistory() {
           <form onSubmit={handleAuthorizeInvoice} className="surface w-full max-w-md p-5 shadow-xl">
             <h3 className="subsection-title text-xl">Autorizar en ARCA</h3>
             <p className="mt-2 text-sm text-slate-600">
-              Ingresá la contraseña de autorización para enviar la factura {shortInvoiceNumber(authorizationTarget)} a ARCA.
+              Ingresá la contraseña de autorización para enviar la factura {displayInvoiceNumber(authorizationTarget)} a ARCA.
             </p>
             <input
               className="input mt-4"

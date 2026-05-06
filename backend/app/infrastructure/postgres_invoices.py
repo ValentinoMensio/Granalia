@@ -113,6 +113,13 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     self.invoices.c.split_kind,
                     self.invoices.c.split_percentage,
                     self.invoices.c.fiscal_status,
+                    self.invoices.c.arca_environment,
+                    self.invoices.c.arca_point_of_sale,
+                    self.invoices.c.arca_invoice_number,
+                    self.invoices.c.arca_cae,
+                    self.invoices.c.arca_cae_expires_at,
+                    self.invoices.c.arca_error_code,
+                    self.invoices.c.arca_error_message,
                     self.invoices.c.total_bultos,
                     self.invoices.c.gross_total,
                     self.invoices.c.discount_total,
@@ -130,6 +137,35 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
         payload: list[InvoiceListItemData] = cast(list[InvoiceListItemData], [{key: serialize_value(value) for key, value in row.items()} for row in rows])
         for item in payload:
             item["fiscal_number"] = self._format_fiscal_number(str(item.get("document_type") or "FACTURA"), int(item.get("point_of_sale") or 1), int(item.get("invoice_number") or 0))
+        invoice_ids = [int(item["invoice_id"]) for item in payload if bool(item.get("declared")) or item.get("split_kind") == "fiscal"]
+        if invoice_ids:
+            with self.engine.connect() as connection:
+                item_rows = connection.execute(
+                    select(
+                        self.invoice_items.c.invoice_id,
+                        self.invoice_items.c.gross,
+                        self.invoice_items.c.discount,
+                        self.invoice_items.c.total,
+                        self.invoice_items.c.iva_rate,
+                    ).where(self.invoice_items.c.invoice_id.in_(invoice_ids))
+                ).mappings().all()
+            items_by_invoice: dict[int, list[dict[str, object]]] = {}
+            for row in item_rows:
+                items_by_invoice.setdefault(int(row["invoice_id"]), []).append({key: serialize_value(value) for key, value in row.items()})
+            discounts_by_invoice = {int(item["invoice_id"]): int(item.get("discount_total") or 0) for item in payload}
+            for invoice_id, invoice_items in items_by_invoice.items():
+                current_discount = sum(int(item.get("discount") or 0) for item in invoice_items)
+                delta = discounts_by_invoice.get(invoice_id, current_discount) - current_discount
+                allocations = self._allocate_integer_amount(delta, [int(item.get("gross") or 0) for item in invoice_items])
+                fiscal_total = Decimal("0")
+                for invoice_item, allocation in zip(invoice_items, allocations):
+                    if invoice_item.get("iva_rate") is None:
+                        continue
+                    net_amount = Decimal(str(int(invoice_item.get("total") or 0) - allocation))
+                    fiscal_total += self._round_money(net_amount * (Decimal("1") + Decimal(str(invoice_item["iva_rate"]))))
+                for item in payload:
+                    if int(item["invoice_id"]) == invoice_id:
+                        item["fiscal_total"] = float(fiscal_total)
         return payload
 
     def list_invoice_item_stats(self) -> list[dict[str, object]]:
