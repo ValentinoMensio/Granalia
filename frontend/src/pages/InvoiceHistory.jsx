@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useGranalia } from '../context/GranaliaContext'
-import { money } from '../lib/format'
+import { date, money } from '../lib/format'
 import Button from '../components/ui/Button'
 import PageSectionHeader from '../components/ui/PageSectionHeader'
 import DateRangePicker from '../components/ui/DateRangePicker'
@@ -236,7 +236,7 @@ export default function InvoiceHistory() {
                 <div className="mt-3 grid gap-2 text-sm text-slate-600">
                   <div className="flex justify-between gap-3">
                     <span>Fecha</span>
-                    <span className="font-medium text-slate-800">{invoice.order_date}</span>
+                    <span className="font-medium text-slate-800">{date(invoice.order_date)}</span>
                   </div>
                   <div className="flex justify-between gap-3">
                     <span>Transporte</span>
@@ -321,7 +321,7 @@ export default function InvoiceHistory() {
                   <tr key={invoice.invoice_id} className={`table-row ${isUpcoming ? 'bg-stone-100 text-brand-ink' : ''}`}>
                     <td className="table-cell text-center font-mono text-xs">{shortInvoiceNumber(invoice)}</td>
                     <td className="table-cell break-words font-medium leading-snug" title={invoice.client_name}>{invoice.client_name}</td>
-                    <td className={`table-cell whitespace-nowrap text-center ${isUpcoming ? 'text-slate-800' : 'text-slate-600'}`}>{invoice.order_date}</td>
+                    <td className={`table-cell whitespace-nowrap text-center ${isUpcoming ? 'text-slate-800' : 'text-slate-600'}`}>{date(invoice.order_date)}</td>
                     <td className={`table-cell break-words leading-snug ${isUpcoming ? 'text-slate-800' : 'text-slate-600'}`} title={invoice.transport || 'Sin transporte'}>{invoice.transport || 'Sin transporte'}</td>
                     <td className="table-cell text-center">{invoice.declared ? 'Declarada' : 'Interna'}</td>
                     <td className="table-cell whitespace-nowrap text-right font-medium">${money(invoice.final_total)}</td>
@@ -416,7 +416,7 @@ export default function InvoiceHistory() {
               </div>
               <div>
                 <div className="text-xs uppercase tracking-wide text-slate-400">Fecha</div>
-                <div className="mt-1">{invoiceDetail.order_date}</div>
+                <div className="mt-1">{date(invoiceDetail.order_date)}</div>
               </div>
               <div>
                 <div className="text-xs uppercase tracking-wide text-slate-400">Cliente</div>
