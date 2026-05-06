@@ -140,6 +140,13 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
         invoice_ids = [int(item["invoice_id"]) for item in payload if bool(item.get("declared")) or item.get("split_kind") == "fiscal"]
         if invoice_ids:
             with self.engine.connect() as connection:
+                tax_rows = connection.execute(
+                    select(
+                        self.invoice_tax_breakdown.c.invoice_id,
+                        self.invoice_tax_breakdown.c.base_amount,
+                        self.invoice_tax_breakdown.c.iva_amount,
+                    ).where(self.invoice_tax_breakdown.c.invoice_id.in_(invoice_ids))
+                ).mappings().all()
                 item_rows = connection.execute(
                     select(
                         self.invoice_items.c.invoice_id,
@@ -149,11 +156,17 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                         self.invoice_items.c.iva_rate,
                     ).where(self.invoice_items.c.invoice_id.in_(invoice_ids))
                 ).mappings().all()
+            fiscal_totals_by_invoice: dict[int, Decimal] = {}
+            for row in tax_rows:
+                invoice_id = int(row["invoice_id"])
+                fiscal_totals_by_invoice[invoice_id] = fiscal_totals_by_invoice.get(invoice_id, Decimal("0")) + Decimal(str(row["base_amount"] or 0)) + Decimal(str(row["iva_amount"] or 0))
             items_by_invoice: dict[int, list[dict[str, object]]] = {}
             for row in item_rows:
                 items_by_invoice.setdefault(int(row["invoice_id"]), []).append({key: serialize_value(value) for key, value in row.items()})
             discounts_by_invoice = {int(item["invoice_id"]): int(item.get("discount_total") or 0) for item in payload}
             for invoice_id, invoice_items in items_by_invoice.items():
+                if invoice_id in fiscal_totals_by_invoice:
+                    continue
                 current_discount = sum(int(item.get("discount") or 0) for item in invoice_items)
                 delta = discounts_by_invoice.get(invoice_id, current_discount) - current_discount
                 allocations = self._allocate_integer_amount(delta, [int(item.get("gross") or 0) for item in invoice_items])
@@ -163,9 +176,12 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                         continue
                     net_amount = Decimal(str(int(invoice_item.get("total") or 0) - allocation))
                     fiscal_total += self._round_money(net_amount * (Decimal("1") + Decimal(str(invoice_item["iva_rate"]))))
-                for item in payload:
-                    if int(item["invoice_id"]) == invoice_id:
-                        item["fiscal_total"] = float(fiscal_total)
+                if fiscal_total:
+                    fiscal_totals_by_invoice[invoice_id] = fiscal_total
+            for item in payload:
+                fiscal_total = fiscal_totals_by_invoice.get(int(item["invoice_id"]))
+                if fiscal_total is not None:
+                    item["fiscal_total"] = float(fiscal_total)
         return payload
 
     def list_invoice_item_stats(self) -> list[dict[str, object]]:
