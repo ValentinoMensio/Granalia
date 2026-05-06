@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 from sqlalchemy import select
 from sqlalchemy.engine import make_url
 from sqlalchemy.engine import Engine
@@ -29,7 +31,8 @@ class PostgresBootstrapMixin(PostgresRepositoryProtocol):
             self._ensure_price_list_invoice_fields(connection=connection)
             self._ensure_offering_net_weight(connection=connection)
             self._ensure_invoice_historical_snapshot_fields(connection=connection)
-            self._ensure_arca_fiscal_base(connection=connection)
+            if os.getenv("GRANALIA_ENABLE_RUNTIME_ARCA_MIGRATIONS", "false").strip().lower() == "true":
+                self._ensure_arca_fiscal_base(connection=connection)
 
             active_catalog = connection.execute(
                 select(self.catalogs.c.catalog).where(self.catalogs.c.active.is_(True)).order_by(self.catalogs.c.id.desc()).limit(1)
