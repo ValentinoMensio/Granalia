@@ -20,6 +20,18 @@ const MONTHLY_METRICS = [
 
 const weight = (value) => new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(Number(value || 0))
 
+function invoiceStatsGross(invoice) {
+  return Number(invoice?.gross_total || 0)
+}
+
+function invoiceStatsDiscount(invoice) {
+  return Number(invoice?.discount_total || 0)
+}
+
+function invoiceStatsTotal(invoice) {
+  return Number(invoice?.final_total ?? (invoiceStatsGross(invoice) - invoiceStatsDiscount(invoice)) ?? 0)
+}
+
 function monthLabel(value) {
   if (!value) return 'Sin fecha'
   const [year, month] = String(value).split('-')
@@ -33,9 +45,9 @@ function buildRanking(invoices, keyFn) {
     const current = grouped.get(key) || { label: key, count: 0, bultos: 0, weight: 0, gross: 0, discount: 0, total: 0 }
     current.count += 1
     current.bultos += Number(invoice.total_bultos || 0)
-    current.gross += Number(invoice.gross_total || 0)
-    current.discount += Number(invoice.discount_total || 0)
-    current.total += Number(invoice.final_total || 0)
+    current.gross += invoiceStatsGross(invoice)
+    current.discount += invoiceStatsDiscount(invoice)
+    current.total += invoiceStatsTotal(invoice)
     grouped.set(key, current)
   }
   return Array.from(grouped.values()).sort((a, b) => b.total - a.total)
@@ -468,9 +480,9 @@ export default function InvoiceStats() {
       return { gross, discount, total, bultos, average }
     }
 
-    const gross = filteredInvoices.reduce((sum, invoice) => sum + Number(invoice.gross_total || 0), 0)
-    const discount = filteredInvoices.reduce((sum, invoice) => sum + Number(invoice.discount_total || 0), 0)
-    const total = filteredInvoices.reduce((sum, invoice) => sum + Number(invoice.final_total || 0), 0)
+    const gross = filteredInvoices.reduce((sum, invoice) => sum + invoiceStatsGross(invoice), 0)
+    const discount = filteredInvoices.reduce((sum, invoice) => sum + invoiceStatsDiscount(invoice), 0)
+    const total = filteredInvoices.reduce((sum, invoice) => sum + invoiceStatsTotal(invoice), 0)
     const bultos = filteredInvoices.reduce((sum, invoice) => sum + Number(invoice.total_bultos || 0), 0)
     const average = filteredInvoices.length ? Math.round(total / filteredInvoices.length) : 0
     return { gross, discount, total, bultos, average }
