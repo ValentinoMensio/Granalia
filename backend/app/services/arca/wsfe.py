@@ -191,6 +191,7 @@ class WsfeClient:
       <ar:ImpIVA>{decimal_text(request.imp_iva)}</ar:ImpIVA>
       <ar:MonId>PES</ar:MonId>
       <ar:MonCotiz>1.00</ar:MonCotiz>
+      <ar:CondicionIVAReceptorId>{request.condicion_iva_receptor_id}</ar:CondicionIVAReceptorId>
       <ar:Iva>{iva_xml}</ar:Iva>
     </ar:FECAEDetRequest>
   </ar:FeDetReq>

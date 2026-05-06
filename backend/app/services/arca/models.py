@@ -33,6 +33,7 @@ class ArcaInvoiceRequest:
     concepto: int
     doc_tipo: int
     doc_nro: str
+    condicion_iva_receptor_id: int
     imp_neto: Decimal
     imp_iva: Decimal
     imp_total: Decimal
