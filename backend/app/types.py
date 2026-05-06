@@ -136,6 +136,13 @@ class InvoiceListItemData(TypedDict):
     split_kind: str | None
     split_percentage: float | None
     fiscal_status: str
+    arca_environment: NotRequired[str | None]
+    arca_point_of_sale: NotRequired[int | None]
+    arca_invoice_number: NotRequired[int | None]
+    arca_cae: NotRequired[str | None]
+    arca_cae_expires_at: NotRequired[str | datetime | None]
+    arca_error_code: NotRequired[str | None]
+    arca_error_message: NotRequired[str | None]
     customer_cuit: str
     customer_address: str
     customer_business_name: str
@@ -144,6 +151,7 @@ class InvoiceListItemData(TypedDict):
     gross_total: int
     discount_total: int
     final_total: int
+    fiscal_total: NotRequired[float | None]
     output_filename: str
     xlsx_size: int
     created_at: str | datetime
@@ -161,6 +169,8 @@ class InvoiceItemDetailData(TypedDict):
     gross: int
     discount: int
     total: int
+    effective_discount: NotRequired[int | None]
+    effective_total: NotRequired[int | None]
     product_name: str | None
     offering_label: str | None
     offering_net_weight_kg: NotRequired[float]

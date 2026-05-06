@@ -348,10 +348,18 @@ class InvoiceListItemOut(BaseModel):
     split_kind: str | None = None
     split_percentage: float | None = None
     fiscal_status: str = "internal"
+    arca_environment: str | None = None
+    arca_point_of_sale: int | None = None
+    arca_invoice_number: int | None = None
+    arca_cae: str | None = None
+    arca_cae_expires_at: str | None = None
+    arca_error_code: str | None = None
+    arca_error_message: str | None = None
     total_bultos: float
     gross_total: int
     discount_total: int
     final_total: int
+    fiscal_total: float | None = None
     output_filename: str
     xlsx_size: int
     created_at: str
@@ -369,6 +377,8 @@ class InvoiceItemOut(BaseModel):
     gross: int
     discount: int
     total: int
+    effective_discount: int | None = None
+    effective_total: int | None = None
     product_name: str | None = None
     offering_label: str | None = None
     offering_net_weight_kg: float = 0
