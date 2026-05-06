@@ -54,11 +54,11 @@ def parse_yyyymmdd(value: str) -> date | None:
 
 
 def auth_xml(config: ArcaConfig, ticket: ArcaAuthTicket) -> str:
-    return f"""<Auth>
-  <Token>{escape(ticket.token)}</Token>
-  <Sign>{escape(ticket.sign)}</Sign>
-  <Cuit>{escape(config.cuit)}</Cuit>
-</Auth>"""
+    return f"""<ar:Auth>
+  <ar:Token>{escape(ticket.token)}</ar:Token>
+  <ar:Sign>{escape(ticket.sign)}</ar:Sign>
+  <ar:Cuit>{escape(config.cuit)}</ar:Cuit>
+</ar:Auth>"""
 
 
 def soap_envelope(operation: str, body: str) -> str:
@@ -132,19 +132,19 @@ class WsfeClient:
 
     def get_last_authorized(self, point_of_sale: int, cbte_tipo: int) -> int:
         body = f"""{auth_xml(self.config, self.ticket)}
-<PtoVta>{point_of_sale}</PtoVta>
-<CbteTipo>{cbte_tipo}</CbteTipo>"""
+<ar:PtoVta>{point_of_sale}</ar:PtoVta>
+<ar:CbteTipo>{cbte_tipo}</ar:CbteTipo>"""
         root = request_operation(self.config, "FECompUltimoAutorizado", body)
         value = first_text(root, "CbteNro")
         return int(value) if value.isdigit() else 0
 
     def get_invoice_by_number(self, point_of_sale: int, cbte_tipo: int, cbte_nro: int) -> ArcaAuthorizationResult | None:
         body = f"""{auth_xml(self.config, self.ticket)}
-<FeCompConsReq>
-  <CbteTipo>{cbte_tipo}</CbteTipo>
-  <CbteNro>{cbte_nro}</CbteNro>
-  <PtoVta>{point_of_sale}</PtoVta>
-</FeCompConsReq>"""
+<ar:FeCompConsReq>
+  <ar:CbteTipo>{cbte_tipo}</ar:CbteTipo>
+  <ar:CbteNro>{cbte_nro}</ar:CbteNro>
+  <ar:PtoVta>{point_of_sale}</ar:PtoVta>
+</ar:FeCompConsReq>"""
         root = request_operation(self.config, "FECompConsultar", body)
         result = first_text(root, "Resultado")
         if not result:
@@ -161,40 +161,40 @@ class WsfeClient:
     def request_cae(self, request: ArcaInvoiceRequest, cbte_nro: int) -> ArcaAuthorizationResult:
         today = datetime.now().strftime("%Y%m%d")
         iva_xml = "".join(
-            f"""<AlicIva>
-  <Id>{item.Id}</Id>
-  <BaseImp>{decimal_text(item.BaseImp)}</BaseImp>
-  <Importe>{decimal_text(item.Importe)}</Importe>
-</AlicIva>"""
+            f"""<ar:AlicIva>
+  <ar:Id>{item.Id}</ar:Id>
+  <ar:BaseImp>{decimal_text(item.BaseImp)}</ar:BaseImp>
+  <ar:Importe>{decimal_text(item.Importe)}</ar:Importe>
+</ar:AlicIva>"""
             for item in request.iva
         )
         body = f"""{auth_xml(self.config, self.ticket)}
-<FeCAEReq>
-  <FeCabReq>
-    <CantReg>1</CantReg>
-    <PtoVta>{request.point_of_sale}</PtoVta>
-    <CbteTipo>{request.cbte_tipo}</CbteTipo>
-  </FeCabReq>
-  <FeDetReq>
-    <FECAEDetRequest>
-      <Concepto>{request.concepto}</Concepto>
-      <DocTipo>{request.doc_tipo}</DocTipo>
-      <DocNro>{escape(request.doc_nro)}</DocNro>
-      <CbteDesde>{cbte_nro}</CbteDesde>
-      <CbteHasta>{cbte_nro}</CbteHasta>
-      <CbteFch>{today}</CbteFch>
-      <ImpTotal>{decimal_text(request.imp_total)}</ImpTotal>
-      <ImpTotConc>0.00</ImpTotConc>
-      <ImpNeto>{decimal_text(request.imp_neto)}</ImpNeto>
-      <ImpOpEx>0.00</ImpOpEx>
-      <ImpTrib>0.00</ImpTrib>
-      <ImpIVA>{decimal_text(request.imp_iva)}</ImpIVA>
-      <MonId>PES</MonId>
-      <MonCotiz>1.00</MonCotiz>
-      <Iva>{iva_xml}</Iva>
-    </FECAEDetRequest>
-  </FeDetReq>
-</FeCAEReq>"""
+<ar:FeCAEReq>
+  <ar:FeCabReq>
+    <ar:CantReg>1</ar:CantReg>
+    <ar:PtoVta>{request.point_of_sale}</ar:PtoVta>
+    <ar:CbteTipo>{request.cbte_tipo}</ar:CbteTipo>
+  </ar:FeCabReq>
+  <ar:FeDetReq>
+    <ar:FECAEDetRequest>
+      <ar:Concepto>{request.concepto}</ar:Concepto>
+      <ar:DocTipo>{request.doc_tipo}</ar:DocTipo>
+      <ar:DocNro>{escape(request.doc_nro)}</ar:DocNro>
+      <ar:CbteDesde>{cbte_nro}</ar:CbteDesde>
+      <ar:CbteHasta>{cbte_nro}</ar:CbteHasta>
+      <ar:CbteFch>{today}</ar:CbteFch>
+      <ar:ImpTotal>{decimal_text(request.imp_total)}</ar:ImpTotal>
+      <ar:ImpTotConc>0.00</ar:ImpTotConc>
+      <ar:ImpNeto>{decimal_text(request.imp_neto)}</ar:ImpNeto>
+      <ar:ImpOpEx>0.00</ar:ImpOpEx>
+      <ar:ImpTrib>0.00</ar:ImpTrib>
+      <ar:ImpIVA>{decimal_text(request.imp_iva)}</ar:ImpIVA>
+      <ar:MonId>PES</ar:MonId>
+      <ar:MonCotiz>1.00</ar:MonCotiz>
+      <ar:Iva>{iva_xml}</ar:Iva>
+    </ar:FECAEDetRequest>
+  </ar:FeDetReq>
+</ar:FeCAEReq>"""
         root = request_operation(self.config, "FECAESolicitar", body)
         detail = first_child(root, "FECAEDetResponse") or root
         result = first_text(detail, "Resultado") or first_text(root, "Resultado")
