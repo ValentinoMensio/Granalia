@@ -12,6 +12,17 @@ const money = (value) => new Intl.NumberFormat('es-AR').format(Math.round(value 
 
 const percent = (value) => `${Math.round(Number(value || 0) * 10000) / 100}%`
 
+const date = (value) => {
+  const text = String(value || '').trim()
+  const isoMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (isoMatch) return `${isoMatch[3]}-${isoMatch[2]}-${isoMatch[1]}`
+  const parsed = new Date(text)
+  if (Number.isNaN(parsed.getTime())) return text
+  const day = String(parsed.getDate()).padStart(2, '0')
+  const month = String(parsed.getMonth() + 1).padStart(2, '0')
+  return `${day}-${month}-${parsed.getFullYear()}`
+}
+
 const compactFormatLabel = (value) =>
   String(value || '')
     .replace(/gr$/i, '')
@@ -104,4 +115,4 @@ const summarizeAutomaticBonuses = (customer, catalog = []) => {
     .join(', ')
 }
 
-export { discountKeyForLabel, emptyItem, isX1KgLabel, money, normalize, percent, summarizeAutomaticBonuses, summarizeDiscounts }
+export { date, discountKeyForLabel, emptyItem, isX1KgLabel, money, normalize, percent, summarizeAutomaticBonuses, summarizeDiscounts }

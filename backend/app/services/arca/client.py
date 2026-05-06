@@ -91,8 +91,13 @@ class ArcaClient:
     def _authorize_wsfe(self, request: ArcaInvoiceRequest) -> dict[str, object]:
         try:
             wsfe = WsfeClient(self.config, get_auth_ticket(self.config))
-            points_of_sale = wsfe.get_points_of_sale()
-            if request.point_of_sale not in points_of_sale:
+            points_of_sale: list[int] = []
+            try:
+                points_of_sale = wsfe.get_points_of_sale()
+            except WsfeError as error:
+                if "Sin Resultados" not in str(error):
+                    raise
+            if points_of_sale and request.point_of_sale not in points_of_sale:
                 raise ArcaRejectedError(f"Punto de venta {request.point_of_sale} no habilitado en ARCA")
             last_authorized = wsfe.get_last_authorized(request.point_of_sale, request.cbte_tipo)
             next_number = last_authorized + 1
