@@ -206,11 +206,8 @@ def expand_rows(order: Order, profile: CustomerProfile, catalog: list[CatalogPro
             raise ValueError("Solo la presentación x 1 kg permite cantidades fraccionadas")
         if is_automatic_bonus_excluded(product["name"], offering["label"]):
             bonus_qty = 0
-            bonus_rule = None
         else:
             bonus_rule = matching_automatic_bonus_rule(profile, item.product_id, item.offering_id, product["name"], offering["label"])
-            if bonus_qty <= 0 and bonus_rule is not None:
-                bonus_qty = (int(qty) // int(bonus_rule.buy_quantity)) * int(bonus_rule.bonus_quantity)
         label = f"{product['name']} {offering['label']}"
         rate = choose_rate(profile, discount_key_for_label(offering["label"]))
         if bonus_qty > 0 and profile.automatic_bonus_disables_line_discount:
