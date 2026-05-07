@@ -59,6 +59,22 @@ def all_texts(root: ET.Element | None, name: str) -> list[str]:
     return [element.text.strip() for element in root.iter() if local_name(element.tag) == name and element.text]
 
 
+def descendant_texts(root: ET.Element | None) -> list[str]:
+    if root is None:
+        return []
+    return [element.text.strip() for element in root.iter() if element.text and element.text.strip()]
+
+
+def response_error(root: ET.Element) -> str:
+    for name in ("faultstring", "descripcionError", "error"):
+        value = first_text(root, name)
+        if value:
+            return value
+    error_constancia = first_child(root, "errorConstancia")
+    texts = descendant_texts(error_constancia)
+    return "; ".join(texts)
+
+
 def padron_config(config: ArcaConfig) -> ArcaConfig:
     cache_path = Path(config.token_cache_path)
     return replace(
@@ -108,16 +124,15 @@ def request_persona(config: ArcaConfig, ticket: ArcaAuthTicket, cuit: str) -> ET
     except (socket.timeout, TimeoutError, urllib.error.URLError) as error:
         raise ArcaPadronError(f"No se pudo consultar padron ARCA: {error}") from error
     root = ET.fromstring(body)
-    fault = first_text(root, "faultstring")
-    if fault:
-        raise ArcaPadronError(fault)
-    error = first_text(root, "errorConstancia") or first_text(root, "descripcionError")
+    error = response_error(root)
     if error:
         raise ArcaPadronError(error)
     return root
 
 
 def iva_condition(root: ET.Element) -> str:
+    if first_child(root, "datosGenerales") is None and first_child(root, "datosMonotributo") is None and first_child(root, "datosRegimenGeneral") is None:
+        return ""
     if first_child(root, "datosMonotributo") is not None:
         return "Responsable Monotributo"
     tax_ids = set(all_texts(root, "idImpuesto"))
@@ -164,6 +179,8 @@ def lookup_taxpayer_data(cuit: object, config: ArcaConfig | None = None) -> dict
         "cuit": cuit_digits,
         "environment": base_config.environment,
         "service": "ws_sr_padron_a5",
+        "ta_service": "ws_sr_padron_a5",
+        "wsaa_url": base_config.wsaa_url,
         "url": base_config.padron_url,
         "configured": bool(base_config.enabled and base_config.cuit and base_config.cert_path and base_config.key_path),
         "data": None,
