@@ -45,6 +45,14 @@ def first_text(root: ET.Element | None, name: str) -> str:
     return element.text.strip() if element is not None and element.text else ""
 
 
+def first_text_any(root: ET.Element | None, names: tuple[str, ...]) -> str:
+    for name in names:
+        value = first_text(root, name)
+        if value:
+            return value
+    return ""
+
+
 def all_texts(root: ET.Element | None, name: str) -> list[str]:
     if root is None:
         return []
@@ -120,7 +128,7 @@ def iva_condition(root: ET.Element) -> str:
 
 
 def fiscal_name(root: ET.Element) -> str:
-    razon_social = first_text(root, "razonSocial")
+    razon_social = first_text_any(root, ("razonSocial", "denominacion", "nombreCompleto"))
     if razon_social:
         return razon_social
     parts = [first_text(root, "apellido"), first_text(root, "nombre")]
@@ -128,13 +136,22 @@ def fiscal_name(root: ET.Element) -> str:
 
 
 def fiscal_address(root: ET.Element) -> str:
-    domicilio = first_child(root, "domicilioFiscal")
+    domicilio = first_child(root, "domicilioFiscal") or first_child(root, "domicilio")
+    direccion = first_text_any(domicilio, ("direccion", "calle"))
+    numero = first_text(domicilio, "numero")
+    if numero and numero not in direccion:
+        direccion = f"{direccion} {numero}".strip()
     parts = [
-        first_text(domicilio, "direccion"),
+        direccion,
         first_text(domicilio, "localidad"),
-        first_text(domicilio, "descripcionProvincia"),
+        first_text_any(domicilio, ("descripcionProvincia", "provincia")),
     ]
     return ", ".join(part for part in parts if part).strip()
+
+
+def response_field_names(root: ET.Element) -> list[str]:
+    names = sorted({local_name(element.tag) for element in root.iter()})
+    return names[:80]
 
 
 def lookup_taxpayer_data(cuit: object, config: ArcaConfig | None = None) -> dict[str, object]:
@@ -170,9 +187,10 @@ def lookup_taxpayer_data(cuit: object, config: ArcaConfig | None = None) -> dict
         "iva_condition": iva_condition(root),
     }
     result["data"] = {key: value for key, value in data.items() if value}
-    result["ok"] = bool(result["data"])
+    result["fields"] = response_field_names(root)
+    result["ok"] = bool(data["business_name"] or data["address"])
     if not result["ok"]:
-        result["error"] = "ARCA no devolvio datos fiscales"
+        result["error"] = "ARCA no devolvio razon social ni domicilio para ese CUIT"
     return result
 
 

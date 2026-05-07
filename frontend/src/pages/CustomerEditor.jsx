@@ -94,6 +94,8 @@ export default function CustomerEditor() {
         return
       }
       const data = result.data
+      const hasBusinessName = Boolean(data.business_name)
+      const hasAddress = Boolean(data.address)
       setFormData((current) => ({
         ...current,
         cuit: data.cuit || current.cuit,
@@ -101,7 +103,12 @@ export default function CustomerEditor() {
         business_name: data.business_name || current.business_name || '',
         address: data.address || current.address || '',
       }))
-      setStatus('Datos fiscales cargados desde ARCA.')
+      if (hasBusinessName && hasAddress) {
+        setStatus('Datos fiscales cargados desde ARCA.')
+      } else {
+        const missing = [!hasBusinessName && 'razón social', !hasAddress && 'domicilio'].filter(Boolean).join(' y ')
+        setStatus(`ARCA respondió, pero no devolvió ${missing}.`)
+      }
     } catch (error) {
       setStatus(`No se pudieron obtener datos fiscales de ARCA: ${error.message}`)
     } finally {
