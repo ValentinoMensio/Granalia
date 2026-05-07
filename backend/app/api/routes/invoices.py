@@ -135,6 +135,21 @@ def profile_with_arca_taxpayer_data(profile: dict) -> dict:
     }
 
 
+def invoice_with_arca_taxpayer_data(invoice: dict) -> dict:
+    if not (bool(invoice.get("declared")) or invoice.get("split_kind") == "fiscal"):
+        return invoice
+    taxpayer = get_taxpayer_data(invoice.get("customer_cuit") or invoice.get("arca_doc_nro"))
+    if not taxpayer:
+        return invoice
+    return {
+        **invoice,
+        "customer_cuit": taxpayer.get("cuit") or invoice.get("customer_cuit"),
+        "customer_business_name": taxpayer.get("business_name") or invoice.get("customer_business_name"),
+        "customer_address": taxpayer.get("address") or invoice.get("customer_address"),
+        "customer_iva_condition": taxpayer.get("iva_condition") or invoice.get("customer_iva_condition"),
+    }
+
+
 def fiscalize_snapshot(snapshot: dict, catalog: list[dict]) -> dict:
     products_by_id = {str(product.get("id")): product for product in catalog}
     rows = []
@@ -291,6 +306,7 @@ def download_invoice_pdf(invoice_id: int, role: str = Depends(current_role)) -> 
     if not invoice:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
     ensure_invoice_visible_for_role(invoice, role)
+    invoice = invoice_with_arca_taxpayer_data(invoice)
     pdf_bytes = build_invoice_pdf(invoice)
     return Response(
         content=pdf_bytes,

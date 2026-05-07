@@ -607,10 +607,10 @@ def _draw_fiscal_header(pdf: canvas.Canvas, invoice: dict, width: float, height:
 
     _draw_logo(
         pdf,
-        margin=left + 38,
-        y=top_band_bottom - 6,
+        margin=left + 74,
+        y=top_band_bottom - 8,
         logo_path=BASE_DIR / "img" / "logof-bw.png",
-        logo_width=150,
+        logo_width=74,
     )
 
     left_label_x = left + 6

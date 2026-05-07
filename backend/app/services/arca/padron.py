@@ -5,6 +5,7 @@ import ssl
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
+import logging
 from dataclasses import replace
 from pathlib import Path
 from xml.sax.saxutils import escape
@@ -15,6 +16,7 @@ from .wsaa import WsaaError, get_auth_ticket
 
 
 NS = "http://a5.soap.ws.server.puc.sr/"
+logger = logging.getLogger(__name__)
 
 
 class ArcaPadronError(RuntimeError):
@@ -138,7 +140,8 @@ def get_taxpayer_data(cuit: object, config: ArcaConfig | None = None) -> dict[st
     try:
         ticket = get_auth_ticket(config)
         root = request_persona(config, ticket, cuit_digits)
-    except (ArcaPadronError, WsaaError, ET.ParseError, ValueError):
+    except (ArcaPadronError, WsaaError, ET.ParseError, ValueError) as error:
+        logger.warning("No se pudieron obtener datos fiscales ARCA para CUIT %s: %s", cuit_digits, error)
         return None
     data = {
         "cuit": cuit_digits,
