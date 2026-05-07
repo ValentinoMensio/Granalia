@@ -238,12 +238,15 @@ def _draw_logo(pdf: canvas.Canvas, *, margin: int, y: float, logo_path: Path) ->
 def _draw_header(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> float:
     logo_path = BASE_DIR / "img" / "logof-bw.png"
 
-    _draw_logo(pdf, margin=MARGIN, y=y + 10, logo_path=logo_path)
+    _draw_logo(pdf, margin=MARGIN, y=y + 18, logo_path=logo_path)
 
     _set_color(pdf, COLOR_TEXT)
     pdf.setFont(FONT_BOLD, 17)
-    fiscal_number = invoice.get("fiscal_number") or f"Remito #{invoice['id']}"
-    pdf.drawRightString(width - MARGIN, y - 8, str(fiscal_number))
+    fiscal_number = str(invoice.get("fiscal_number") or invoice.get("id") or "")
+    remito_number = re.sub(r"factura", "Remito", fiscal_number, flags=re.IGNORECASE)
+    if not remito_number.lower().startswith("remito"):
+        remito_number = f"Remito #{remito_number}"
+    pdf.drawRightString(width - MARGIN, y - 8, remito_number)
 
     pdf.setFont(FONT_REGULAR, 12)
     _set_color(pdf, COLOR_MUTED)
