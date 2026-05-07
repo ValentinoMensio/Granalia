@@ -238,11 +238,11 @@ def _draw_logo(pdf: canvas.Canvas, *, margin: int, y: float, logo_path: Path) ->
 def _draw_header(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> float:
     logo_path = BASE_DIR / "img" / "logof-bw.png"
 
-    _draw_logo(pdf, margin=MARGIN, y=y, logo_path=logo_path)
+    _draw_logo(pdf, margin=MARGIN, y=y + 10, logo_path=logo_path)
 
     _set_color(pdf, COLOR_TEXT)
     pdf.setFont(FONT_BOLD, 17)
-    fiscal_number = invoice.get("fiscal_number") or f"Factura #{invoice['id']}"
+    fiscal_number = invoice.get("fiscal_number") or f"Remito #{invoice['id']}"
     pdf.drawRightString(width - MARGIN, y - 8, str(fiscal_number))
 
     pdf.setFont(FONT_REGULAR, 12)
@@ -306,12 +306,12 @@ def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: in
     font_size = ITEM_FONT_SIZE
     row_height = ITEM_ROW_HEIGHT
 
-    pdf.setFont(FONT_REGULAR, font_size)
+    pdf.setFont(FONT_BOLD, font_size)
     _set_color(pdf, COLOR_TEXT)
 
     label = _truncate(
         str(item.get("label") or ""),
-        FONT_REGULAR,
+        FONT_BOLD,
         font_size,
         max_width=242,
     )
@@ -698,7 +698,7 @@ def build_invoice_pdf(invoice: dict) -> bytes:
     width, height = PAGE_SIZE
     y = height - 28
 
-    pdf.setTitle(f"Factura {invoice['id']}")
+    pdf.setTitle(f"Remito {invoice['id']}")
 
     y = _draw_header(pdf, invoice, width, y)
     y = _draw_invoice_info(pdf, invoice, y)
