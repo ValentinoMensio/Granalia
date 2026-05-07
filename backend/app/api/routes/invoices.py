@@ -10,7 +10,7 @@ from ...dependencies import current_role, get_repository, require_admin, validat
 from ...schemas import ArcaAuthorizationOut, AuthorizationPayload, InvoiceCreateOut, InvoiceDetailOut, InvoiceListItemOut, InvoiceRequest, StatusResponse
 from ...services.arca import ArcaDisabledError, ArcaNotConfiguredError, ArcaRejectedError, ArcaTechnicalError
 from ...services.arca.authorization import ArcaAuthorizationConflict, authorize_invoice_in_arca as authorize_invoice_service
-from ...services.arca.padron import get_taxpayer_data
+from ...services.arca.padron import get_taxpayer_data, lookup_taxpayer_data
 from ...services.pdf import build_invoice_pdf
 from ...services.invoicing import generate_invoice_document
 
@@ -272,6 +272,11 @@ def invoices(limit: int = Query(default=500, ge=1, le=10000), role: str = Depend
 @router.get("/stats/items")
 def invoice_item_stats(_: str = Depends(require_admin)) -> list[dict[str, object]]:
     return get_repository().list_invoice_item_stats()
+
+
+@router.get("/arca/taxpayer/{cuit}")
+def arca_taxpayer_lookup(cuit: str, _: str = Depends(require_admin)) -> dict[str, object]:
+    return lookup_taxpayer_data(cuit)
 
 
 @router.get("/{invoice_id}", response_model=InvoiceDetailOut)
