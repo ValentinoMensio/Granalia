@@ -15,7 +15,6 @@ from .models import ArcaAuthTicket
 from .wsaa import WsaaError, get_auth_ticket
 
 
-NS = "http://a5.soap.ws.server.puc.sr/"
 logger = logging.getLogger(__name__)
 
 
@@ -77,11 +76,20 @@ def response_error(root: ET.Element) -> str:
 
 def padron_config(config: ArcaConfig) -> ArcaConfig:
     cache_path = Path(config.token_cache_path)
+    service = config.padron_service or "ws_sr_padron_a5"
     return replace(
         config,
-        service="ws_sr_padron_a5",
-        token_cache_path=str(cache_path.with_name(f"{cache_path.stem}-padron{cache_path.suffix}")),
+        service=service,
+        token_cache_path=str(cache_path.with_name(f"{cache_path.stem}-{service}{cache_path.suffix}")),
     )
+
+
+def padron_scope(config: ArcaConfig) -> str:
+    return (config.padron_service or config.service or "ws_sr_padron_a5").rsplit("_", 1)[-1].lower()
+
+
+def padron_namespace(config: ArcaConfig) -> str:
+    return f"http://{padron_scope(config)}.soap.ws.server.puc.sr/"
 
 
 def auth_xml(config: ArcaConfig, ticket: ArcaAuthTicket, cuit: str) -> str:
@@ -91,21 +99,23 @@ def auth_xml(config: ArcaConfig, ticket: ArcaAuthTicket, cuit: str) -> str:
 <idPersona>{escape(cuit)}</idPersona>"""
 
 
-def soap_envelope(body: str) -> str:
+def soap_envelope(config: ArcaConfig, body: str) -> str:
+    namespace = padron_namespace(config)
     return f"""<?xml version="1.0" encoding="UTF-8"?>
-<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:a5="{NS}">
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:padron="{namespace}">
   <soapenv:Header/>
   <soapenv:Body>
-    <a5:getPersona>{body}</a5:getPersona>
+    <padron:getPersona>{body}</padron:getPersona>
   </soapenv:Body>
 </soapenv:Envelope>"""
 
 
 def request_persona(config: ArcaConfig, ticket: ArcaAuthTicket, cuit: str) -> ET.Element:
+    namespace = padron_namespace(config)
     request = urllib.request.Request(
         config.padron_url,
-        data=soap_envelope(auth_xml(config, ticket, cuit)).encode("utf-8"),
-        headers={"Content-Type": "text/xml; charset=utf-8", "SOAPAction": f"{NS}getPersona"},
+        data=soap_envelope(config, auth_xml(config, ticket, cuit)).encode("utf-8"),
+        headers={"Content-Type": "text/xml; charset=utf-8", "SOAPAction": f"{namespace}getPersona"},
         method="POST",
     )
     context = ssl.create_default_context()
@@ -178,8 +188,8 @@ def lookup_taxpayer_data(cuit: object, config: ArcaConfig | None = None) -> dict
         "ok": False,
         "cuit": cuit_digits,
         "environment": base_config.environment,
-        "service": "ws_sr_padron_a5",
-        "ta_service": "ws_sr_padron_a5",
+        "service": base_config.padron_service,
+        "ta_service": base_config.padron_service,
         "wsaa_url": base_config.wsaa_url,
         "url": base_config.padron_url,
         "configured": bool(base_config.enabled and base_config.cuit and base_config.cert_path and base_config.key_path),

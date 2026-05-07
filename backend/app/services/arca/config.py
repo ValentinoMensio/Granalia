@@ -15,6 +15,7 @@ class ArcaConfig:
     wsaa_url: str
     wsfe_url: str
     padron_url: str
+    padron_service: str
     cert_path: str
     key_path: str
     key_password: str
@@ -37,7 +38,12 @@ def get_arca_config() -> ArcaConfig:
     service = "wsfev1"
     default_wsaa_url = "https://wsaahomo.afip.gov.ar/ws/services/LoginCms" if environment == "homologacion" else "https://wsaa.afip.gov.ar/ws/services/LoginCms"
     default_service_url = "https://wswhomo.afip.gov.ar/wsfev1/service.asmx" if environment == "homologacion" else "https://servicios1.afip.gov.ar/wsfev1/service.asmx"
-    default_padron_url = "https://awshomo.afip.gov.ar/sr-padron/webservices/personaServiceA5" if environment == "homologacion" else "https://aws.afip.gov.ar/sr-padron/webservices/personaServiceA5"
+    padron_service = os.getenv("GRANALIA_ARCA_PADRON_SERVICE", "ws_sr_padron_a4").strip().lower() or "ws_sr_padron_a4"
+    if not padron_service.startswith("ws_sr_padron_"):
+        padron_service = f"ws_sr_padron_{padron_service}"
+    padron_scope = padron_service.rsplit("_", 1)[-1].upper()
+    default_padron_host = "https://awshomo.afip.gov.ar" if environment == "homologacion" else "https://aws.afip.gov.ar"
+    default_padron_url = f"{default_padron_host}/sr-padron/webservices/personaService{padron_scope}"
     timeout = os.getenv("GRANALIA_ARCA_TIMEOUT_SECONDS", "30").strip()
     mark_authorized = os.getenv("GRANALIA_ARCA_MARK_AUTHORIZED", "").strip().lower()
     receiver_iva_condition_id = os.getenv("GRANALIA_ARCA_RECEIVER_IVA_CONDITION_ID", "1").strip()
@@ -50,6 +56,7 @@ def get_arca_config() -> ArcaConfig:
         wsaa_url=os.getenv("GRANALIA_ARCA_WSAA_URL", default_wsaa_url).strip() or default_wsaa_url,
         wsfe_url=os.getenv("GRANALIA_ARCA_SERVICE_URL", os.getenv("GRANALIA_ARCA_WSFE_URL", default_service_url)).strip() or default_service_url,
         padron_url=os.getenv("GRANALIA_ARCA_PADRON_URL", default_padron_url).strip() or default_padron_url,
+        padron_service=padron_service,
         cert_path=os.getenv("GRANALIA_ARCA_CERT_PATH", "").strip(),
         key_path=os.getenv("GRANALIA_ARCA_KEY_PATH", "").strip(),
         key_password=os.getenv("GRANALIA_ARCA_KEY_PASSWORD", "").strip(),
