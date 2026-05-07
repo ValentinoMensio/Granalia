@@ -219,7 +219,7 @@ def _weight(value: float) -> str:
     return f"{formatted} kg"
 
 
-def _draw_logo(pdf: canvas.Canvas, *, margin: int, y: float, logo_path: Path) -> float:
+def _draw_logo(pdf: canvas.Canvas, *, margin: int, y: float, logo_path: Path, logo_width: int = 175) -> float:
     if not logo_path.exists():
         return y
 
@@ -237,7 +237,6 @@ def _draw_logo(pdf: canvas.Canvas, *, margin: int, y: float, logo_path: Path) ->
         image.save(image_buffer, format="PNG")
         image_buffer.seek(0)
 
-    logo_width = 175
     logo_height = logo_width * image.height / image.width
 
     pdf.drawImage(
@@ -606,8 +605,13 @@ def _draw_fiscal_header(pdf: canvas.Canvas, invoice: dict, width: float, height:
     pdf.setFont(FONT_BOLD, 7)
     pdf.drawCentredString(mid_x, letter_bottom + 8, "COD. 01")
 
-    pdf.setFont(FONT_BOLD, 11)
-    pdf.drawCentredString((left + left_inner_right) / 2, top_band_bottom - 22, issuer["business_name"])
+    _draw_logo(
+        pdf,
+        margin=left + 38,
+        y=top_band_bottom - 6,
+        logo_path=BASE_DIR / "img" / "logof-bw.png",
+        logo_width=150,
+    )
 
     left_label_x = left + 6
     left_value_x = left + 106

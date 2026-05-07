@@ -336,6 +336,7 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     self.invoices.c.customer_cuit,
                     self.invoices.c.customer_address,
                     self.invoices.c.customer_business_name,
+                    self.invoices.c.customer_iva_condition,
                     self.invoices.c.customer_email,
                     self.invoices.c.declared,
                     self.invoices.c.split_kind,
@@ -450,6 +451,7 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
             "customer_cuit": str(profile.get("cuit", "") or ""),
             "customer_address": str(profile.get("address", "") or ""),
             "customer_business_name": str(profile.get("business_name", "") or ""),
+            "customer_iva_condition": str(profile.get("iva_condition", "") or ""),
             "customer_email": str(profile.get("email", "") or ""),
             "order_date": order_date,
             "secondary_line": order.get("secondary_line") or profile.get("secondary_line") or "",
@@ -649,9 +651,10 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
             for doc in invoices:
                 order = cast(OrderData, doc["order"])
                 snapshot = cast(InvoiceSnapshotData, doc["snapshot"])
+                invoice_profile = cast(CustomerProfileData, doc.get("profile") or profile)
                 _mode, footer_discounts, line_discounts_by_format = canonicalize_discount_config(
-                    profile.get("footer_discounts", []),
-                    profile.get("line_discounts_by_format", {}),
+                    invoice_profile.get("footer_discounts", []),
+                    invoice_profile.get("line_discounts_by_format", {}),
                 )
                 price_list_id = order.get("price_list_id")
                 price_list_name = ""
@@ -679,14 +682,15 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     "fiscal_status": str(doc.get("fiscal_status") or ("draft" if order.get("declared") else "internal")),
                     "price_list_name": price_list_name,
                     "price_list_effective_date": price_list_effective_date,
-                    "customer_cuit": str(profile.get("cuit", "") or ""),
-                    "customer_address": str(profile.get("address", "") or ""),
-                    "customer_business_name": str(profile.get("business_name", "") or ""),
-                    "customer_email": str(profile.get("email", "") or ""),
+                    "customer_cuit": str(invoice_profile.get("cuit", "") or ""),
+                    "customer_address": str(invoice_profile.get("address", "") or ""),
+                    "customer_business_name": str(invoice_profile.get("business_name", "") or ""),
+                    "customer_iva_condition": str(invoice_profile.get("iva_condition", "") or ""),
+                    "customer_email": str(invoice_profile.get("email", "") or ""),
                     "order_date": order_date,
-                    "secondary_line": order.get("secondary_line") or profile.get("secondary_line") or "",
-                    "transport": order.get("transport") or profile.get("transport") or "",
-                    "notes": order.get("notes") or profile.get("notes") or [],
+                    "secondary_line": order.get("secondary_line") or invoice_profile.get("secondary_line") or "",
+                    "transport": order.get("transport") or invoice_profile.get("transport") or "",
+                    "notes": order.get("notes") or invoice_profile.get("notes") or [],
                     "footer_discounts": footer_discounts,
                     "line_discounts_by_format": line_discounts_by_format,
                     "total_bultos": float(snapshot["summary"]["total_bultos"]),
@@ -975,6 +979,7 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     customer_cuit=str(profile.get("cuit", "") or ""),
                     customer_address=str(profile.get("address", "") or ""),
                     customer_business_name=str(profile.get("business_name", "") or ""),
+                    customer_iva_condition=str(profile.get("iva_condition", "") or ""),
                     customer_email=str(profile.get("email", "") or ""),
                     order_date=order_date,
                     secondary_line=order.get("secondary_line") or profile.get("secondary_line") or "",

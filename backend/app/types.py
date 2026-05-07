@@ -148,6 +148,7 @@ class InvoiceListItemData(TypedDict):
     customer_cuit: str
     customer_address: str
     customer_business_name: str
+    customer_iva_condition: str
     customer_email: str
     total_bultos: float
     gross_total: int
@@ -237,6 +238,7 @@ class InvoiceDetailData(TypedDict):
     customer_cuit: str | None
     customer_address: str | None
     customer_business_name: str | None
+    customer_iva_condition: str | None
     customer_email: str | None
     transport_name: str | None
     items: list[InvoiceItemDetailData]
