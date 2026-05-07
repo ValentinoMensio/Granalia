@@ -10,6 +10,7 @@ from ...dependencies import current_role, get_repository, require_admin, validat
 from ...schemas import ArcaAuthorizationOut, AuthorizationPayload, InvoiceCreateOut, InvoiceDetailOut, InvoiceListItemOut, InvoiceRequest, StatusResponse
 from ...services.arca import ArcaDisabledError, ArcaNotConfiguredError, ArcaRejectedError, ArcaTechnicalError
 from ...services.arca.authorization import ArcaAuthorizationConflict, authorize_invoice_in_arca as authorize_invoice_service
+from ...services.arca.padron import get_taxpayer_data
 from ...services.pdf import build_invoice_pdf
 from ...services.invoicing import generate_invoice_document
 
@@ -121,6 +122,19 @@ def order_with_items(order: dict, *, price_list_id: int | None, declared: bool, 
     }
 
 
+def profile_with_arca_taxpayer_data(profile: dict) -> dict:
+    taxpayer = get_taxpayer_data(profile.get("cuit"))
+    if not taxpayer:
+        return profile
+    return {
+        **profile,
+        "business_name": taxpayer.get("business_name") or profile.get("business_name") or profile.get("name") or "",
+        "address": taxpayer.get("address") or profile.get("address") or "",
+        "cuit": taxpayer.get("cuit") or profile.get("cuit") or "",
+        "iva_condition": taxpayer.get("iva_condition") or profile.get("iva_condition") or "",
+    }
+
+
 def fiscalize_snapshot(snapshot: dict, catalog: list[dict]) -> dict:
     products_by_id = {str(product.get("id")): product for product in catalog}
     rows = []
@@ -214,9 +228,10 @@ def build_and_save_split(repository, order: dict, profile: dict, *, update_custo
         internal_filename, internal_xlsx, internal_snapshot = generate_invoice_document(internal_order, profile, internal_catalog)
         batch_invoices.append({"order": internal_order, "snapshot": internal_snapshot, "filename": internal_filename, "xlsx_bytes": internal_xlsx, "split_kind": "internal", "split_percentage": 100 - declared_percentage, "fiscal_status": "internal"})
     if fiscal_order.get("items"):
-        fiscal_filename, fiscal_xlsx, fiscal_snapshot = generate_invoice_document(fiscal_order, profile, fiscal_catalog)
+        fiscal_profile = profile_with_arca_taxpayer_data(profile)
+        fiscal_filename, fiscal_xlsx, fiscal_snapshot = generate_invoice_document(fiscal_order, fiscal_profile, fiscal_catalog)
         fiscal_snapshot = fiscalize_snapshot(fiscal_snapshot, fiscal_catalog)
-        batch_invoices.append({"order": fiscal_order, "snapshot": fiscal_snapshot, "filename": fiscal_filename, "xlsx_bytes": fiscal_xlsx, "split_kind": "fiscal", "split_percentage": declared_percentage, "fiscal_status": "draft"})
+        batch_invoices.append({"order": fiscal_order, "profile": fiscal_profile, "snapshot": fiscal_snapshot, "filename": fiscal_filename, "xlsx_bytes": fiscal_xlsx, "split_kind": "fiscal", "split_percentage": declared_percentage, "fiscal_status": "draft"})
     if not batch_invoices:
         raise ValueError("No hay cantidades para generar")
     batch_id, invoice_ids = repository.save_invoice_batch(
@@ -309,6 +324,7 @@ def create_invoice(payload: InvoiceRequest, role: str = Depends(current_role)) -
             order["declared"] = True
             order["price_list_id"] = order.get("fiscal_price_list_id") or order.get("price_list_id")
             order["items"] = [{**item, "bonus_quantity": 0} for item in order.get("items", [])]
+            profile = profile_with_arca_taxpayer_data(profile)
             catalog = repository.get_catalog_for_price_list(int(order["price_list_id"])) if order.get("price_list_id") else repository.get_active_catalog()
             filename, xlsx_bytes, snapshot = generate_invoice_document(order, profile, catalog)
             snapshot = fiscalize_snapshot(snapshot, catalog)
@@ -357,6 +373,8 @@ def update_invoice(invoice_id: int, payload: InvoiceRequest, _: str = Depends(re
     order = payload.order.model_dump()
     profile = payload.profile.model_dump()
     try:
+        if str(order.get("billing_mode") or "") == "fiscal_only" or (bool(order.get("declared")) and batch_id is None):
+            profile = profile_with_arca_taxpayer_data(profile)
         if batch_id is not None:
             if str(order.get("billing_mode") or "") != "split":
                 raise ValueError("Para editar un batch split se debe regenerar el split completo")

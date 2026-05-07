@@ -495,6 +495,7 @@ class PostgresMigrationMixin(PostgresRepositoryProtocol):
                 ("customer_cuit", "VARCHAR(32)"),
                 ("customer_address", "TEXT"),
                 ("customer_business_name", "VARCHAR(255)"),
+                ("customer_iva_condition", "VARCHAR(120) NOT NULL DEFAULT ''"),
                 ("customer_email", "VARCHAR(255)"),
             ]
             for column_name, definition in invoice_fields:

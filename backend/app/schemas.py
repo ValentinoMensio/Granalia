@@ -447,6 +447,7 @@ class InvoiceDetailOut(BaseModel):
     customer_cuit: str | None = None
     customer_address: str | None = None
     customer_business_name: str | None = None
+    customer_iva_condition: str | None = None
     customer_email: str | None = None
     transport_name: str | None = None
     items: list[InvoiceItemOut] = Field(default_factory=list)
