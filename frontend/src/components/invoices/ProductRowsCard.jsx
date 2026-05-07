@@ -3,15 +3,29 @@ import Metric from '../ui/Metric'
 import { isX1KgLabel, money } from '../../lib/format'
 
 function optionsWithHistoricalSelection(options, selectedId, selectedLabel) {
-  if (!selectedId || options.some((entry) => String(entry.id) === String(selectedId))) {
+  if (!selectedId) {
     return options
+  }
+  if (options.some((entry) => String(entry.id) === String(selectedId))) {
+    return options.map((entry) => (
+      String(entry.id) === String(selectedId)
+        ? { ...entry, label: selectedLabel || entry.label }
+        : entry
+    ))
   }
   return [...options, { id: selectedId, label: `${selectedLabel || 'Presentación anterior'} (inactiva)`, price: 0 }]
 }
 
 function productsWithHistoricalSelection(catalog, selectedId, selectedName) {
-  if (!selectedId || catalog.some((entry) => String(entry.id) === String(selectedId))) {
+  if (!selectedId) {
     return catalog
+  }
+  if (catalog.some((entry) => String(entry.id) === String(selectedId))) {
+    return catalog.map((entry) => (
+      String(entry.id) === String(selectedId)
+        ? { ...entry, name: selectedName || entry.name }
+        : entry
+    ))
   }
   return [...catalog, { id: selectedId, name: `${selectedName || 'Producto anterior'} (inactivo)`, offerings: [] }]
 }
@@ -88,7 +102,7 @@ function ProductRowsCard({
                 const product = productsById[item.product_id]
                 const offeringOptions = editingInvoiceId ? optionsWithHistoricalSelection(product?.offerings || [], item.offering_id, item.offering_label) : (product?.offerings || [])
                 const offering = offeringOptions.find((entry) => String(entry.id) === String(item.offering_id))
-                const allowsFractionalQuantity = isX1KgLabel(offering?.label || item.offering_label)
+                const allowsFractionalQuantity = isX1KgLabel(item.offering_label || offering?.label)
                 const price = item.unit_price === '' || item.unit_price === undefined ? Number(offering?.price || 0) : Number(item.unit_price || 0)
                 const quantity = Number(item.quantity || 0)
                 const rowTotal = quantity * price
@@ -201,7 +215,7 @@ function ProductRowsCard({
             const product = productsById[item.product_id]
             const offeringOptions = editingInvoiceId ? optionsWithHistoricalSelection(product?.offerings || [], item.offering_id, item.offering_label) : (product?.offerings || [])
             const offering = offeringOptions.find((entry) => String(entry.id) === String(item.offering_id))
-            const allowsFractionalQuantity = isX1KgLabel(offering?.label || item.offering_label)
+            const allowsFractionalQuantity = isX1KgLabel(item.offering_label || offering?.label)
             const price = item.unit_price === '' || item.unit_price === undefined ? Number(offering?.price || 0) : Number(item.unit_price || 0)
             const quantity = Number(item.quantity || 0)
             const rowTotal = quantity * price

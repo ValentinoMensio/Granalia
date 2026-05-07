@@ -158,26 +158,7 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
                         .limit(1)
                     ).mappings().first()
                     if duplicate:
-                        target_id = int(duplicate["id"])
-                        connection.execute(
-                            update(self.invoice_items)
-                            .where(self.invoice_items.c.offering_id == offering_id)
-                            .values(offering_id=target_id)
-                        )
-                        connection.execute(
-                            update(self.product_offerings)
-                            .where(self.product_offerings.c.id == target_id)
-                            .values(
-                                price=int(offering["price"]),
-                                net_weight_kg=_offering_net_weight(offering, offering_label, duplicate),
-                                position=position,
-                                active=True,
-                                updated_at=now,
-                            )
-                        )
-                        connection.execute(self.product_offerings.delete().where(self.product_offerings.c.id == offering_id))
-                        active_offering_db_ids.add(target_id)
-                        continue
+                        raise ValueError(f"Ya existe la presentacion {offering_label} para {product_name}")
 
                     connection.execute(
                         update(self.product_offerings)
@@ -331,26 +312,7 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
                         .limit(1)
                     ).mappings().first()
                     if duplicate:
-                        target_id = int(duplicate["id"])
-                        connection.execute(
-                            update(self.invoice_items)
-                            .where(self.invoice_items.c.offering_id == offering_id)
-                            .values(offering_id=target_id)
-                        )
-                        connection.execute(
-                            update(self.product_offerings)
-                            .where(self.product_offerings.c.id == target_id)
-                            .values(
-                                price=int(off["price"]),
-                                net_weight_kg=_offering_net_weight(off, offering_label, duplicate),
-                                position=position,
-                                active=True,
-                                updated_at=now,
-                            )
-                        )
-                        connection.execute(self.product_offerings.delete().where(self.product_offerings.c.id == offering_id))
-                        seen_ids.add(target_id)
-                        continue
+                        raise ValueError(f"Ya existe la presentacion {offering_label} para este producto")
 
                     connection.execute(
                         update(self.product_offerings)
@@ -515,7 +477,16 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
     def delete_product(self, product_id: int) -> None:
         now = utc_now()
         with self.engine.begin() as connection:
-            connection.execute(self.products.delete().where(self.products.c.id == product_id))
+            connection.execute(
+                update(self.products)
+                .where(self.products.c.id == product_id)
+                .values(active=False, updated_at=now)
+            )
+            connection.execute(
+                update(self.product_offerings)
+                .where(self.product_offerings.c.product_id == product_id)
+                .values(active=False, updated_at=now)
+            )
             self._refresh_active_catalog_snapshot(connection=connection, now=now)
 
     def replace_active_catalog(self, catalog: list[CatalogProductData], name: str = "Lista activa", price_list_id: int | None = None, active: bool = True) -> dict[str, object]:
