@@ -29,9 +29,13 @@ def ensure_invoice_visible_for_role(invoice: dict, role: str) -> None:
         raise HTTPException(status_code=403, detail="Los operadores solo pueden ver facturas de los últimos 7 días")
 
 
-def catalog_with_invoice_history(catalog: list[dict], invoice: dict) -> list[dict]:
+def catalog_with_invoice_history(catalog: list[dict], invoice: dict, order: dict | None = None) -> list[dict]:
     next_catalog = [{**product, "offerings": [dict(offering) for offering in product.get("offerings", [])]} for product in catalog]
     products_by_id = {str(product.get("id")): product for product in next_catalog}
+    selected_labels = {
+        (str(item.get("product_id") or ""), str(item.get("offering_id") or "")): str(item.get("offering_label") or "").strip()
+        for item in (order or {}).get("items", [])
+    }
 
     for item in invoice.get("items", []):
         product_id = item.get("product_id")
@@ -40,6 +44,12 @@ def catalog_with_invoice_history(catalog: list[dict], invoice: dict) -> list[dic
             continue
 
         product_key = str(product_id)
+        offering_key = str(offering_id)
+        historical_label = str(item.get("offering_label") or item.get("label") or "").strip()
+        selected_label = selected_labels.get((product_key, offering_key), "")
+        if selected_label and historical_label and selected_label != historical_label:
+            continue
+
         product = products_by_id.get(product_key)
         if not product:
             product = {
@@ -55,7 +65,7 @@ def catalog_with_invoice_history(catalog: list[dict], invoice: dict) -> list[dic
 
         historical_offering = {
             "id": offering_id,
-            "label": item.get("offering_label") or item.get("label") or "Presentación anterior",
+            "label": historical_label or "Presentación anterior",
             "price": int(item.get("unit_price") or 0),
             "net_weight_kg": float(item.get("offering_net_weight_kg") or item.get("net_weight_kg") or 0),
         }
@@ -353,7 +363,7 @@ def update_invoice(invoice_id: int, payload: InvoiceRequest, _: str = Depends(re
             return build_and_save_split(repository, order, profile, update_customer=True, replace_batch_id=batch_id)
 
         base_catalog = repository.get_catalog_for_price_list(int(order["price_list_id"])) if order.get("price_list_id") else repository.get_active_catalog()
-        catalog = catalog_with_invoice_history(base_catalog, invoice)
+        catalog = catalog_with_invoice_history(base_catalog, invoice, order)
         filename, xlsx_bytes, snapshot = generate_invoice_document(order, profile, catalog)
         repository.update_invoice(invoice_id, order, profile, snapshot, filename, xlsx_bytes)
     except (RuntimeError, ValueError) as error:

@@ -55,9 +55,12 @@ class FooterDiscount(BaseModel):
 class InvoiceItemInput(BaseModel):
     product_id: int
     offering_id: int
+    offering_label: str = Field(default="", max_length=120)
     quantity: NonNegativeNumber
     bonus_quantity: NonNegativeInt = 0
     unit_price: NonNegativeInt | None = None
+
+    _normalize_offering_label = field_validator("offering_label")(_strip_optional)
 
     @field_validator("bonus_quantity", mode="before")
     @classmethod

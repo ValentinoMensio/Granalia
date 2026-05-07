@@ -6,14 +6,28 @@ function optionsWithHistoricalSelection(options, selectedId, selectedLabel) {
   if (!selectedId) {
     return options
   }
-  if (options.some((entry) => String(entry.id) === String(selectedId))) {
-    return options.map((entry) => (
-      String(entry.id) === String(selectedId)
-        ? { ...entry, label: selectedLabel || entry.label }
-        : entry
-    ))
+  const current = options.find((entry) => String(entry.id) === String(selectedId))
+  if (current) {
+    const historicalLabel = String(selectedLabel || '').trim()
+    if (historicalLabel && historicalLabel !== String(current.label || '').trim()) {
+      return [
+        ...options.map((entry) => ({ ...entry, optionValue: `current:${entry.id}` })),
+        { ...current, label: `${historicalLabel} (histórico)`, optionValue: `history:${selectedId}` },
+      ]
+    }
+    return options
   }
   return [...options, { id: selectedId, label: `${selectedLabel || 'Presentación anterior'} (inactiva)`, price: 0 }]
+}
+
+function offeringSelectValue(item, options) {
+  const hasHistoricalOption = options.some((entry) => entry.optionValue === `history:${item.offering_id}`)
+  return hasHistoricalOption ? `history:${item.offering_id}` : item.offering_id
+}
+
+function parseOfferingSelectValue(value) {
+  const [mode, id] = String(value || '').includes(':') ? String(value).split(':') : ['current', value]
+  return { mode, id: id ? Number(id) : '' }
 }
 
 function productsWithHistoricalSelection(catalog, selectedId, selectedName) {
@@ -134,18 +148,15 @@ function ProductRowsCard({
                       <td className="table-cell align-middle">
                       <select
                         className="input w-full min-w-0"
-                        value={item.offering_id}
-                        onChange={(event) =>
-                          onUpdateItem(
-                            index,
-                            'offering_id',
-                            event.target.value ? Number(event.target.value) : ''
-                          )
-                        }
+                        value={offeringSelectValue(item, offeringOptions)}
+                        onChange={(event) => {
+                          const next = parseOfferingSelectValue(event.target.value)
+                          onUpdateItem(index, 'offering_id', next.id)
+                        }}
                       >
                         <option value="">Presentación</option>
                         {offeringOptions.map((entry) => (
-                          <option key={entry.id} value={entry.id}>
+                          <option key={entry.optionValue || entry.id} value={entry.optionValue || entry.id}>
                             {entry.label}
                           </option>
                         ))}
@@ -254,18 +265,15 @@ function ProductRowsCard({
                     </div>
                     <select
                       className="input w-full min-w-0"
-                      value={item.offering_id}
-                      onChange={(event) =>
-                        onUpdateItem(
-                          index,
-                          'offering_id',
-                          event.target.value ? Number(event.target.value) : ''
-                        )
-                      }
+                      value={offeringSelectValue(item, offeringOptions)}
+                      onChange={(event) => {
+                        const next = parseOfferingSelectValue(event.target.value)
+                        onUpdateItem(index, 'offering_id', next.id)
+                      }}
                     >
                       <option value="">Presentación</option>
                       {offeringOptions.map((entry) => (
-                        <option key={entry.id} value={entry.id}>
+                        <option key={entry.optionValue || entry.id} value={entry.optionValue || entry.id}>
                           {entry.label}
                         </option>
                       ))}

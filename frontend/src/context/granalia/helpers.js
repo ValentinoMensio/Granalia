@@ -184,6 +184,7 @@ function buildInvoicePayload(form, currentCustomer) {
         .map((item) => ({
           product_id: item.product_id,
           offering_id: item.offering_id,
+          offering_label: item.offering_label || '',
           quantity: toQuantity(item.quantity, item.offering_label),
           bonus_quantity: billingMode === 'fiscal_only' ? 0 : toNonNegativeInteger(item.bonus_quantity),
           unit_price: item.unit_price === '' || item.unit_price === undefined ? undefined : Number(item.unit_price || 0),
