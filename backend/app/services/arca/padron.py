@@ -61,10 +61,10 @@ def padron_config(config: ArcaConfig) -> ArcaConfig:
 
 
 def auth_xml(config: ArcaConfig, ticket: ArcaAuthTicket, cuit: str) -> str:
-    return f"""<a5:token>{escape(ticket.token)}</a5:token>
-<a5:sign>{escape(ticket.sign)}</a5:sign>
-<a5:cuitRepresentada>{escape(config.cuit)}</a5:cuitRepresentada>
-<a5:idPersona>{escape(cuit)}</a5:idPersona>"""
+    return f"""<token>{escape(ticket.token)}</token>
+<sign>{escape(ticket.sign)}</sign>
+<cuitRepresentada>{escape(config.cuit)}</cuitRepresentada>
+<idPersona>{escape(cuit)}</idPersona>"""
 
 
 def soap_envelope(body: str) -> str:
@@ -89,6 +89,14 @@ def request_persona(config: ArcaConfig, ticket: ArcaAuthTicket, cuit: str) -> ET
     try:
         with urllib.request.urlopen(request, timeout=config.timeout_seconds, context=context) as response:
             body = response.read().decode("utf-8")
+    except urllib.error.HTTPError as error:
+        body = error.read().decode("utf-8", errors="replace")
+        try:
+            root = ET.fromstring(body)
+            fault = first_text(root, "faultstring") or first_text(root, "descripcionError") or first_text(root, "errorConstancia")
+        except ET.ParseError:
+            fault = body.strip()
+        raise ArcaPadronError(f"HTTP {error.code}: {fault or error.reason}") from error
     except (socket.timeout, TimeoutError, urllib.error.URLError) as error:
         raise ArcaPadronError(f"No se pudo consultar padron ARCA: {error}") from error
     root = ET.fromstring(body)
@@ -129,24 +137,46 @@ def fiscal_address(root: ET.Element) -> str:
     return ", ".join(part for part in parts if part).strip()
 
 
-def get_taxpayer_data(cuit: object, config: ArcaConfig | None = None) -> dict[str, str] | None:
+def lookup_taxpayer_data(cuit: object, config: ArcaConfig | None = None) -> dict[str, object]:
     cuit_digits = digits_only(cuit)
     if len(cuit_digits) != 11:
-        return None
+        return {"ok": False, "cuit": cuit_digits, "data": None, "error": "CUIT invalido"}
     base_config = config or get_arca_config()
+    result: dict[str, object] = {
+        "ok": False,
+        "cuit": cuit_digits,
+        "environment": base_config.environment,
+        "service": "ws_sr_padron_a5",
+        "url": base_config.padron_url,
+        "configured": bool(base_config.enabled and base_config.cuit and base_config.cert_path and base_config.key_path),
+        "data": None,
+        "error": None,
+    }
     if not base_config.enabled or not base_config.cuit or not base_config.cert_path or not base_config.key_path:
-        return None
+        result["error"] = "ARCA padron no configurado"
+        return result
     config = padron_config(base_config)
     try:
         ticket = get_auth_ticket(config)
         root = request_persona(config, ticket, cuit_digits)
     except (ArcaPadronError, WsaaError, ET.ParseError, ValueError) as error:
         logger.warning("No se pudieron obtener datos fiscales ARCA para CUIT %s: %s", cuit_digits, error)
-        return None
+        result["error"] = str(error)
+        return result
     data = {
         "cuit": cuit_digits,
         "business_name": fiscal_name(root),
         "address": fiscal_address(root),
         "iva_condition": iva_condition(root),
     }
-    return {key: value for key, value in data.items() if value}
+    result["data"] = {key: value for key, value in data.items() if value}
+    result["ok"] = bool(result["data"])
+    if not result["ok"]:
+        result["error"] = "ARCA no devolvio datos fiscales"
+    return result
+
+
+def get_taxpayer_data(cuit: object, config: ArcaConfig | None = None) -> dict[str, str] | None:
+    result = lookup_taxpayer_data(cuit, config)
+    data = result.get("data")
+    return data if isinstance(data, dict) else None

@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends
 
 from ...dependencies import get_repository, require_admin
 from ...schemas import CustomerMutationOut, CustomerOut, CustomerUpsert, StatusResponse
+from ...services.arca.padron import lookup_taxpayer_data
 
 
 router = APIRouter(prefix="/api/customers", tags=["customers"])
@@ -12,6 +13,11 @@ router = APIRouter(prefix="/api/customers", tags=["customers"])
 @router.get("", response_model=list[CustomerOut])
 def customers(_: str = Depends(require_admin)) -> list[CustomerOut]:
     return [CustomerOut.model_validate(item) for item in get_repository().get_profiles_map().values()]
+
+
+@router.get("/taxpayer/{cuit}")
+def customer_taxpayer_lookup(cuit: str, _: str = Depends(require_admin)) -> dict[str, object]:
+    return lookup_taxpayer_data(cuit)
 
 
 @router.post("", response_model=CustomerMutationOut)

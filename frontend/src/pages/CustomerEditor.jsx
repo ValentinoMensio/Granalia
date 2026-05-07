@@ -17,6 +17,8 @@ export default function CustomerEditor() {
   
   const customer = customers.find((c) => c.id === customerId)
   const [formData, setFormData] = useState(null)
+  const [taxpayerLoading, setTaxpayerLoading] = useState(false)
+  const [lastTaxpayerCuit, setLastTaxpayerCuit] = useState('')
 
   useEffect(() => {
     if (isNewCustomer) {
@@ -39,6 +41,16 @@ export default function CustomerEditor() {
       setFormData({ ...customer })
     }
   }, [customer, isNewCustomer])
+
+  useEffect(() => {
+    const cuitDigits = String(formData?.cuit || '').replace(/\D/g, '')
+    if (cuitDigits.length !== 11 || cuitDigits === lastTaxpayerCuit) return
+
+    const timeoutId = window.setTimeout(() => {
+      loadTaxpayerData(cuitDigits)
+    }, 450)
+    return () => window.clearTimeout(timeoutId)
+  }, [formData?.cuit, lastTaxpayerCuit])
 
   if (!isNewCustomer && !customer) return <div className="mt-8 p-4 text-center">Cliente no encontrado.</div>
   if (!formData) return null
@@ -64,6 +76,36 @@ export default function CustomerEditor() {
       navigate(managementPath)
     } catch (e) {
       setStatus(`No se pudo guardar el cliente: ${e.message}`)
+    }
+  }
+
+  async function loadTaxpayerData(cuitDigits = String(formData?.cuit || '').replace(/\D/g, '')) {
+    if (cuitDigits.length !== 11) {
+      setStatus('Ingresá un CUIT de 11 dígitos para consultar ARCA.')
+      return
+    }
+
+    setTaxpayerLoading(true)
+    try {
+      const result = await request(`/api/customers/taxpayer/${cuitDigits}`)
+      setLastTaxpayerCuit(cuitDigits)
+      if (!result.ok || !result.data) {
+        setStatus(`No se pudieron obtener datos fiscales de ARCA: ${result.error || 'sin datos'}`)
+        return
+      }
+      const data = result.data
+      setFormData((current) => ({
+        ...current,
+        cuit: data.cuit || current.cuit,
+        name: current.name || data.business_name || current.name,
+        business_name: data.business_name || current.business_name || '',
+        address: data.address || current.address || '',
+      }))
+      setStatus('Datos fiscales cargados desde ARCA.')
+    } catch (error) {
+      setStatus(`No se pudieron obtener datos fiscales de ARCA: ${error.message}`)
+    } finally {
+      setTaxpayerLoading(false)
     }
   }
 
@@ -156,12 +198,21 @@ export default function CustomerEditor() {
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-700">CUIT</label>
-            <input
-              type="text"
-              value={formData.cuit || ''}
-              onChange={(e) => setFormData({ ...formData, cuit: e.target.value })}
-              className="input"
-            />
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={formData.cuit || ''}
+                onChange={(e) => {
+                  setLastTaxpayerCuit('')
+                  setFormData({ ...formData, cuit: e.target.value })
+                }}
+                className="input"
+              />
+              <Button variant="secondary" onClick={() => loadTaxpayerData()} disabled={taxpayerLoading}>
+                {taxpayerLoading ? 'Buscando...' : 'ARCA'}
+              </Button>
+            </div>
+            <p className="text-xs text-slate-400">Al completar 11 dígitos se cargan razón social y domicilio fiscal si ARCA responde.</p>
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-700">Email</label>
