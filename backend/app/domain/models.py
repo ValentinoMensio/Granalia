@@ -103,12 +103,14 @@ class OrderItem:
     quantity: float
     bonus_quantity: int = 0
     unit_price: int | None = None
+    offering_label: str = ""
 
     @classmethod
     def from_data(cls, data: OrderItemData) -> "OrderItem":
         return cls(
             product_id=int(data["product_id"]),
             offering_id=int(data["offering_id"]),
+            offering_label=str(data.get("offering_label") or ""),
             quantity=float(data["quantity"]),
             bonus_quantity=int(data.get("bonus_quantity", 0)),
             unit_price=int(data["unit_price"]) if data.get("unit_price") is not None else None,
