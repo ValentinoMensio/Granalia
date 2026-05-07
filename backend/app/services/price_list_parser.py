@@ -27,7 +27,7 @@ PRODUCT_SPECS: dict[str, ProductSpec] = {
     "Maíz Pisingallo": {"id": "maiz_pisingallo", "formats": ["12x400", "10x500", "x5kg", "bulk"]},
     "Maíz Pisado Blanco": {"id": "maiz_pisado_blanco", "formats": ["12x400", "10x500", "x5kg", "bulk"]},
     "Porotos Alubia": {"id": "porotos_alubia", "formats": ["12x400", "10x500", "x5kg", "bulk"]},
-    "Maíz Partido Colorado": {"id": "maiz_partido_colorado", "formats": ["10x500", "x5kg", "bulk"]},
+    "Maíz Partido Colorado": {"id": "maiz_partido_colorado", "formats": ["12x400", "x5kg", "bulk"]},
     "Porotos Negros": {"id": "porotos_negros", "formats": ["12x400", "x5kg", "bulk"]},
     "Porotos Colorados": {"id": "porotos_colorados", "formats": ["12x400", "x5kg", "bulk"]},
     "Porotos Soja": {"id": "porotos_soja", "formats": ["10x500", "x5kg", "bulk_single"]},

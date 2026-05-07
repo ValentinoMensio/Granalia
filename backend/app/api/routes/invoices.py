@@ -50,17 +50,22 @@ def catalog_with_invoice_history(catalog: list[dict], invoice: dict) -> list[dic
             }
             next_catalog.append(product)
             products_by_id[product_key] = product
+        else:
+            product["name"] = item.get("product_name") or product.get("name")
 
-        if any(str(offering.get("id")) == str(offering_id) for offering in product.get("offerings", [])):
+        historical_offering = {
+            "id": offering_id,
+            "label": item.get("offering_label") or item.get("label") or "Presentación anterior",
+            "price": int(item.get("unit_price") or 0),
+            "net_weight_kg": float(item.get("offering_net_weight_kg") or item.get("net_weight_kg") or 0),
+        }
+        current_offerings = product.get("offerings", [])
+        existing_index = next((index for index, offering in enumerate(current_offerings) if str(offering.get("id")) == str(offering_id)), None)
+        if existing_index is not None:
+            current_offerings[existing_index] = {**current_offerings[existing_index], **historical_offering}
             continue
 
-        product["offerings"].append(
-            {
-                "id": offering_id,
-                "label": item.get("offering_label") or item.get("label") or "Presentación anterior",
-                "price": int(item.get("unit_price") or 0),
-            }
-        )
+        product["offerings"].append(historical_offering)
     return next_catalog
 
 
