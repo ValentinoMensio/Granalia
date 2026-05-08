@@ -176,6 +176,19 @@ class InvoiceRequest(BaseModel):
     authorization: AuthorizationPayload | None = None
 
 
+class CreditNoteItemInput(BaseModel):
+    invoice_item_id: int
+    quantity: float = Field(gt=0)
+
+
+class CreditNoteRequest(BaseModel):
+    date: str = Field(min_length=10, max_length=10)
+    reason: NonEmptyStr
+    items: list[CreditNoteItemInput] = Field(min_length=1, max_length=MAX_INVOICE_ITEMS)
+
+    _normalize_reason = field_validator("reason")(_strip_required)
+
+
 class TransportUpsert(BaseModel):
     name: NonEmptyStr
     notes: list[str] = Field(default_factory=list, max_length=MAX_NOTES)
@@ -335,6 +348,8 @@ class InvoiceSummaryOut(BaseModel):
 class InvoiceListItemOut(BaseModel):
     invoice_id: int
     batch_id: int | None = None
+    related_invoice_id: int | None = None
+    credit_reason: str = ""
     document_type: str = "FACTURA"
     point_of_sale: int = 1
     invoice_number: int | None = None
@@ -397,6 +412,8 @@ class InvoiceItemOut(BaseModel):
 class InvoiceDetailOut(BaseModel):
     id: int
     batch_id: int | None = None
+    related_invoice_id: int | None = None
+    credit_reason: str = ""
     document_type: str = "FACTURA"
     point_of_sale: int = 1
     invoice_number: int | None = None
@@ -451,6 +468,7 @@ class InvoiceDetailOut(BaseModel):
     customer_email: str | None = None
     transport_name: str | None = None
     items: list[InvoiceItemOut] = Field(default_factory=list)
+    credit_notes: list[InvoiceListItemOut] = Field(default_factory=list)
 
 
 class InvoiceCreateOut(BaseModel):

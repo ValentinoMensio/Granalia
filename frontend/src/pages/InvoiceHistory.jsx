@@ -21,6 +21,16 @@ function isFiscalInvoice(invoice) {
   return Boolean(invoice?.declared || invoice?.split_kind === 'fiscal')
 }
 
+function isCreditNote(invoice) {
+  return String(invoice?.document_type || '').toUpperCase() === 'NOTA_CREDITO'
+}
+
+function invoiceTypeLabel(invoice) {
+  if (isCreditNote(invoice)) return 'Nota crédito'
+  if (invoice?.declared || invoice?.split_kind === 'fiscal') return 'Declarada'
+  return 'Interna'
+}
+
 function displayInvoiceNumber(invoice) {
   if (!isFiscalInvoice(invoice)) return shortInvoiceNumber(invoice)
   if (invoice?.arca_invoice_number) return String(invoice.arca_invoice_number).padStart(8, '0')
@@ -30,6 +40,11 @@ function displayInvoiceNumber(invoice) {
 function displayInvoiceTotal(invoice) {
   if (isFiscalInvoice(invoice) && invoice?.fiscal_total != null) return Number(invoice.fiscal_total)
   return Number(invoice?.final_total || 0)
+}
+
+function signedInvoiceTotal(invoice) {
+  const total = displayInvoiceTotal(invoice)
+  return isCreditNote(invoice) ? -total : total
 }
 
 function fiscalStatusLabel(invoice) {
@@ -78,11 +93,17 @@ function canAuthorizeInArca(invoice) {
   return (invoice.declared || invoice.split_kind === 'fiscal') && ['draft', 'rejected', 'error'].includes(status)
 }
 
+function canCreateCreditNote(invoice) {
+  if (!invoice || isCreditNote(invoice)) return false
+  if (!isFiscalInvoice(invoice)) return true
+  return String(invoice.fiscal_status || '') === 'authorized'
+}
+
 export default function InvoiceHistory() {
   const navigate = useNavigate()
   const { session } = useAuth()
   const isAdmin = session?.role === 'admin'
-  const { bootstrap, invoices, customers, invoiceDetail, loadInvoiceDetail, clearInvoiceDetail, invoicePdfUrl, startInvoiceEdit, deleteInvoice, authorizeInvoiceInArca } = useGranalia()
+  const { bootstrap, invoices, customers, invoiceDetail, loadInvoiceDetail, clearInvoiceDetail, invoicePdfUrl, startInvoiceEdit, deleteInvoice, authorizeInvoiceInArca, createCreditNote } = useGranalia()
   const [filters, setFilters] = useState(EMPTY_FILTERS)
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [deletingInvoiceId, setDeletingInvoiceId] = useState(null)
@@ -90,6 +111,12 @@ export default function InvoiceHistory() {
   const [authorizationTarget, setAuthorizationTarget] = useState(null)
   const [authorizationPassword, setAuthorizationPassword] = useState('')
   const [authorizationError, setAuthorizationError] = useState('')
+  const [creditNoteTarget, setCreditNoteTarget] = useState(null)
+  const [creditNoteQuantities, setCreditNoteQuantities] = useState({})
+  const [creditNoteReason, setCreditNoteReason] = useState('Devolución de productos')
+  const [creditNoteDate, setCreditNoteDate] = useState(new Date().toLocaleDateString('en-CA'))
+  const [creditNoteError, setCreditNoteError] = useState('')
+  const [creatingCreditNote, setCreatingCreditNote] = useState(false)
   const [page, setPage] = useState(1)
   const todayKey = new Date().toLocaleDateString('en-CA')
 
@@ -103,7 +130,7 @@ export default function InvoiceHistory() {
       const matchesDateTo = !filters.dateTo || invoice.order_date <= filters.dateTo
       const matchesDate = matchesDateFrom && matchesDateTo
       const matchesTransport = !filters.transport || String(invoice.transport_id || '') === String(filters.transport)
-      const invoiceTotal = displayInvoiceTotal(invoice)
+      const invoiceTotal = signedInvoiceTotal(invoice)
       const matchesMinTotal = minTotal === null || invoiceTotal >= minTotal
       const matchesMaxTotal = maxTotal === null || invoiceTotal <= maxTotal
       return matchesCustomer && matchesDate && matchesTransport && matchesMinTotal && matchesMaxTotal
@@ -189,6 +216,69 @@ export default function InvoiceHistory() {
       setAuthorizationError(error.message)
     } finally {
       setAuthorizingInvoiceId(null)
+    }
+  }
+
+  async function openCreditNoteModal(invoiceId) {
+    setLoadingDetail(true)
+    setCreditNoteError('')
+    try {
+      const detail = await loadInvoiceDetail(invoiceId)
+      setCreditNoteTarget(detail)
+      setCreditNoteQuantities({})
+      setCreditNoteReason('Devolución de productos')
+      setCreditNoteDate(todayKey)
+    } finally {
+      setLoadingDetail(false)
+    }
+  }
+
+  function closeCreditNoteModal() {
+    if (creatingCreditNote) return
+    setCreditNoteTarget(null)
+    setCreditNoteQuantities({})
+    setCreditNoteError('')
+  }
+
+  function updateCreditNoteQuantity(itemId, value) {
+    setCreditNoteQuantities((current) => ({ ...current, [itemId]: value }))
+  }
+
+  function creditNoteSelectedItems() {
+    return (creditNoteTarget?.items || [])
+      .filter((item) => String(item.line_type || 'sale') === 'sale' && Number(item.quantity || 0) > 0)
+      .map((item) => ({ item, quantity: Number(creditNoteQuantities[item.id] || 0) }))
+      .filter(({ quantity }) => quantity > 0)
+  }
+
+  function creditNoteEstimatedTotal() {
+    return creditNoteSelectedItems().reduce((sum, { item, quantity }) => {
+      const ratio = Number(item.quantity || 0) > 0 ? quantity / Number(item.quantity || 0) : 0
+      return sum + itemFiscalTotal(item) * ratio
+    }, 0)
+  }
+
+  async function handleCreateCreditNote(event) {
+    event.preventDefault()
+    if (!creditNoteTarget) return
+    const selectedItems = creditNoteSelectedItems()
+    if (!selectedItems.length) {
+      setCreditNoteError('Ingresá al menos una cantidad a acreditar.')
+      return
+    }
+    setCreatingCreditNote(true)
+    setCreditNoteError('')
+    try {
+      await createCreditNote(creditNoteTarget.id, {
+        date: creditNoteDate,
+        reason: creditNoteReason,
+        items: selectedItems.map(({ item, quantity }) => ({ invoice_item_id: item.id, quantity })),
+      })
+      closeCreditNoteModal()
+    } catch (error) {
+      setCreditNoteError(error.message)
+    } finally {
+      setCreatingCreditNote(false)
     }
   }
 
@@ -289,7 +379,7 @@ export default function InvoiceHistory() {
                     <div className="font-mono text-xs text-slate-500">{displayInvoiceNumber(invoice)}</div>
                     <h3 className="mt-1 truncate font-semibold text-brand-ink">{invoice.client_name}</h3>
                   </div>
-                  <div className="shrink-0 whitespace-nowrap text-right text-sm font-semibold text-brand-red">${isFiscalInvoice(invoice) ? fiscalMoney(displayInvoiceTotal(invoice)) : money(displayInvoiceTotal(invoice))}</div>
+                  <div className="shrink-0 whitespace-nowrap text-right text-sm font-semibold text-brand-red">${isFiscalInvoice(invoice) ? fiscalMoney(signedInvoiceTotal(invoice)) : money(signedInvoiceTotal(invoice))}</div>
                 </div>
                 <div className="mt-3 grid gap-2 text-sm text-slate-600">
                   <div className="flex justify-between gap-3">
@@ -302,7 +392,7 @@ export default function InvoiceHistory() {
                   </div>
                   <div className="flex justify-between gap-3">
                     <span>Tipo</span>
-                    <span className="font-medium text-slate-800">{invoice.declared ? 'Declarada' : 'Interna'}</span>
+                    <span className="font-medium text-slate-800">{invoiceTypeLabel(invoice)}</span>
                   </div>
                   <div className="flex justify-between gap-3">
                     <span>Estado</span>
@@ -313,9 +403,14 @@ export default function InvoiceHistory() {
                   <Button variant="secondary" className="w-full" onClick={() => handleSelectInvoice(invoice.invoice_id)}>
                     Detalle
                   </Button>
-                  {isAdmin && (
+                  {isAdmin && !isCreditNote(invoice) && (
                     <Button variant="secondary" className="w-full" onClick={() => handleEditInvoice(invoice.invoice_id)}>
                       Editar
+                    </Button>
+                  )}
+                  {isAdmin && canCreateCreditNote(invoice) && (
+                    <Button variant="secondary" className="w-full" onClick={() => openCreditNoteModal(invoice.invoice_id)}>
+                      Nota crédito
                     </Button>
                   )}
                   <span className="btn-secondary w-full cursor-not-allowed opacity-50" aria-disabled="true">XLSX</span>
@@ -382,17 +477,22 @@ export default function InvoiceHistory() {
                     <td className="table-cell break-words font-medium leading-snug" title={invoice.client_name}>{invoice.client_name}</td>
                     <td className={`table-cell whitespace-nowrap text-center ${isUpcoming ? 'text-slate-800' : 'text-slate-600'}`}>{date(invoice.order_date)}</td>
                     <td className={`table-cell break-words leading-snug ${isUpcoming ? 'text-slate-800' : 'text-slate-600'}`} title={invoice.transport || 'Sin transporte'}>{invoice.transport || 'Sin transporte'}</td>
-                    <td className="table-cell text-center">{invoice.declared ? 'Declarada' : 'Interna'}</td>
+                    <td className="table-cell text-center">{invoiceTypeLabel(invoice)}</td>
                     <td className="table-cell text-center">{fiscalStatusLabel(invoice)}</td>
-                    <td className="table-cell whitespace-nowrap text-right font-medium">${isFiscalInvoice(invoice) ? fiscalMoney(displayInvoiceTotal(invoice)) : money(displayInvoiceTotal(invoice))}</td>
+                    <td className="table-cell whitespace-nowrap text-right font-medium">${isFiscalInvoice(invoice) ? fiscalMoney(signedInvoiceTotal(invoice)) : money(signedInvoiceTotal(invoice))}</td>
                     <td className="table-cell">
                       <div className="flex items-center justify-center gap-x-2 whitespace-nowrap text-xs leading-tight">
                         <Button variant="ghost" className="px-0 py-0 text-brand-red" onClick={() => handleSelectInvoice(invoice.invoice_id)}>
                           Ver detalle
                         </Button>
-                        {isAdmin && (
+                        {isAdmin && !isCreditNote(invoice) && (
                           <Button variant="ghost" className="px-0 py-0 text-brand-ink" onClick={() => handleEditInvoice(invoice.invoice_id)}>
                             Editar
+                          </Button>
+                        )}
+                        {isAdmin && canCreateCreditNote(invoice) && (
+                          <Button variant="ghost" className="px-0 py-0 text-blue-700" onClick={() => openCreditNoteModal(invoice.invoice_id)}>
+                            Nota crédito
                           </Button>
                         )}
                         <a
@@ -487,7 +587,7 @@ export default function InvoiceHistory() {
               </div>
               <div>
                 <div className="text-xs uppercase tracking-wide text-slate-400">Tipo</div>
-                <div className="mt-1">{invoiceDetail.declared ? 'Declarada' : 'Interna'}</div>
+                <div className="mt-1">{invoiceTypeLabel(invoiceDetail)}</div>
               </div>
               <div>
                 <div className="text-xs uppercase tracking-wide text-slate-400">Estado ARCA</div>
@@ -641,7 +741,12 @@ export default function InvoiceHistory() {
             )}
 
             <div className="flex flex-col gap-3 border-t border-stone-200 pt-4 sm:flex-row sm:flex-wrap sm:justify-end">
-              {isAdmin && (
+              {isAdmin && canCreateCreditNote(invoiceDetail) && (
+                <Button variant="secondary" className="w-full sm:w-auto" onClick={() => openCreditNoteModal(invoiceDetail.id)}>
+                  Generar nota de crédito
+                </Button>
+              )}
+              {isAdmin && !isCreditNote(invoiceDetail) && (
                 <Button variant="secondary" className="w-full sm:w-auto" onClick={() => handleEditInvoice(invoiceDetail.id)}>
                   Editar factura
                 </Button>
@@ -671,6 +776,11 @@ export default function InvoiceHistory() {
                 </Button>
               )}
             </div>
+            {invoiceDetail.credit_notes?.length > 0 && (
+              <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+                Esta factura tiene {invoiceDetail.credit_notes.length} nota(s) de crédito asociada(s).
+              </div>
+            )}
           </div>
         )}
       </aside>
@@ -703,6 +813,58 @@ export default function InvoiceHistory() {
               </Button>
               <Button type="submit" disabled={!authorizationPassword || Boolean(authorizingInvoiceId)}>
                 {authorizingInvoiceId ? 'Autorizando...' : 'Autorizar'}
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {creditNoteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-6">
+          <form onSubmit={handleCreateCreditNote} className="surface max-h-[90vh] w-full max-w-3xl overflow-y-auto p-5 shadow-xl">
+            <h3 className="subsection-title text-xl">Nota de crédito</h3>
+            <p className="mt-2 text-sm text-slate-600">
+              Seleccioná las cantidades a acreditar sobre la factura {displayInvoiceNumber(creditNoteTarget)}.
+            </p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <input className="input" type="date" value={creditNoteDate} onChange={(event) => setCreditNoteDate(event.target.value)} />
+              <input className="input" value={creditNoteReason} onChange={(event) => setCreditNoteReason(event.target.value)} placeholder="Motivo" />
+            </div>
+            <div className="mt-4 space-y-2">
+              {(creditNoteTarget.items || []).filter((item) => String(item.line_type || 'sale') === 'sale' && Number(item.quantity || 0) > 0).map((item) => (
+                <div key={item.id} className="grid gap-2 rounded-xl border border-slate-200 p-3 text-sm sm:grid-cols-[1fr_90px_120px] sm:items-center">
+                  <div>
+                    <div className="font-medium text-brand-ink">{item.label}</div>
+                    <div className="text-xs text-slate-500">Facturado: {item.quantity} · Unitario: ${isFiscalInvoice(creditNoteTarget) ? fiscalMoney(item.unit_price) : money(item.unit_price)}</div>
+                  </div>
+                  <div className="text-slate-500 sm:text-right">Máx. {item.quantity}</div>
+                  <input
+                    className="input"
+                    type="number"
+                    min="0"
+                    max={item.quantity}
+                    step="0.01"
+                    value={creditNoteQuantities[item.id] || ''}
+                    onChange={(event) => updateCreditNoteQuantity(item.id, event.target.value)}
+                    placeholder="Cantidad"
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-sm font-semibold text-brand-ink">
+              Importe estimado a acreditar: ${isFiscalInvoice(creditNoteTarget) ? fiscalMoney(creditNoteEstimatedTotal()) : money(creditNoteEstimatedTotal())}
+            </div>
+            {creditNoteError && (
+              <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {creditNoteError}
+              </div>
+            )}
+            <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
+              <Button type="button" variant="secondary" onClick={closeCreditNoteModal} disabled={creatingCreditNote}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={!creditNoteReason.trim() || creatingCreditNote}>
+                {creatingCreditNote ? 'Generando...' : 'Generar nota de crédito'}
               </Button>
             </div>
           </form>

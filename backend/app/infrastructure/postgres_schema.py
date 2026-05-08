@@ -148,6 +148,8 @@ def build_metadata() -> tuple[MetaData, dict[str, Table]]:
             Column("transport_id", BigInteger, ForeignKey("transports.transport_id", ondelete="SET NULL")),
             Column("price_list_id", BigInteger, ForeignKey("price_lists.id", ondelete="SET NULL")),
             Column("batch_id", BigInteger, ForeignKey("invoice_batches.id", ondelete="SET NULL")),
+            Column("related_invoice_id", BigInteger, ForeignKey("invoices.id", ondelete="SET NULL")),
+            Column("credit_reason", Text, nullable=False, server_default=""),
             Column("legacy_key", String(255), unique=True),
             Column("document_type", String(30), nullable=False, server_default="FACTURA"),
             Column("point_of_sale", Integer, nullable=False, server_default="1"),

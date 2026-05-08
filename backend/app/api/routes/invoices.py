@@ -7,11 +7,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 
 from ...dependencies import current_role, get_repository, require_admin, validate_invoice_authorization_password
-from ...schemas import ArcaAuthorizationOut, AuthorizationPayload, InvoiceCreateOut, InvoiceDetailOut, InvoiceListItemOut, InvoiceRequest, StatusResponse
+from ...schemas import ArcaAuthorizationOut, AuthorizationPayload, CreditNoteRequest, InvoiceCreateOut, InvoiceDetailOut, InvoiceListItemOut, InvoiceRequest, StatusResponse
 from ...services.arca import ArcaDisabledError, ArcaNotConfiguredError, ArcaRejectedError, ArcaTechnicalError
 from ...services.arca.authorization import ArcaAuthorizationConflict, authorize_invoice_in_arca as authorize_invoice_service
 from ...services.arca.padron import get_taxpayer_data, lookup_taxpayer_data
-from ...services.pdf import build_invoice_pdf
+from ...services.pdf import build_invoice_pdf, invoice_pdf_filename
 from ...services.invoicing import generate_invoice_document
 
 
@@ -220,6 +220,74 @@ def ensure_invoice_deletable(invoice: dict) -> None:
         raise HTTPException(status_code=400, detail="No se puede eliminar un comprobante fiscal autorizado")
 
 
+def is_credit_note(invoice: dict) -> bool:
+    return str(invoice.get("document_type") or "").upper() == "NOTA_CREDITO"
+
+
+def is_fiscal_invoice(invoice: dict) -> bool:
+    return bool(invoice.get("declared")) or invoice.get("split_kind") == "fiscal"
+
+
+def profile_from_invoice(invoice: dict) -> dict:
+    return {
+        "id": invoice.get("customer_id"),
+        "name": invoice.get("client_name") or invoice.get("customer_name") or "Cliente",
+        "cuit": invoice.get("customer_cuit") or "",
+        "address": invoice.get("customer_address") or "",
+        "business_name": invoice.get("customer_business_name") or "",
+        "iva_condition": invoice.get("customer_iva_condition") or "",
+        "email": invoice.get("customer_email") or "",
+        "secondary_line": invoice.get("secondary_line") or "",
+        "transport": invoice.get("transport") or "",
+        "notes": invoice.get("notes") or [],
+        "footer_discounts": invoice.get("footer_discounts") or [],
+        "line_discounts_by_format": invoice.get("line_discounts_by_format") or {},
+        "automatic_bonus_rules": [],
+        "automatic_bonus_disables_line_discount": False,
+        "source_count": 0,
+    }
+
+
+def build_credit_note_order(invoice: dict, payload: CreditNoteRequest, credited_quantities: dict[int, float]) -> tuple[dict, dict]:
+    items_by_id = {int(item["id"]): item for item in invoice.get("items", [])}
+    credit_items = []
+    iva_by_key: dict[tuple[str, str], float] = {}
+    for requested in payload.items:
+        source_item = items_by_id.get(requested.invoice_item_id)
+        if not source_item:
+            raise ValueError("La línea seleccionada no pertenece a la factura")
+        if str(source_item.get("line_type") or "sale") != "sale" or float(source_item.get("quantity") or 0) <= 0:
+            raise ValueError("Solo se pueden acreditar líneas de venta")
+        available = float(source_item.get("quantity") or 0) - float(credited_quantities.get(requested.invoice_item_id, 0) or 0)
+        quantity = float(requested.quantity)
+        if quantity > available + 0.000001:
+            raise ValueError(f"La cantidad a acreditar de {source_item.get('label')} supera la disponible ({available:g})")
+        credit_items.append({
+            "product_id": int(source_item["product_id"]),
+            "offering_id": int(source_item["offering_id"]),
+            "offering_label": str(source_item.get("offering_label") or ""),
+            "quantity": quantity,
+            "bonus_quantity": 0,
+            "unit_price": int(source_item.get("unit_price") or 0),
+        })
+        if source_item.get("iva_rate") is not None:
+            iva_by_key[(str(source_item.get("product_id") or ""), str(source_item.get("offering_id") or ""))] = float(source_item["iva_rate"])
+    if not credit_items:
+        raise ValueError("Seleccioná al menos una línea para acreditar")
+    order = {
+        "client_name": invoice["client_name"],
+        "date": payload.date,
+        "price_list_id": invoice.get("price_list_id"),
+        "billing_mode": "fiscal_only" if is_fiscal_invoice(invoice) else "internal_only",
+        "declared": is_fiscal_invoice(invoice),
+        "secondary_line": invoice.get("secondary_line") or "",
+        "transport": invoice.get("transport") or "",
+        "notes": [*(invoice.get("notes") or []), f"Nota de crédito por: {payload.reason}"],
+        "items": credit_items,
+    }
+    return order, iva_by_key
+
+
 def ensure_batch_editable(repository, batch_id: int | None) -> None:
     if not batch_id:
         return
@@ -316,7 +384,7 @@ def download_invoice_pdf(invoice_id: int, role: str = Depends(current_role)) -> 
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'inline; filename="factura-{invoice_id}.pdf"'},
+        headers={"Content-Disposition": f'inline; filename="{invoice_pdf_filename(invoice)}"'},
     )
 
 
@@ -361,6 +429,53 @@ def create_invoice(payload: InvoiceRequest, role: str = Depends(current_role)) -
         return build_and_save_split(repository, order, profile, update_customer=role == "admin")
     except (RuntimeError, ValueError) as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.post("/{invoice_id}/credit-notes", response_model=InvoiceCreateOut)
+def create_credit_note(invoice_id: int, payload: CreditNoteRequest, _: str = Depends(require_admin)) -> InvoiceCreateOut:
+    repository = get_repository()
+    invoice = repository.get_invoice_detail(invoice_id)
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+    if is_credit_note(invoice):
+        raise HTTPException(status_code=400, detail="No se puede emitir una nota de crédito sobre otra nota de crédito")
+    if is_fiscal_invoice(invoice) and str(invoice.get("fiscal_status") or "") != "authorized":
+        raise HTTPException(status_code=400, detail="La factura fiscal debe estar autorizada para emitir una nota de crédito")
+    try:
+        order, iva_by_key = build_credit_note_order(invoice, payload, repository.credited_quantities_for_invoice(invoice_id))
+        profile = profile_from_invoice(invoice)
+        catalog = repository.get_catalog_for_price_list(int(order["price_list_id"])) if order.get("price_list_id") else repository.get_active_catalog()
+        catalog = catalog_with_invoice_history(catalog, invoice, order)
+        filename, xlsx_bytes, snapshot = generate_invoice_document(order, profile, catalog)
+        if is_fiscal_invoice(invoice):
+            for row in snapshot.get("rows", []):
+                key = (str(row.get("product_id") or ""), str(row.get("offering_id") or ""))
+                iva_rate = iva_by_key.get(key)
+                if iva_rate is None:
+                    raise ValueError(f"Falta IVA fiscal para {row.get('label')}")
+                row["iva_rate"] = iva_rate
+        credit_note_id = repository.save_invoice(
+            order,
+            profile,
+            snapshot,
+            filename,
+            xlsx_bytes,
+            update_customer=False,
+            split_kind="fiscal" if is_fiscal_invoice(invoice) else "internal",
+            fiscal_status="draft" if is_fiscal_invoice(invoice) else "internal",
+            document_type="NOTA_CREDITO",
+            related_invoice_id=invoice_id,
+            credit_reason=payload.reason,
+        )
+    except (RuntimeError, ValueError) as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    return InvoiceCreateOut.model_validate({
+        "invoice_id": credit_note_id,
+        "invoices": [{"invoice_id": credit_note_id, "split_kind": "fiscal" if is_fiscal_invoice(invoice) else "internal", "fiscal_status": "draft" if is_fiscal_invoice(invoice) else "internal"}],
+        "filename": filename,
+        "download_url": f"/api/invoices/{credit_note_id}/xlsx",
+        "summary": snapshot["summary"],
+    })
 
 
 @router.post("/{invoice_id}/arca/authorize", response_model=ArcaAuthorizationOut)

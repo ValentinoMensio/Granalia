@@ -121,6 +121,8 @@ class InvoiceSnapshotData(TypedDict):
 class InvoiceListItemData(TypedDict):
     invoice_id: int
     batch_id: int | None
+    related_invoice_id: NotRequired[int | None]
+    credit_reason: NotRequired[str]
     document_type: str
     point_of_sale: int
     invoice_number: int | None
@@ -188,6 +190,8 @@ class InvoiceItemDetailData(TypedDict):
 class InvoiceDetailData(TypedDict):
     id: int
     batch_id: int | None
+    related_invoice_id: NotRequired[int | None]
+    credit_reason: NotRequired[str]
     document_type: str
     point_of_sale: int
     invoice_number: int | None
@@ -242,6 +246,7 @@ class InvoiceDetailData(TypedDict):
     customer_email: str | None
     transport_name: str | None
     items: list[InvoiceItemDetailData]
+    credit_notes: NotRequired[list[InvoiceListItemData]]
 
 
 class InvoiceFileData(TypedDict):

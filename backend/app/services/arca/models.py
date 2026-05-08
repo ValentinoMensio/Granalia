@@ -40,6 +40,9 @@ class ArcaInvoiceRequest:
     imp_total: Decimal
     iva: list[ArcaIvaItem]
     items: list[ArcaInvoiceItem]
+    associated_cbte_tipo: int | None = None
+    associated_point_of_sale: int | None = None
+    associated_invoice_number: int | None = None
 
 
 @dataclass(frozen=True)

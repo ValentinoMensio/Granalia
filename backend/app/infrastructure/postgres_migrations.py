@@ -482,6 +482,10 @@ class PostgresMigrationMixin(PostgresRepositoryProtocol):
         if self._table_exists(connection, "invoices"):
             if not self._column_exists(connection, "invoices", "price_list_id"):
                 connection.execute(text("ALTER TABLE invoices ADD COLUMN price_list_id BIGINT REFERENCES price_lists(id) ON DELETE SET NULL"))
+            if not self._column_exists(connection, "invoices", "related_invoice_id"):
+                connection.execute(text("ALTER TABLE invoices ADD COLUMN related_invoice_id BIGINT REFERENCES invoices(id) ON DELETE SET NULL"))
+            if not self._column_exists(connection, "invoices", "credit_reason"):
+                connection.execute(text("ALTER TABLE invoices ADD COLUMN credit_reason TEXT NOT NULL DEFAULT ''"))
             if not self._column_exists(connection, "invoices", "declared"):
                 connection.execute(text("ALTER TABLE invoices ADD COLUMN declared BOOLEAN NOT NULL DEFAULT false"))
             if not self._column_exists(connection, "invoices", "price_list_name"):
@@ -623,6 +627,8 @@ class PostgresMigrationMixin(PostgresRepositoryProtocol):
         if self._table_exists(connection, "invoices"):
             invoice_fields = [
                 ("batch_id", "BIGINT REFERENCES invoice_batches(id) ON DELETE SET NULL"),
+                ("related_invoice_id", "BIGINT REFERENCES invoices(id) ON DELETE SET NULL"),
+                ("credit_reason", "TEXT NOT NULL DEFAULT ''"),
                 ("split_kind", "VARCHAR(20)"),
                 ("split_percentage", "NUMERIC(5, 2)"),
                 ("fiscal_status", "VARCHAR(20) NOT NULL DEFAULT 'internal'"),

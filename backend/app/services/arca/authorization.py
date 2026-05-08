@@ -84,11 +84,18 @@ def build_arca_invoice_request(invoice: dict, tax_breakdown: list[dict], *, poin
         cbte_date = datetime.strptime(str(invoice.get("order_date")), "%Y-%m-%d").date()
     except ValueError:
         cbte_date = date.today()
+    cbte_tipo = 3 if str(invoice.get("document_type") or "").upper() == "NOTA_CREDITO" else 1
+    related_invoice = invoice.get("related_invoice") or {}
+    associated_cbte_tipo = int(related_invoice.get("arca_cbte_tipo") or 1) if cbte_tipo == 3 else None
+    associated_point_of_sale = int(related_invoice.get("arca_point_of_sale") or point_of_sale) if cbte_tipo == 3 else None
+    associated_invoice_number = int(related_invoice.get("arca_invoice_number") or 0) if cbte_tipo == 3 else None
+    if cbte_tipo == 3 and not associated_invoice_number:
+        raise ValueError("La nota de crédito fiscal requiere una factura ARCA asociada")
     return ArcaInvoiceRequest(
         invoice_id=int(invoice["id"]),
         cbte_date=cbte_date,
         point_of_sale=point_of_sale,
-        cbte_tipo=1,
+        cbte_tipo=cbte_tipo,
         concepto=1,
         doc_tipo=80,
         doc_nro=doc_nro,
@@ -98,6 +105,9 @@ def build_arca_invoice_request(invoice: dict, tax_breakdown: list[dict], *, poin
         imp_total=money_decimal(imp_neto + imp_iva),
         iva=iva_items,
         items=arca_items,
+        associated_cbte_tipo=associated_cbte_tipo,
+        associated_point_of_sale=associated_point_of_sale,
+        associated_invoice_number=associated_invoice_number,
     )
 
 
@@ -115,6 +125,7 @@ def sanitized_wsfe_payload(request: ArcaInvoiceRequest) -> dict[str, object]:
         "ImpIVA": str(request.imp_iva),
         "ImpTotal": str(request.imp_total),
         "Iva": [{"Id": item.Id, "BaseImp": str(item.BaseImp), "Importe": str(item.Importe)} for item in request.iva],
+        "CbtesAsoc": [{"Tipo": request.associated_cbte_tipo, "PtoVta": request.associated_point_of_sale, "Nro": request.associated_invoice_number}] if request.associated_invoice_number else [],
     }
 
 
@@ -144,6 +155,13 @@ def authorize_invoice_in_arca(repository, invoice_id: int) -> dict[str, object]:
         raise ArcaAuthorizationConflict("La factura fiscal ya se esta autorizando")
 
     invoice = repository.get_invoice_detail(invoice_id) or invoice
+    if str(invoice.get("document_type") or "").upper() == "NOTA_CREDITO":
+        related_invoice_id = invoice.get("related_invoice_id")
+        related_invoice = repository.get_invoice_detail(int(related_invoice_id)) if related_invoice_id else None
+        if not related_invoice or not related_invoice.get("arca_invoice_number"):
+            repository.release_invoice_arca_authorization(invoice_id, "draft")
+            raise ValueError("La nota de crédito fiscal requiere una factura ARCA asociada")
+        invoice["related_invoice"] = related_invoice
     config = get_arca_config()
     try:
         if not config.is_configured:
@@ -151,7 +169,7 @@ def authorize_invoice_in_arca(repository, invoice_id: int) -> dict[str, object]:
                 invoice_id=invoice_id,
                 cbte_date=date.today(),
                 point_of_sale=config.point_of_sale or 0,
-                cbte_tipo=1,
+                cbte_tipo=3 if str(invoice.get("document_type") or "").upper() == "NOTA_CREDITO" else 1,
                 concepto=1,
                 doc_tipo=80,
                 doc_nro=digits_only(invoice.get("customer_cuit")),

@@ -84,15 +84,20 @@ def invoice_pdf_filename(invoice: dict) -> str:
     Para facturas declaradas usa el número de comprobante de ARCA sin ceros
     a la izquierda, por ejemplo: factura-1838.pdf.
     """
+    prefix = "nota-credito" if _is_credit_note(invoice) else "factura"
     if _is_fiscal_invoice(invoice):
         number = invoice.get("arca_invoice_number") or invoice.get("fiscal_number") or invoice.get("id")
-        return f"factura-{_fiscal_document_number_unpadded(number)}.pdf"
+        return f"{prefix}-{_fiscal_document_number_unpadded(number)}.pdf"
 
-    return f"factura-{_digits(invoice.get('id')) or invoice.get('id')}.pdf"
+    return f"{prefix}-{_digits(invoice.get('id')) or invoice.get('id')}.pdf"
 
 
 def _is_fiscal_invoice(invoice: dict) -> bool:
     return bool(invoice.get("declared")) or invoice.get("split_kind") == "fiscal"
+
+
+def _is_credit_note(invoice: dict) -> bool:
+    return str(invoice.get("document_type") or "").upper() == "NOTA_CREDITO"
 
 
 def _date(value: object) -> str:
@@ -260,10 +265,11 @@ def _draw_header(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
     _set_color(pdf, COLOR_TEXT)
     pdf.setFont(FONT_BOLD, 17)
     fiscal_number = str(invoice.get("fiscal_number") or invoice.get("id") or "")
-    remito_number = re.sub(r"factura", "Remito", fiscal_number, flags=re.IGNORECASE)
-    if not remito_number.lower().startswith("remito"):
-        remito_number = f"Remito #{remito_number}"
-    pdf.drawRightString(width - MARGIN, y - 8, remito_number)
+    label = "Nota de Crédito" if _is_credit_note(invoice) else "Remito"
+    display_number = re.sub(r"factura", label, fiscal_number, flags=re.IGNORECASE)
+    if not display_number.lower().startswith(label.lower()):
+        display_number = f"{label} #{display_number}"
+    pdf.drawRightString(width - MARGIN, y - 8, display_number)
 
     pdf.setFont(FONT_REGULAR, 12)
     _set_color(pdf, COLOR_MUTED)
@@ -285,6 +291,11 @@ def _draw_invoice_info(pdf: canvas.Canvas, invoice: dict, y: float) -> float:
         ("CUIT", invoice.get("customer_cuit")),
         ("Dirección", invoice.get("customer_address")),
     ]
+    if _is_credit_note(invoice):
+        customer_fields.extend([
+            ("Comprobante asociado", invoice.get("related_invoice_id") and f"Factura #{invoice.get('related_invoice_id')}"),
+            ("Motivo", invoice.get("credit_reason")),
+        ])
 
     pdf.setFont(FONT_REGULAR, 14)
     for label, value in customer_fields:
@@ -445,7 +456,7 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
 
     pdf.setFont(FONT_BOLD, SUMMARY_FONT_SIZE)
     _set_color(pdf, COLOR_TEXT)
-    pdf.drawString(totals_label_x, totals_y, "Total")
+    pdf.drawString(totals_label_x, totals_y, "Importe acreditado" if _is_credit_note(invoice) else "Total")
     pdf.drawRightString(totals_value_x, totals_y, _money(invoice.get("final_total") or 0))
 
     return min(shipment_y, totals_y) - 20
@@ -647,7 +658,7 @@ def _draw_fiscal_header(pdf: canvas.Canvas, invoice: dict, width: float, height:
     pdf.drawString(left + 116, row3_y, _truncate(issuer["iva_condition"], FONT_BOLD, 9, left_inner_right - (left + 116) - 4))
 
     pdf.setFont(FONT_BOLD, 20)
-    pdf.drawString(right_inner_left, top_band_bottom - 26, "FACTURA")
+    pdf.drawString(right_inner_left, top_band_bottom - 26, "NOTA DE CRÉDITO" if _is_credit_note(invoice) else "FACTURA")
 
     info_y1 = top_band_bottom - 50
     info_y2 = top_band_bottom - 70
@@ -699,6 +710,17 @@ def _draw_fiscal_receiver(pdf: canvas.Canvas, invoice: dict, width: float, y: fl
 
     pdf.setLineWidth(0.6)
     pdf.rect(left, bottom, right - left, height_box)
+    if _is_credit_note(invoice):
+        pdf.setFont(FONT_BOLD, 8)
+        pdf.drawString(left + 6, top - 54, "Comprobante asociado:")
+        pdf.setFont(FONT_REGULAR, 8)
+        pdf.drawString(left + 115, top - 54, f"Factura #{invoice.get('related_invoice_id') or '-'}")
+        pdf.setFont(FONT_BOLD, 8)
+        pdf.drawString(left + 260, top - 54, "Motivo:")
+        pdf.setFont(FONT_REGULAR, 8)
+        pdf.drawString(left + 300, top - 54, _truncate(str(invoice.get("credit_reason") or ""), FONT_REGULAR, 8, 275))
+        return bottom - 46
+
     pdf.setFont(FONT_BOLD, 8)
     pdf.drawString(left + 6, top - 13, "CUIT:")
     pdf.setFont(FONT_REGULAR, 8)
@@ -894,7 +916,7 @@ def build_invoice_pdf(invoice: dict) -> bytes:
     width, height = PAGE_SIZE
     y = height - 28
 
-    pdf.setTitle(f"Remito {invoice['id']}")
+    pdf.setTitle(f"{'Nota de crédito' if _is_credit_note(invoice) else 'Remito'} {invoice['id']}")
 
     y = _draw_header(pdf, invoice, width, y)
     y = _draw_invoice_info(pdf, invoice, y)

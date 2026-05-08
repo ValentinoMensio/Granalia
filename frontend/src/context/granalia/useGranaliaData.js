@@ -396,6 +396,20 @@ function useGranaliaData() {
     return data
   }
 
+  async function createCreditNote(invoiceId, payload) {
+    const data = await request(`/api/invoices/${invoiceId}/credit-notes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    await refreshInvoices()
+    if (String(invoiceDetail?.id || '') === String(invoiceId)) {
+      await loadInvoiceDetail(invoiceId)
+    }
+    setStatus(`Nota de crédito ${data.invoice_id} generada.`)
+    return data
+  }
+
   async function saveCustomer() {
     if (!form.clientName.trim()) {
       setStatus('Ingresá un cliente.')
@@ -570,6 +584,7 @@ function useGranaliaData() {
     startInvoiceEdit,
     deleteInvoice,
     authorizeInvoiceInArca,
+    createCreditNote,
     invoiceDownloadUrl,
     invoicePdfUrl,
     downloadInvoice,

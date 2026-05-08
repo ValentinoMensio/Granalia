@@ -141,6 +141,8 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                 select(
                     self.invoices.c.id.label("invoice_id"),
                     self.invoices.c.batch_id,
+                    self.invoices.c.related_invoice_id,
+                    self.invoices.c.credit_reason,
                     self.invoices.c.document_type,
                     self.invoices.c.point_of_sale,
                     self.invoices.c.invoice_number,
@@ -287,6 +289,13 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                 item["effective_discount"] = effective_discount
                 item["effective_total"] = int(item.get("gross") or 0) - effective_discount
 
+        for item in items:
+            if str(item.get("document_type") or "") != "NOTA_CREDITO":
+                continue
+            for field in ("quantity", "invoice_gross_total", "invoice_discount_total", "invoice_final_total", "gross", "discount", "total", "effective_discount", "effective_total"):
+                if item.get(field) is not None:
+                    item[field] = -float(item[field]) if field == "quantity" else -int(item[field])
+
         return items
 
     def _allocate_integer_amount(self, total: int, weights: list[int]) -> list[int]:
@@ -321,6 +330,8 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                 select(
                     self.invoices.c.id,
                     self.invoices.c.batch_id,
+                    self.invoices.c.related_invoice_id,
+                    self.invoices.c.credit_reason,
                     self.invoices.c.document_type,
                     self.invoices.c.point_of_sale,
                     self.invoices.c.invoice_number,
@@ -409,7 +420,36 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
             if item.get("iva_rate") is None and item.get("product_iva_rate") is not None:
                 item["iva_rate"] = item["product_iva_rate"]
         invoice["items"] = items
+        if str(invoice.get("document_type") or "") == "FACTURA":
+            invoice["credit_notes"] = self.list_credit_notes_for_invoice(invoice_id)
         return cast(InvoiceDetailData, invoice)
+
+    def list_credit_notes_for_invoice(self, invoice_id: int) -> list[InvoiceListItemData]:
+        return [item for item in self.list_invoices(limit=10000) if int(item.get("related_invoice_id") or 0) == int(invoice_id)]
+
+    def credited_quantities_for_invoice(self, invoice_id: int) -> dict[int, float]:
+        with self.engine.connect() as connection:
+            rows = connection.execute(
+                select(
+                    self.invoice_items.c.product_id,
+                    self.invoice_items.c.offering_id,
+                    self.invoice_items.c.quantity,
+                )
+                .select_from(self.invoice_items.join(self.invoices, self.invoice_items.c.invoice_id == self.invoices.c.id))
+                .where(self.invoices.c.related_invoice_id == invoice_id)
+            ).mappings().all()
+        credited: dict[tuple[str, str], float] = {}
+        for row in rows:
+            key = (str(row.get("product_id") or ""), str(row.get("offering_id") or ""))
+            credited[key] = credited.get(key, 0.0) + float(row.get("quantity") or 0)
+        original = self.get_invoice_detail(invoice_id)
+        if not original:
+            return {}
+        result: dict[int, float] = {}
+        for item in original.get("items", []):
+            key = (str(item.get("product_id") or ""), str(item.get("offering_id") or ""))
+            result[int(item["id"])] = credited.get(key, 0.0)
+        return result
 
     def save_invoice(
         self,
@@ -424,6 +464,9 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
         split_kind: str | None = None,
         split_percentage: float | None = None,
         fiscal_status: str | None = None,
+        document_type: str | None = None,
+        related_invoice_id: int | None = None,
+        credit_reason: str = "",
     ) -> int:
         created_at = utc_now()
         order_date = datetime.strptime(order["date"], "%Y-%m-%d").date()
@@ -437,7 +480,9 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
             "price_list_id": order.get("price_list_id"),
             "batch_id": batch_id,
             "legacy_key": f"invoice:{int(created_at.timestamp())}:{order['client_name']}",
-            "document_type": "FACTURA",
+            "document_type": document_type or "FACTURA",
+            "related_invoice_id": related_invoice_id,
+            "credit_reason": credit_reason,
             "point_of_sale": 1,
             "invoice_number": None,
             "internal_invoice_number": None,
@@ -489,7 +534,8 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
             item_payload.update(self._fiscal_item_values(cast(dict[str, object], item)))
             item_payloads.append(item_payload)
         with self.engine.begin() as connection:
-            document_type, point_of_sale = self._fiscal_scope()
+            scope_document_type, point_of_sale = self._fiscal_scope()
+            document_type = str(invoice_payload["document_type"] or scope_document_type)
             invoice_payload["document_type"] = document_type
             invoice_payload["point_of_sale"] = point_of_sale
             if not bool(invoice_payload["declared"]):
@@ -670,6 +716,8 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     "transport_id": transport_id,
                     "price_list_id": price_list_id,
                     "batch_id": batch_id,
+                    "related_invoice_id": doc.get("related_invoice_id"),
+                    "credit_reason": str(doc.get("credit_reason") or ""),
                     "legacy_key": f"invoice:{int(created_at.timestamp())}:{order['client_name']}:{doc.get('split_kind')}",
                     "document_type": document_type,
                     "point_of_sale": point_of_sale,

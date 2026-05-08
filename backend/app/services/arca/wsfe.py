@@ -168,6 +168,16 @@ class WsfeClient:
 </ar:AlicIva>"""
             for item in request.iva
         )
+        associated_xml = ""
+        if request.associated_invoice_number:
+            associated_xml = f"""
+      <ar:CbtesAsoc>
+        <ar:CbteAsoc>
+          <ar:Tipo>{request.associated_cbte_tipo}</ar:Tipo>
+          <ar:PtoVta>{request.associated_point_of_sale}</ar:PtoVta>
+          <ar:Nro>{request.associated_invoice_number}</ar:Nro>
+        </ar:CbteAsoc>
+      </ar:CbtesAsoc>"""
         body = f"""{auth_xml(self.config, self.ticket)}
 <ar:FeCAEReq>
   <ar:FeCabReq>
@@ -192,6 +202,7 @@ class WsfeClient:
       <ar:MonId>PES</ar:MonId>
       <ar:MonCotiz>1.00</ar:MonCotiz>
       <ar:CondicionIVAReceptorId>{request.condicion_iva_receptor_id}</ar:CondicionIVAReceptorId>
+{associated_xml}
       <ar:Iva>{iva_xml}</ar:Iva>
     </ar:FECAEDetRequest>
   </ar:FeDetReq>
