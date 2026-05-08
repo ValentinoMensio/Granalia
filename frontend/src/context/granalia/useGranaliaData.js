@@ -77,17 +77,18 @@ function useGranaliaData() {
     setInvoiceDetail(null)
   }
 
-  function clearInvoiceEditing() {
+  function clearInvoiceEditing(options = {}) {
+    const silent = Boolean(options?.silent)
     const sourceCustomers = customers
     const defaultPriceListId = bootstrap?.price_list?.id ? String(bootstrap.price_list.id) : ''
     setEditingInvoiceId(null)
     if (!sourceCustomers.length) {
       setForm({ ...createInitialForm(), priceListId: defaultPriceListId, internalPriceListId: defaultPriceListId, fiscalPriceListId: defaultPriceListId })
-      setStatus('Edición cancelada.')
+      if (!silent) setStatus('Edición cancelada.')
       return
     }
     setForm(applyCustomerToForm({ ...createInitialForm(), priceListId: defaultPriceListId, internalPriceListId: defaultPriceListId, fiscalPriceListId: defaultPriceListId }, sourceCustomers[0]))
-    setStatus('Edición cancelada.')
+    if (!silent) setStatus('Edición cancelada.')
   }
 
   function clearCurrentInvoice() {

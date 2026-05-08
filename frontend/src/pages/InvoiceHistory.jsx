@@ -103,7 +103,7 @@ export default function InvoiceHistory() {
   const navigate = useNavigate()
   const { session } = useAuth()
   const isAdmin = session?.role === 'admin'
-  const { bootstrap, invoices, customers, invoiceDetail, loadInvoiceDetail, clearInvoiceDetail, invoicePdfUrl, startInvoiceEdit, deleteInvoice, authorizeInvoiceInArca, createCreditNote } = useGranalia()
+  const { bootstrap, invoices, customers, invoiceDetail, loadInvoiceDetail, clearInvoiceDetail, clearInvoiceEditing, invoicePdfUrl, startInvoiceEdit, deleteInvoice, authorizeInvoiceInArca, createCreditNote } = useGranalia()
   const [filters, setFilters] = useState(EMPTY_FILTERS)
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [deletingInvoiceId, setDeletingInvoiceId] = useState(null)
@@ -160,6 +160,7 @@ export default function InvoiceHistory() {
   }
 
   async function handleSelectInvoice(invoiceId) {
+    clearInvoiceEditing({ silent: true })
     setLoadingDetail(true)
     try {
       await loadInvoiceDetail(invoiceId)
@@ -408,11 +409,6 @@ export default function InvoiceHistory() {
                       Editar
                     </Button>
                   )}
-                  {isAdmin && canCreateCreditNote(invoice) && (
-                    <Button variant="secondary" className="w-full" onClick={() => openCreditNoteModal(invoice.invoice_id)}>
-                      Nota crédito
-                    </Button>
-                  )}
                   <span className="btn-secondary w-full cursor-not-allowed opacity-50" aria-disabled="true">XLSX</span>
                   <a
                     href={invoicePdfUrl(invoice.invoice_id)}
@@ -488,11 +484,6 @@ export default function InvoiceHistory() {
                         {isAdmin && !isCreditNote(invoice) && (
                           <Button variant="ghost" className="px-0 py-0 text-brand-ink" onClick={() => handleEditInvoice(invoice.invoice_id)}>
                             Editar
-                          </Button>
-                        )}
-                        {isAdmin && canCreateCreditNote(invoice) && (
-                          <Button variant="ghost" className="px-0 py-0 text-blue-700" onClick={() => openCreditNoteModal(invoice.invoice_id)}>
-                            Nota crédito
                           </Button>
                         )}
                         <a
