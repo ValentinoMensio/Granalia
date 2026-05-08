@@ -266,8 +266,8 @@ def _draw_header(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
     pdf.setFont(FONT_BOLD, 17)
     fiscal_number = str(invoice.get("fiscal_number") or invoice.get("id") or "")
     label = "Nota de Crédito" if _is_credit_note(invoice) else "Remito"
-    display_number = re.sub(r"factura", label, fiscal_number, flags=re.IGNORECASE)
-    if not display_number.lower().startswith(label.lower()):
+    display_number = label if _is_credit_note(invoice) else re.sub(r"factura", label, fiscal_number, flags=re.IGNORECASE)
+    if not _is_credit_note(invoice) and not display_number.lower().startswith(label.lower()):
         display_number = f"{label} #{display_number}"
     pdf.drawRightString(width - MARGIN, y - 8, display_number)
 
@@ -456,6 +456,8 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
 
     pdf.setFont(FONT_BOLD, SUMMARY_FONT_SIZE)
     _set_color(pdf, COLOR_TEXT)
+    if _is_credit_note(invoice):
+        totals_label_x -= 28
     pdf.drawString(totals_label_x, totals_y, "Importe acreditado" if _is_credit_note(invoice) else "Total")
     pdf.drawRightString(totals_value_x, totals_y, _money(invoice.get("final_total") or 0))
 

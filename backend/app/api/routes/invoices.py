@@ -294,7 +294,7 @@ def build_internal_credit_note_from_sources(repository, order: dict, profile: di
         raise ValueError("Seleccioná un cliente histórico para generar una nota de crédito interna")
     available_items = repository.list_internal_credit_note_available_items(int(customer_id))
     available_by_id = {int(item["invoice_item_id"]): item for item in available_items}
-    credit_items = []
+    credit_items_by_key: dict[tuple[int, int, int], dict[str, object]] = {}
     source_links: list[dict[str, object]] = []
     requested_by_source: dict[int, float] = {}
     for requested in order.get("items", []):
@@ -313,20 +313,31 @@ def build_internal_credit_note_from_sources(repository, order: dict, profile: di
         if requested_total > available + 0.000001:
             raise ValueError(f"La cantidad a devolver de {source.get('label')} supera la disponible ({available:g})")
         requested_by_source[source_item_id] = requested_total
-        credit_items.append({
-            "product_id": int(source["product_id"]),
-            "offering_id": int(source["offering_id"]),
-            "source_invoice_item_id": source_item_id,
-            "offering_label": str(source.get("offering_label") or ""),
-            "quantity": quantity,
-            "bonus_quantity": 0,
-            "unit_price": int(source.get("unit_price") or 0),
-        })
+        product_id = int(source["product_id"])
+        offering_id = int(source["offering_id"])
+        unit_price = int(source.get("unit_price") or 0)
+        key = (product_id, offering_id, unit_price)
+        credit_item = credit_items_by_key.setdefault(
+            key,
+            {
+                "product_id": product_id,
+                "offering_id": offering_id,
+                "offering_label": str(source.get("offering_label") or ""),
+                "quantity": 0,
+                "bonus_quantity": 0,
+                "unit_price": unit_price,
+            },
+        )
+        credit_item["quantity"] = float(credit_item["quantity"] or 0) + quantity
         source_links.append({
             "source_invoice_id": int(source["invoice_id"]),
             "source_invoice_item_id": source_item_id,
+            "product_id": product_id,
+            "offering_id": offering_id,
+            "unit_price": unit_price,
             "quantity": quantity,
         })
+    credit_items = list(credit_items_by_key.values())
     if not credit_items:
         raise ValueError("Seleccioná al menos un producto a devolver")
     return {**order, "items": credit_items, "declared": False}, source_links
@@ -556,12 +567,16 @@ def create_credit_note(invoice_id: int, payload: CreditNoteRequest, _: str = Dep
             credit_reason=payload.reason,
         )
         if not is_fiscal_invoice(invoice):
+            items_by_id = {int(source_item["id"]): source_item for source_item in invoice.get("items", [])}
             repository.save_credit_note_item_sources(
                 credit_note_id,
                 [
                     {
                         "source_invoice_id": invoice_id,
                         "source_invoice_item_id": item.invoice_item_id,
+                        "product_id": items_by_id[item.invoice_item_id]["product_id"],
+                        "offering_id": items_by_id[item.invoice_item_id]["offering_id"],
+                        "unit_price": items_by_id[item.invoice_item_id]["unit_price"],
                         "quantity": item.quantity,
                     }
                     for item in payload.items

@@ -523,17 +523,25 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                 .where(self.invoice_items.c.invoice_id == credit_note_invoice_id)
                 .order_by(self.invoice_items.c.line_number)
             ).mappings().all()
-            if len(credit_items) != len(sources):
-                raise ValueError("No se pudieron vincular las líneas de la nota de crédito")
+            credit_items_by_key: dict[tuple[int, int, int], list[dict[str, object]]] = {}
+            for credit_item in credit_items:
+                key = (int(credit_item["product_id"]), int(credit_item["offering_id"]), int(credit_item["unit_price"] or 0))
+                credit_items_by_key.setdefault(key, []).append({**credit_item, "remaining_quantity": float(credit_item["quantity"] or 0)})
             payloads = []
-            for credit_item, source in zip(credit_items, sources):
+            for source in sources:
+                key = (int(source["product_id"]), int(source["offering_id"]), int(source["unit_price"] or 0))
+                source_quantity = float(source["quantity"])
+                credit_item = next((item for item in credit_items_by_key.get(key, []) if float(item.get("remaining_quantity") or 0) + 0.000001 >= source_quantity), None)
+                if not credit_item:
+                    raise ValueError("No se pudieron vincular las líneas de la nota de crédito")
+                credit_item["remaining_quantity"] = float(credit_item.get("remaining_quantity") or 0) - source_quantity
                 payloads.append(
                     {
                         "credit_note_invoice_id": credit_note_invoice_id,
                         "credit_note_item_id": int(credit_item["id"]),
                         "source_invoice_id": int(source["source_invoice_id"]),
                         "source_invoice_item_id": int(source["source_invoice_item_id"]),
-                        "quantity": float(source["quantity"]),
+                        "quantity": source_quantity,
                         "created_at": created_at,
                     }
                 )

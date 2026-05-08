@@ -180,7 +180,7 @@ function ProductRowsCard({
                   max={available || undefined}
                   step="0.01"
                   value={item.quantity || ''}
-                  onChange={(event) => onUpdateItem(index, 'quantity', Number(event.target.value || 0))}
+                  onChange={(event) => onUpdateItem(index, 'quantity', Math.min(available, Math.max(0, Number(event.target.value || 0))))}
                   placeholder="Cantidad"
                   disabled={!source}
                 />
