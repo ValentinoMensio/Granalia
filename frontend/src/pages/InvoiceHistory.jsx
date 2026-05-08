@@ -8,7 +8,7 @@ import DateRangePicker from '../components/ui/DateRangePicker'
 import { useAuth } from '../context/AuthContext'
 
 const PAGE_SIZE = 10
-const EMPTY_FILTERS = { customerId: '', dateFrom: '', dateTo: '', transport: '', minTotal: '', maxTotal: '' }
+const EMPTY_FILTERS = { customerId: '', dateFrom: '', dateTo: '', transport: '', operationType: '', minTotal: '', maxTotal: '' }
 const fiscalMoney = (value) => new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value || 0))
 const fiscalPercent = (value) => new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value || 0))
 
@@ -29,6 +29,11 @@ function invoiceTypeLabel(invoice) {
   if (isCreditNote(invoice)) return 'Nota crédito'
   if (invoice?.declared || invoice?.split_kind === 'fiscal') return 'Declarada'
   return 'Interna'
+}
+
+function invoiceOperationType(invoice) {
+  if (isCreditNote(invoice)) return isFiscalInvoice(invoice) ? 'fiscal_credit_note' : 'internal_credit_note'
+  return isFiscalInvoice(invoice) ? 'fiscal_invoice' : 'internal_invoice'
 }
 
 function displayInvoiceNumber(invoice) {
@@ -135,10 +140,11 @@ export default function InvoiceHistory() {
       const matchesDateTo = !filters.dateTo || invoice.order_date <= filters.dateTo
       const matchesDate = matchesDateFrom && matchesDateTo
       const matchesTransport = !filters.transport || String(invoice.transport_id || '') === String(filters.transport)
+      const matchesOperationType = !filters.operationType || invoiceOperationType(invoice) === filters.operationType
       const invoiceTotal = signedInvoiceTotal(invoice)
       const matchesMinTotal = minTotal === null || invoiceTotal >= minTotal
       const matchesMaxTotal = maxTotal === null || invoiceTotal <= maxTotal
-      return matchesCustomer && matchesDate && matchesTransport && matchesMinTotal && matchesMaxTotal
+      return matchesCustomer && matchesDate && matchesTransport && matchesOperationType && matchesMinTotal && matchesMaxTotal
     })
   }, [filters, invoices])
 
@@ -338,6 +344,17 @@ export default function InvoiceHistory() {
               {(bootstrap?.transports || []).map((transport) => (
                 <option key={transport.transport_id} value={transport.transport_id}>{transport.name}</option>
               ))}
+            </select>
+            <select
+              value={filters.operationType}
+              onChange={(event) => updateFilter('operationType', event.target.value)}
+              className="input"
+            >
+              <option value="">Todos los tipos</option>
+              <option value="internal_invoice">Remitos internos</option>
+              <option value="fiscal_invoice">Facturas declaradas</option>
+              <option value="internal_credit_note">Notas de crédito internas</option>
+              <option value="fiscal_credit_note">Notas de crédito fiscales</option>
             </select>
             <input
               type="number"
