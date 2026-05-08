@@ -422,6 +422,7 @@ class InvoiceItemOut(BaseModel):
     net_amount: float | None = None
     iva_amount: float | None = None
     fiscal_total: float | None = None
+    sources: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class InvoiceDetailOut(BaseModel):
