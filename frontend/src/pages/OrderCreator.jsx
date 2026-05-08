@@ -89,6 +89,7 @@ export default function OrderCreator() {
     bootstrap,
     customers,
     catalog,
+    internalCreditNoteItems,
     availableDiscountGroups,
     editingInvoiceId,
     saving,
@@ -110,6 +111,7 @@ export default function OrderCreator() {
     removeFooterDiscountRow,
     saveCustomer,
     generateInvoice,
+    loadInternalCreditNoteItems,
     clearCurrentInvoice,
     clearInvoiceEditing,
   } = useGranalia()
@@ -133,6 +135,11 @@ export default function OrderCreator() {
       cancelled = true
     }
   }, [bootstrap, form.billingMode, form.fiscalPriceListId])
+
+  useEffect(() => {
+    if ((form.billingMode || 'internal_only') !== 'internal_credit_note') return
+    loadInternalCreditNoteItems(form.customerId).catch((error) => console.warn(error))
+  }, [form.billingMode, form.customerId])
 
   const splitPreview = useMemo(
     () => buildSplitPreview(form, productsById, fiscalCatalog),
@@ -186,6 +193,7 @@ export default function OrderCreator() {
           form={form}
           catalog={catalog}
           productsById={productsById}
+          creditNoteSourceItems={internalCreditNoteItems}
           splitPreview={splitPreview}
           totals={totals}
           generating={generating}

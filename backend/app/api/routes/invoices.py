@@ -288,6 +288,46 @@ def build_credit_note_order(invoice: dict, payload: CreditNoteRequest, credited_
     return order, iva_by_key
 
 
+def build_internal_credit_note_from_sources(repository, order: dict, profile: dict) -> tuple[dict, list[dict[str, object]]]:
+    customer_id = profile.get("id")
+    if not customer_id:
+        raise ValueError("Seleccioná un cliente histórico para generar una nota de crédito interna")
+    available_items = repository.list_internal_credit_note_available_items(int(customer_id))
+    available_by_id = {int(item["invoice_item_id"]): item for item in available_items}
+    credit_items = []
+    source_links: list[dict[str, object]] = []
+    for requested in order.get("items", []):
+        source_item_id = requested.get("source_invoice_item_id")
+        if not source_item_id:
+            raise ValueError("Seleccioná el remito/factura origen de cada producto a devolver")
+        source = available_by_id.get(int(source_item_id))
+        if not source:
+            raise ValueError("La línea origen no está disponible para devolución")
+        quantity = float(requested.get("quantity") or 0)
+        available = float(source.get("available_quantity") or 0)
+        if quantity <= 0:
+            continue
+        if quantity > available + 0.000001:
+            raise ValueError(f"La cantidad a devolver de {source.get('label')} supera la disponible ({available:g})")
+        credit_items.append({
+            "product_id": int(source["product_id"]),
+            "offering_id": int(source["offering_id"]),
+            "source_invoice_item_id": int(source_item_id),
+            "offering_label": str(source.get("offering_label") or ""),
+            "quantity": quantity,
+            "bonus_quantity": 0,
+            "unit_price": int(source.get("unit_price") or 0),
+        })
+        source_links.append({
+            "source_invoice_id": int(source["invoice_id"]),
+            "source_invoice_item_id": int(source_item_id),
+            "quantity": quantity,
+        })
+    if not credit_items:
+        raise ValueError("Seleccioná al menos un producto a devolver")
+    return {**order, "items": credit_items, "declared": False}, source_links
+
+
 def ensure_batch_editable(repository, batch_id: int | None) -> None:
     if not batch_id:
         return
@@ -347,6 +387,11 @@ def arca_taxpayer_lookup(cuit: str, _: str = Depends(require_admin)) -> dict[str
     return lookup_taxpayer_data(cuit)
 
 
+@router.get("/internal-credit-note-items")
+def internal_credit_note_items(customer_id: int = Query(..., ge=1), _: str = Depends(current_role)) -> list[dict[str, object]]:
+    return get_repository().list_internal_credit_note_available_items(customer_id)
+
+
 @router.get("/{invoice_id}", response_model=InvoiceDetailOut)
 def invoice_detail(invoice_id: int, role: str = Depends(current_role)) -> InvoiceDetailOut:
     invoice = get_repository().get_invoice_detail(invoice_id)
@@ -395,6 +440,45 @@ def create_invoice(payload: InvoiceRequest, role: str = Depends(current_role)) -
     profile = payload.profile.model_dump()
     billing_mode = str(order.get("billing_mode") or ("fiscal_only" if order.get("declared") else "internal_only"))
     try:
+        if billing_mode == "internal_credit_note":
+            order, source_links = build_internal_credit_note_from_sources(repository, order, profile)
+            order["price_list_id"] = order.get("internal_price_list_id") or order.get("price_list_id")
+            catalog = repository.get_catalog_for_price_list(int(order["price_list_id"])) if order.get("price_list_id") else repository.get_active_catalog()
+            history_invoice = {"items": [
+                {
+                    "product_id": item["product_id"],
+                    "offering_id": item["offering_id"],
+                    "product_name": item.get("product_name") or item.get("label"),
+                    "offering_label": item.get("offering_label"),
+                    "unit_price": item.get("unit_price"),
+                    "offering_net_weight_kg": item.get("offering_net_weight_kg"),
+                }
+                for item in repository.list_internal_credit_note_available_items(int(profile["id"]))
+            ]}
+            catalog = catalog_with_invoice_history(catalog, history_invoice, order)
+            filename, xlsx_bytes, snapshot = generate_invoice_document(order, profile, catalog)
+            credit_note_id = repository.save_invoice(
+                order,
+                profile,
+                snapshot,
+                filename,
+                xlsx_bytes,
+                update_customer=False,
+                split_kind="internal",
+                fiscal_status="internal",
+                document_type="NOTA_CREDITO",
+                related_invoice_id=None,
+                credit_reason=" / ".join(order.get("notes") or []) or "Nota de crédito interna",
+            )
+            repository.save_credit_note_item_sources(credit_note_id, source_links)
+            return InvoiceCreateOut.model_validate({
+                "invoice_id": credit_note_id,
+                "invoices": [{"invoice_id": credit_note_id, "split_kind": "internal", "fiscal_status": "internal"}],
+                "filename": filename,
+                "download_url": f"/api/invoices/{credit_note_id}/xlsx",
+                "summary": snapshot["summary"],
+            })
+
         if billing_mode == "internal_only":
             order["declared"] = False
             order["price_list_id"] = order.get("internal_price_list_id") or order.get("price_list_id")
@@ -467,6 +551,18 @@ def create_credit_note(invoice_id: int, payload: CreditNoteRequest, _: str = Dep
             related_invoice_id=invoice_id,
             credit_reason=payload.reason,
         )
+        if not is_fiscal_invoice(invoice):
+            repository.save_credit_note_item_sources(
+                credit_note_id,
+                [
+                    {
+                        "source_invoice_id": invoice_id,
+                        "source_invoice_item_id": item.invoice_item_id,
+                        "quantity": item.quantity,
+                    }
+                    for item in payload.items
+                ],
+            )
     except (RuntimeError, ValueError) as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
     return InvoiceCreateOut.model_validate({

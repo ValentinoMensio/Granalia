@@ -67,6 +67,7 @@ class CustomerProfileData(TypedDict):
 class OrderItemData(TypedDict):
     product_id: int
     offering_id: int
+    source_invoice_item_id: NotRequired[int | None]
     offering_label: NotRequired[str]
     quantity: float
     bonus_quantity: int

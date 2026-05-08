@@ -55,6 +55,7 @@ class FooterDiscount(BaseModel):
 class InvoiceItemInput(BaseModel):
     product_id: int
     offering_id: int
+    source_invoice_item_id: int | None = None
     offering_label: str = Field(default="", max_length=120)
     quantity: NonNegativeNumber
     bonus_quantity: NonNegativeInt = 0
@@ -103,8 +104,8 @@ class InvoiceCreate(BaseModel):
     @field_validator("billing_mode")
     @classmethod
     def validate_billing_mode(cls, value: str) -> str:
-        if value not in {"internal_only", "fiscal_only", "split"}:
-            raise ValueError("billing_mode must be internal_only, fiscal_only or split")
+        if value not in {"internal_only", "fiscal_only", "split", "internal_credit_note"}:
+            raise ValueError("billing_mode must be internal_only, fiscal_only, split or internal_credit_note")
         return value
 
     @field_validator("declared_percentage")

@@ -30,6 +30,7 @@ class PostgresBootstrapMixin(PostgresRepositoryProtocol):
             self._ensure_fractional_invoice_quantities(connection=connection)
             self._ensure_price_list_invoice_fields(connection=connection)
             self._ensure_price_list_version_history(connection=connection)
+            self._ensure_credit_note_item_sources(connection=connection)
             self._ensure_offering_net_weight(connection=connection)
             self._ensure_invoice_historical_snapshot_fields(connection=connection)
             if os.getenv("GRANALIA_ENABLE_RUNTIME_ARCA_MIGRATIONS", "false").strip().lower() == "true":

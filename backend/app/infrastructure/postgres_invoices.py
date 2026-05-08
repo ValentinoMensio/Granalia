@@ -7,7 +7,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from datetime import date, datetime
 from typing import cast
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.engine import Engine
 from sqlalchemy.sql.schema import Table
@@ -29,6 +29,7 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
     invoice_batches: Table
     price_lists: Table
     invoice_tax_breakdown: Table
+    credit_note_item_sources: Table
     arca_requests: Table
     invoice_sequences: Table
 
@@ -450,6 +451,93 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
             key = (str(item.get("product_id") or ""), str(item.get("offering_id") or ""))
             result[int(item["id"])] = credited.get(key, 0.0)
         return result
+
+    def list_internal_credit_note_available_items(self, customer_id: int) -> list[dict[str, object]]:
+        with self.engine.connect() as connection:
+            item_rows = connection.execute(
+                select(
+                    self.invoices.c.id.label("invoice_id"),
+                    self.invoices.c.internal_invoice_number,
+                    self.invoices.c.order_date,
+                    self.invoices.c.client_name,
+                    self.invoice_items.c.id.label("invoice_item_id"),
+                    self.invoice_items.c.product_id,
+                    self.invoice_items.c.offering_id,
+                    self.invoice_items.c.product_name,
+                    self.invoice_items.c.offering_label,
+                    self.invoice_items.c.offering_net_weight_kg,
+                    self.invoice_items.c.label,
+                    self.invoice_items.c.quantity,
+                    self.invoice_items.c.unit_price,
+                    self.invoice_items.c.gross,
+                    self.invoice_items.c.discount,
+                    self.invoice_items.c.total,
+                )
+                .select_from(self.invoice_items.join(self.invoices, self.invoice_items.c.invoice_id == self.invoices.c.id))
+                .where(
+                    self.invoices.c.customer_id == customer_id,
+                    self.invoices.c.document_type == "FACTURA",
+                    self.invoices.c.declared.is_(False),
+                    self.invoice_items.c.line_type == "sale",
+                    self.invoice_items.c.quantity > 0,
+                    self.invoice_items.c.unit_price > 0,
+                    self.invoice_items.c.product_id.is_not(None),
+                    self.invoice_items.c.offering_id.is_not(None),
+                )
+                .order_by(self.invoices.c.order_date.desc(), self.invoices.c.id.desc(), self.invoice_items.c.line_number)
+            ).mappings().all()
+            credited_rows = connection.execute(
+                select(
+                    self.credit_note_item_sources.c.source_invoice_item_id,
+                    func.coalesce(func.sum(self.credit_note_item_sources.c.quantity), 0).label("credited_quantity"),
+                )
+                .group_by(self.credit_note_item_sources.c.source_invoice_item_id)
+            ).mappings().all()
+        credited_by_item = {int(row["source_invoice_item_id"]): float(row["credited_quantity"] or 0) for row in credited_rows}
+        items = []
+        for row in item_rows:
+            item = {key: serialize_value(value) for key, value in row.items()}
+            quantity = float(item.get("quantity") or 0)
+            credited = credited_by_item.get(int(item["invoice_item_id"]), 0.0)
+            available = max(0.0, quantity - credited)
+            if available <= 0:
+                continue
+            item["credited_quantity"] = credited
+            item["available_quantity"] = available
+            items.append(item)
+        return items
+
+    def save_credit_note_item_sources(self, credit_note_invoice_id: int, sources: list[dict[str, object]]) -> None:
+        if not sources:
+            return
+        created_at = utc_now()
+        with self.engine.begin() as connection:
+            credit_items = connection.execute(
+                select(
+                    self.invoice_items.c.id,
+                    self.invoice_items.c.product_id,
+                    self.invoice_items.c.offering_id,
+                    self.invoice_items.c.unit_price,
+                    self.invoice_items.c.quantity,
+                )
+                .where(self.invoice_items.c.invoice_id == credit_note_invoice_id)
+                .order_by(self.invoice_items.c.line_number)
+            ).mappings().all()
+            if len(credit_items) != len(sources):
+                raise ValueError("No se pudieron vincular las líneas de la nota de crédito")
+            payloads = []
+            for credit_item, source in zip(credit_items, sources):
+                payloads.append(
+                    {
+                        "credit_note_invoice_id": credit_note_invoice_id,
+                        "credit_note_item_id": int(credit_item["id"]),
+                        "source_invoice_id": int(source["source_invoice_id"]),
+                        "source_invoice_item_id": int(source["source_invoice_item_id"]),
+                        "quantity": float(source["quantity"]),
+                        "created_at": created_at,
+                    }
+                )
+            connection.execute(self.credit_note_item_sources.insert(), payloads)
 
     def save_invoice(
         self,

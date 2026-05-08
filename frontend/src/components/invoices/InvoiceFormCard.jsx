@@ -41,6 +41,7 @@ function InvoiceFormCard({
           <Field label="Modo de facturación">
             <select className="input" value={billingMode} onChange={(event) => onFieldChange('billingMode', event.target.value)} disabled={Boolean(editingInvoiceId)}>
               <option value="internal_only">Solo interna</option>
+              <option value="internal_credit_note">Nota de crédito interna</option>
               <option value="fiscal_only">Solo declarada</option>
               <option value="split">Dividida</option>
             </select>
@@ -54,7 +55,7 @@ function InvoiceFormCard({
             </Field>
           )}
 
-        {(billingMode === 'internal_only' || billingMode === 'split') && (
+        {(billingMode === 'internal_only' || billingMode === 'internal_credit_note' || billingMode === 'split') && (
           <Field label="Lista interna">
             <select className="input" value={form.internalPriceListId || form.priceListId} onChange={(event) => onFieldChange('internalPriceListId', event.target.value)}>
               <option value="">Lista predeterminada ({defaultPriceListName})</option>

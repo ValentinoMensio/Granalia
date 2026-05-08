@@ -20,6 +20,7 @@ function useGranaliaData() {
   const [catalog, setCatalog] = useState([])
   const [invoices, setInvoices] = useState([])
   const [invoiceDetail, setInvoiceDetail] = useState(null)
+  const [internalCreditNoteItems, setInternalCreditNoteItems] = useState([])
   const [editingInvoiceId, setEditingInvoiceId] = useState(null)
   const [status, setStatus] = useState('')
   const [uploading, setUploading] = useState(false)
@@ -70,6 +71,16 @@ function useGranaliaData() {
   async function loadInvoiceDetail(invoiceId) {
     const data = await request(`/api/invoices/${invoiceId}`)
     setInvoiceDetail(data)
+    return data
+  }
+
+  async function loadInternalCreditNoteItems(customerId) {
+    if (!customerId) {
+      setInternalCreditNoteItems([])
+      return []
+    }
+    const data = await request(`/api/invoices/internal-credit-note-items?customer_id=${customerId}`)
+    setInternalCreditNoteItems(data)
     return data
   }
 
@@ -180,7 +191,7 @@ function useGranaliaData() {
             ...current,
             ...extraUpdates,
             priceListId: value,
-            items: (extraUpdates.billingMode || current.billingMode) === 'fiscal_only'
+            items: ['fiscal_only', 'internal_credit_note'].includes(extraUpdates.billingMode || current.billingMode)
               ? removeAutomaticBonusFromItems(repriceItemsForCatalog(current.items, nextCatalog))
               : applyAutomaticBonusRulesToItems(repriceItemsForCatalog(current.items, nextCatalog), current.automaticBonusRules),
           }))
@@ -193,7 +204,7 @@ function useGranaliaData() {
         ...current,
         ...extraUpdates,
         priceListId: value,
-        items: (extraUpdates.billingMode || current.billingMode) === 'fiscal_only'
+        items: ['fiscal_only', 'internal_credit_note'].includes(extraUpdates.billingMode || current.billingMode)
           ? removeAutomaticBonusFromItems(repriceItemsForCatalog(current.items, nextCatalog))
           : applyAutomaticBonusRulesToItems(repriceItemsForCatalog(current.items, nextCatalog), current.automaticBonusRules),
       }))
@@ -206,7 +217,7 @@ function useGranaliaData() {
       return
     }
     if (field === 'billingMode') {
-      const declared = value !== 'internal_only'
+      const declared = value === 'fiscal_only' || value === 'split'
       const targetPriceListId = value === 'fiscal_only' ? form.fiscalPriceListId : form.internalPriceListId
       if (targetPriceListId !== form.priceListId) {
         applyPriceListChange(targetPriceListId, { billingMode: value, declared })
@@ -215,7 +226,7 @@ function useGranaliaData() {
           ...current,
           billingMode: value,
           declared,
-          items: value === 'fiscal_only' ? removeAutomaticBonusFromItems(current.items) : applyAutomaticBonusRulesToItems(current.items, current.automaticBonusRules),
+          items: ['fiscal_only', 'internal_credit_note'].includes(value) ? removeAutomaticBonusFromItems(current.items) : applyAutomaticBonusRulesToItems(current.items, current.automaticBonusRules),
         }))
       }
       return
@@ -280,7 +291,7 @@ function useGranaliaData() {
       return {
         ...current,
         automaticBonusRules,
-        items: current.billingMode === 'fiscal_only' ? removeAutomaticBonusFromItems(current.items) : applyAutomaticBonusRulesToItems(current.items, automaticBonusRules),
+        items: ['fiscal_only', 'internal_credit_note'].includes(current.billingMode) ? removeAutomaticBonusFromItems(current.items) : applyAutomaticBonusRulesToItems(current.items, automaticBonusRules),
       }
     })
   }
@@ -301,7 +312,7 @@ function useGranaliaData() {
       return {
         ...current,
         automaticBonusRules,
-        items: current.billingMode === 'fiscal_only' ? removeAutomaticBonusFromItems(current.items) : applyAutomaticBonusRulesToItems(current.items, automaticBonusRules),
+        items: ['fiscal_only', 'internal_credit_note'].includes(current.billingMode) ? removeAutomaticBonusFromItems(current.items) : applyAutomaticBonusRulesToItems(current.items, automaticBonusRules),
       }
     })
   }
@@ -312,7 +323,7 @@ function useGranaliaData() {
       return {
         ...current,
         automaticBonusRules,
-        items: current.billingMode === 'fiscal_only' ? removeAutomaticBonusFromItems(current.items) : applyAutomaticBonusRulesToItems(current.items, automaticBonusRules),
+        items: ['fiscal_only', 'internal_credit_note'].includes(current.billingMode) ? removeAutomaticBonusFromItems(current.items) : applyAutomaticBonusRulesToItems(current.items, automaticBonusRules),
       }
     })
   }
@@ -321,6 +332,18 @@ function useGranaliaData() {
     setForm((current) => {
       const items = [...current.items]
       items[index] = { ...items[index], [field]: value }
+      if (field === 'source_invoice_item_id') {
+        const source = internalCreditNoteItems.find((entry) => String(entry.invoice_item_id) === String(value || ''))
+        items[index].source_invoice_item_id = value || ''
+        items[index].product_id = source?.product_id || ''
+        items[index].product_name = source?.product_name || source?.label || ''
+        items[index].offering_id = source?.offering_id || ''
+        items[index].offering_label = source?.offering_label || ''
+        items[index].unit_price = source ? Number(source.unit_price || 0) : ''
+        items[index].bonus_quantity = 0
+        items[index].quantity = 0
+        return { ...current, items }
+      }
       if (field === 'product_id') {
         const product = catalog.find((entry) => entry.id === value)
         items[index].product_name = product?.name || ''
@@ -339,9 +362,9 @@ function useGranaliaData() {
       }
       if (field === 'bonus_quantity') {
         items[index].bonus_quantity_manual = true
-        return { ...current, items: current.billingMode === 'fiscal_only' ? removeAutomaticBonusFromItems(items) : applyAutomaticBonusRulesToItems(items, current.automaticBonusRules) }
+        return { ...current, items: ['fiscal_only', 'internal_credit_note'].includes(current.billingMode) ? removeAutomaticBonusFromItems(items) : applyAutomaticBonusRulesToItems(items, current.automaticBonusRules) }
       }
-      return { ...current, items: current.billingMode === 'fiscal_only' ? removeAutomaticBonusFromItems(items) : applyAutomaticBonusRulesToItems(items, current.automaticBonusRules) }
+      return { ...current, items: ['fiscal_only', 'internal_credit_note'].includes(current.billingMode) ? removeAutomaticBonusFromItems(items) : applyAutomaticBonusRulesToItems(items, current.automaticBonusRules) }
     })
   }
 
@@ -579,6 +602,7 @@ function useGranaliaData() {
     catalog,
     invoices,
     invoiceDetail,
+    internalCreditNoteItems,
     editingInvoiceId,
     status,
     uploading,
@@ -596,6 +620,7 @@ function useGranaliaData() {
     setPriceListUploadTargetId,
     setStatus,
     loadInvoiceDetail,
+    loadInternalCreditNoteItems,
     clearInvoiceDetail,
     clearInvoiceEditing,
     clearCurrentInvoice,

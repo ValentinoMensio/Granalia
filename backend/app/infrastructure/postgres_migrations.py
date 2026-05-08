@@ -22,6 +22,7 @@ class PostgresMigrationMixin(PostgresRepositoryProtocol):
     invoices: Table
     invoice_items: Table
     invoice_tax_breakdown: Table
+    credit_note_item_sources: Table
     arca_requests: Table
     price_lists: Table
     price_list_versions: Table
@@ -556,6 +557,27 @@ class PostgresMigrationMixin(PostgresRepositoryProtocol):
                     uploaded_at=row["uploaded_at"],
                 )
             )
+
+    def _ensure_credit_note_item_sources(self, *, connection) -> None:
+        if self._table_exists(connection, "credit_note_item_sources"):
+            return
+        connection.execute(
+            text(
+                """
+                CREATE TABLE credit_note_item_sources (
+                    id BIGSERIAL PRIMARY KEY,
+                    credit_note_invoice_id BIGINT NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+                    credit_note_item_id BIGINT NOT NULL REFERENCES invoice_items(id) ON DELETE CASCADE,
+                    source_invoice_id BIGINT NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+                    source_invoice_item_id BIGINT NOT NULL REFERENCES invoice_items(id) ON DELETE CASCADE,
+                    quantity NUMERIC(12, 2) NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL,
+                    CONSTRAINT ck_credit_note_item_sources_quantity_positive CHECK (quantity > 0),
+                    CONSTRAINT uq_credit_note_item_sources_credit_source UNIQUE (credit_note_item_id, source_invoice_item_id)
+                )
+                """
+            )
+        )
 
     def _ensure_invoice_historical_snapshot_fields(self, *, connection) -> None:
         if self._table_exists(connection, "invoices"):

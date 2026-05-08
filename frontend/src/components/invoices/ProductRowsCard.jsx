@@ -54,6 +54,7 @@ function ProductRowsCard({
   editingInvoiceId,
   form,
   catalog,
+  creditNoteSourceItems = [],
   productsById,
   splitPreview,
   totals,
@@ -65,6 +66,87 @@ function ProductRowsCard({
   onRemoveItem,
   onUpdateItem,
 }) {
+  const isInternalCreditNote = (form.billingMode || 'internal_only') === 'internal_credit_note'
+  const sourceItemsById = Object.fromEntries(creditNoteSourceItems.map((item) => [String(item.invoice_item_id), item]))
+
+  if (isInternalCreditNote) {
+    return (
+      <div className="surface p-4 sm:p-6 lg:p-7">
+        <div className="mb-5">
+          <div className="eyebrow">Detalle</div>
+          <h2 className="subsection-title mt-2 text-xl sm:text-2xl">Productos a devolver</h2>
+          <p className="mt-2 text-sm text-slate-500">Seleccioná líneas facturadas al cliente. El precio se toma del remito original y la cantidad no puede superar lo disponible.</p>
+        </div>
+
+        {!form.customerId && (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Elegí un cliente histórico para ver productos disponibles para devolución.</div>
+        )}
+
+        <div className="mt-4 space-y-3">
+          {form.items.map((item, index) => {
+            const source = sourceItemsById[String(item.source_invoice_item_id || '')]
+            const available = Number(source?.available_quantity || 0)
+            const quantity = Number(item.quantity || 0)
+            const price = Number(source?.unit_price ?? item.unit_price ?? 0)
+            return (
+              <div key={index} className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm lg:grid-cols-[minmax(0,1fr)_8rem_8rem_8rem_auto] lg:items-center">
+                <select
+                  className="input"
+                  value={item.source_invoice_item_id || ''}
+                  onChange={(event) => onUpdateItem(index, 'source_invoice_item_id', event.target.value ? Number(event.target.value) : '')}
+                >
+                  <option value="">Producto facturado</option>
+                  {creditNoteSourceItems.map((sourceItem) => (
+                    <option key={sourceItem.invoice_item_id} value={sourceItem.invoice_item_id}>
+                      {sourceItem.order_date} · #{sourceItem.internal_invoice_number || sourceItem.invoice_id} · {sourceItem.label} · disp. {sourceItem.available_quantity}
+                    </option>
+                  ))}
+                </select>
+                <div className="text-slate-500 lg:text-right">Máx. {available || '-'}</div>
+                <input
+                  className="input text-right"
+                  type="number"
+                  min="0"
+                  max={available || undefined}
+                  step="0.01"
+                  value={item.quantity || ''}
+                  onChange={(event) => onUpdateItem(index, 'quantity', Number(event.target.value || 0))}
+                  placeholder="Cantidad"
+                  disabled={!source}
+                />
+                <div className="font-semibold text-slate-700 lg:text-right">${money(price)}</div>
+                <div className="flex items-center justify-between gap-3 lg:justify-end">
+                  <span className="font-semibold text-brand-red">${money(quantity * price)}</span>
+                  <Button variant="ghost" className="px-2 py-2 text-xs text-slate-500" onClick={() => onRemoveItem(index)}>Quitar</Button>
+                </div>
+              </div>
+            )
+          })}
+          {creditNoteSourceItems.length === 0 && form.customerId && (
+            <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-400">No hay productos disponibles para devolver de este cliente.</div>
+          )}
+        </div>
+
+        <div className="mt-4">
+          <Button variant="secondary" onClick={onAddItem} disabled={generating}>+ Agregar línea</Button>
+        </div>
+
+        <div className="mt-6 grid gap-3 md:grid-cols-3">
+          <Metric label="Total bultos" value={money(totals.bultos)} />
+          <Metric label="Subtotal" value={money(totals.subtotal)} />
+          <Metric label="Total a acreditar" value={money(totals.total)} />
+        </div>
+
+        <div className="mt-6 flex flex-col gap-3 border-t border-stone-200 pt-5 sm:flex-row sm:flex-wrap sm:justify-start">
+          <Button variant="danger" className="w-full sm:min-w-[220px] sm:w-auto" onClick={onGenerate} disabled={generating}>
+            {generating ? 'Guardando...' : 'Generar nota de crédito'}
+          </Button>
+          <Button variant="secondary" className="w-full sm:min-w-[180px] sm:w-auto" onClick={onClearInvoice} disabled={generating}>Limpiar factura</Button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="surface p-4 sm:p-6 lg:p-7">
       <div className="mb-5">
