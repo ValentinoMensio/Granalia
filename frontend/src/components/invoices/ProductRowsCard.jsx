@@ -165,10 +165,10 @@ function ProductRowsCard({
                   onChange={(event) => onUpdateItem(index, 'source_invoice_item_id', event.target.value ? Number(event.target.value) : '')}
                   disabled={!selectedOfferingId}
                 >
-                  <option value="">Factura / remito</option>
+                  <option value="">Remito origen</option>
                   {sourceItemsForOffering.map((sourceItem) => (
                     <option key={sourceItem.invoice_item_id} value={sourceItem.invoice_item_id}>
-                      {dateLabel(sourceItem.order_date)} · #{sourceItem.internal_invoice_number || sourceItem.invoice_id} · disp. {sourceItem.available_quantity}
+                      #{sourceItem.internal_invoice_number || sourceItem.invoice_id} · {dateLabel(sourceItem.order_date)} · disp. {sourceItem.available_quantity} · ${money(sourceItem.unit_price)}
                     </option>
                   ))}
                 </select>

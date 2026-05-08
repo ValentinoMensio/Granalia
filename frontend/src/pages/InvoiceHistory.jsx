@@ -191,7 +191,9 @@ export default function InvoiceHistory() {
   }
 
   async function handleDeleteInvoice(invoiceId) {
-    if (!window.confirm(`¿Eliminar la factura #${invoiceId}? Esta acción no se puede deshacer.`)) {
+    const target = invoices.find((invoice) => String(invoice.invoice_id || invoice.id) === String(invoiceId))
+    const label = isCreditNote(target) ? 'la nota de crédito' : 'la factura'
+    if (!window.confirm(`¿Eliminar ${label} #${invoiceId}? Esta acción no se puede deshacer.`)) {
       return
     }
     setDeletingInvoiceId(invoiceId)

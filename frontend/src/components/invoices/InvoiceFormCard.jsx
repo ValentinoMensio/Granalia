@@ -50,7 +50,7 @@ function InvoiceFormCard({
               <option value="fiscal_only">Solo declarada</option>
               <option value="split">Dividida</option>
             </select>
-            {editingInvoiceId ? <p className="mt-1 text-xs text-slate-500">El modo se define al crear la factura.</p> : null}
+            {editingInvoiceId ? <p className="mt-1 text-xs text-slate-500">El modo se define al crear {isCreditNote ? 'la nota de crédito' : 'la factura'}.</p> : null}
           </Field>
 
           {billingMode === 'split' && (
@@ -120,12 +120,12 @@ function InvoiceFormCard({
           </select>
         </Field>
 
-        <Field label="Observaciones" full>
+        <Field label={isCreditNote ? 'Motivo / observaciones' : 'Observaciones'} full>
           <textarea className="input min-h-28" value={form.notes} onChange={(event) => onFieldChange('notes', event.target.value)} />
         </Field>
       </div>
 
-      <div className="mt-6 border-t border-stone-200 pt-6">
+      {!isCreditNote && <div className="mt-6 border-t border-stone-200 pt-6">
         <h3 className="subsection-title mb-5 text-xl">Configuración de descuentos</h3>
 
         <div className="grid gap-8 md:grid-cols-2">
@@ -188,9 +188,9 @@ function InvoiceFormCard({
             </div>
           </div>
         </div>
-      </div>
+      </div>}
 
-      <div className="mt-6 border-t border-stone-200 pt-6">
+      {!isCreditNote && <div className="mt-6 border-t border-stone-200 pt-6">
         <AutomaticBonusRules
           rules={form.automaticBonusRules}
           disablesLineDiscount={form.automaticBonusDisablesLineDiscount}
@@ -200,9 +200,9 @@ function InvoiceFormCard({
           onRemove={onRemoveAutomaticBonusRule}
           onDisablesLineDiscountChange={(value) => onFieldChange('automaticBonusDisablesLineDiscount', value)}
         />
-      </div>
+      </div>}
 
-      {onSave && (
+      {onSave && !isCreditNote && (
         <div className="mt-6 flex flex-wrap gap-3 border-t border-stone-200 pt-5">
           <Button variant="primary" className="w-full sm:min-w-[180px] sm:w-auto" onClick={onSave} disabled={saving}>
             {saving ? 'Guardando...' : 'Guardar cambios'}

@@ -39,6 +39,14 @@ function useGranaliaData() {
   const totals = useMemo(() => buildTotals(form, productsById), [form, productsById])
   const availableDiscountGroups = useMemo(() => buildAvailableDiscountGroups(catalog), [catalog])
 
+  function isCreditNoteDocument(invoice) {
+    return String(invoice?.document_type || '').toUpperCase() === 'NOTA_CREDITO'
+  }
+
+  function documentLabel(invoice) {
+    return isCreditNoteDocument(invoice) ? 'Nota de crédito' : 'Factura'
+  }
+
   useEffect(() => {
     loadAll().catch((error) => setStatus(error.message))
   }, [])
@@ -420,12 +428,13 @@ function useGranaliaData() {
     }
     setEditingInvoiceId(invoiceId)
     setForm(buildFormFromInvoiceDetail(detail, customers))
-    const isCreditNote = String(detail?.document_type || '').toUpperCase() === 'NOTA_CREDITO'
-    setStatus(`Editando ${isCreditNote ? 'nota de crédito' : 'factura'} ${invoiceId}.`)
+    setStatus(`Editando ${documentLabel(detail).toLowerCase()} ${invoiceId}.`)
     return detail
   }
 
   async function deleteInvoice(invoiceId) {
+    const target = invoices.find((invoice) => String(invoice.invoice_id || invoice.id) === String(invoiceId)) || invoiceDetail
+    const label = documentLabel(target)
     await request(`/api/invoices/${invoiceId}`, { method: 'DELETE' })
     await refreshInvoices()
     if (String(invoiceDetail?.id || '') === String(invoiceId)) {
@@ -434,7 +443,7 @@ function useGranaliaData() {
     if (String(editingInvoiceId || '') === String(invoiceId)) {
       clearInvoiceEditing()
     }
-    setStatus(`Factura ${invoiceId} eliminada.`)
+    setStatus(`${label} ${invoiceId} eliminada.`)
   }
 
   async function authorizeInvoiceInArca(invoiceId, password) {
@@ -580,21 +589,31 @@ function useGranaliaData() {
   }
 
   async function generateInvoice() {
+    const isInternalCreditNote = (form.billingMode || 'internal_only') === 'internal_credit_note'
     if (!form.clientName.trim()) {
       setStatus('Ingresá un cliente.')
       return
     }
 
+    if (isInternalCreditNote && !form.customerId) {
+      setStatus('Seleccioná un cliente histórico para editar la nota de crédito.')
+      return
+    }
+
     const validItems = form.items.filter((item) => item.product_id && item.offering_id && (item.quantity > 0 || item.bonus_quantity > 0))
     if (!validItems.length) {
-      setStatus('Completá al menos un producto con presentación y cantidad.')
+      setStatus(isInternalCreditNote ? 'Completá al menos un producto a devolver.' : 'Completá al menos un producto con presentación y cantidad.')
+      return
+    }
+
+    if (isInternalCreditNote && validItems.some((item) => !item.source_invoice_item_id)) {
+      setStatus('Seleccioná el remito origen de cada producto de la nota de crédito.')
       return
     }
 
     setGenerating(true)
     const previewWindow = window.open('', '_blank')
     if (previewWindow) {
-      const isInternalCreditNote = (form.billingMode || 'internal_only') === 'internal_credit_note'
       previewWindow.document.title = isInternalCreditNote ? 'Generando nota de crédito...' : 'Generando factura...'
       previewWindow.document.body.innerHTML = '<p style="font-family: sans-serif; padding: 24px;">Generando previsualización...</p>'
     }
@@ -613,7 +632,6 @@ function useGranaliaData() {
       setEditingInvoiceId(null)
       const defaultPriceListId = bootstrap?.price_list?.id ? String(bootstrap.price_list.id) : ''
       setForm({ ...createInitialForm(), priceListId: defaultPriceListId, internalPriceListId: defaultPriceListId, fiscalPriceListId: defaultPriceListId })
-      const isInternalCreditNote = (form.billingMode || 'internal_only') === 'internal_credit_note'
       const docLabel = isInternalCreditNote ? 'Nota de crédito' : 'Factura'
       const createdText = createdInvoices.length > 1
         ? `Comprobantes ${createdInvoices.map((invoice) => invoice.invoice_id).join(' y ')} guardados`
@@ -624,7 +642,6 @@ function useGranaliaData() {
       if (previewWindow && !previewWindow.closed) {
         previewWindow.close()
       }
-      const isInternalCreditNote = (form.billingMode || 'internal_only') === 'internal_credit_note'
       const docLabel = isInternalCreditNote ? 'la nota de crédito' : 'la factura'
       setStatus(`Error al ${editingInvoiceId !== null ? 'actualizar' : 'guardar'} ${docLabel}: ${error.message}`)
     } finally {
