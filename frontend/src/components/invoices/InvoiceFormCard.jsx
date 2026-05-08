@@ -27,11 +27,16 @@ function InvoiceFormCard({
   const priceLists = bootstrap?.price_lists || []
   const billingMode = form.billingMode || (form.declared ? 'fiscal_only' : 'internal_only')
 
+  const isCreditNote = billingMode === 'internal_credit_note'
   return (
     <div className="surface p-4 sm:p-6 lg:p-7">
       <div className="mb-5 flex items-center justify-between gap-4 border-b border-stone-200 pb-5 sm:mb-6">
         <div>
-          <h2 className="subsection-title text-xl sm:text-2xl">{editingInvoiceId ? `Editar factura #${editingInvoiceId}` : 'Nueva factura'}</h2>
+          <h2 className="subsection-title text-xl sm:text-2xl">
+            {editingInvoiceId
+              ? (isCreditNote ? `Editar nota de crédito #${editingInvoiceId}` : `Editar factura #${editingInvoiceId}`)
+              : (isCreditNote ? 'Nueva nota de crédito interna' : 'Nueva factura')}
+          </h2>
         </div>
       </div>
 

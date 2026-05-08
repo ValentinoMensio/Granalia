@@ -623,7 +623,40 @@ def update_invoice(invoice_id: int, payload: InvoiceRequest, _: str = Depends(re
     ensure_batch_editable(repository, batch_id)
     order = payload.order.model_dump()
     profile = payload.profile.model_dump()
+    is_internal_credit_note = is_credit_note(invoice) and invoice.get("fiscal_status") == "internal"
     try:
+        if is_internal_credit_note:
+            order, source_links = build_internal_credit_note_from_sources(repository, order, profile)
+            order["price_list_id"] = order.get("internal_price_list_id") or order.get("price_list_id")
+            catalog = repository.get_catalog_for_price_list(int(order["price_list_id"])) if order.get("price_list_id") else repository.get_active_catalog()
+            history_invoice = {"items": [
+                {
+                    "product_id": item["product_id"],
+                    "offering_id": item["offering_id"],
+                    "product_name": item.get("product_name") or item.get("label"),
+                    "offering_label": item.get("offering_label"),
+                    "unit_price": item.get("unit_price"),
+                    "offering_net_weight_kg": item.get("offering_net_weight_kg"),
+                }
+                for item in repository.list_internal_credit_note_available_items(int(profile["id"]))
+            ]}
+            catalog = catalog_with_invoice_history(catalog, history_invoice, order)
+            filename, xlsx_bytes, snapshot = generate_invoice_document(order, profile, catalog)
+            repository.update_invoice(invoice_id, order, profile, snapshot, filename, xlsx_bytes)
+            repository.update_credit_note_item_sources(invoice_id, source_links)
+            order["notes"] = order.get("notes") or []
+            credit_reason = " / ".join(order.get("notes") or []) or "Nota de crédito interna"
+            with repository.engine.begin() as connection:
+                connection.execute(
+                    repository.invoices.update().where(repository.invoices.c.id == invoice_id).values(credit_reason=credit_reason)
+                )
+            return InvoiceCreateOut.model_validate({
+                "invoice_id": invoice_id,
+                "invoices": [{"invoice_id": invoice_id, "split_kind": "internal", "fiscal_status": "internal"}],
+                "filename": filename,
+                "download_url": f"/api/invoices/{invoice_id}/xlsx",
+                "summary": snapshot["summary"],
+            })
         if str(order.get("billing_mode") or "") == "fiscal_only" or (bool(order.get("declared")) and batch_id is None):
             profile = profile_with_arca_taxpayer_data(profile)
         if batch_id is not None:

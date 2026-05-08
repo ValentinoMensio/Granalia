@@ -421,6 +421,26 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
             if item.get("iva_rate") is None and item.get("product_iva_rate") is not None:
                 item["iva_rate"] = item["product_iva_rate"]
         invoice["items"] = items
+        if str(invoice.get("document_type") or "") == "NOTA_CREDITO" and str(invoice.get("fiscal_status") or "") == "internal":
+            with self.engine.connect() as conn:
+                source_rows = conn.execute(
+                    select(
+                        self.credit_note_item_sources.c.credit_note_item_id,
+                        self.credit_note_item_sources.c.source_invoice_id,
+                        self.credit_note_item_sources.c.source_invoice_item_id,
+                        self.credit_note_item_sources.c.quantity,
+                    ).where(self.credit_note_item_sources.c.credit_note_invoice_id == invoice_id)
+                ).mappings().all()
+            sources_by_item = {}
+            for row in source_rows:
+                item_id = int(row["credit_note_item_id"])
+                sources_by_item.setdefault(item_id, []).append({
+                    "source_invoice_id": int(row["source_invoice_id"]),
+                    "source_invoice_item_id": int(row["source_invoice_item_id"]),
+                    "quantity": float(row["quantity"]),
+                })
+            for item in items:
+                item["sources"] = sources_by_item.get(int(item["id"]), [])
         if str(invoice.get("document_type") or "") == "FACTURA":
             invoice["credit_notes"] = self.list_credit_notes_for_invoice(invoice_id)
         return cast(InvoiceDetailData, invoice)
@@ -546,6 +566,13 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     }
                 )
             connection.execute(self.credit_note_item_sources.insert(), payloads)
+
+    def update_credit_note_item_sources(self, credit_note_invoice_id: int, sources: list[dict[str, object]]) -> None:
+        with self.engine.begin() as connection:
+            connection.execute(
+                self.credit_note_item_sources.delete().where(self.credit_note_item_sources.c.credit_note_invoice_id == credit_note_invoice_id)
+            )
+        self.save_credit_note_item_sources(credit_note_invoice_id, sources)
 
     def save_invoice(
         self,
