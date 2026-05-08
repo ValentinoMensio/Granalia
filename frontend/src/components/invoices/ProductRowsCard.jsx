@@ -105,8 +105,8 @@ function ProductRowsCard({
           <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Elegí un cliente histórico para ver productos disponibles para devolución.</div>
         )}
 
-        <div className="mt-4 space-y-3">
-          <div className="hidden rounded-2xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500 lg:grid lg:grid-cols-[minmax(0,1fr)_12rem_minmax(0,1fr)_8rem_8rem_8rem_auto] lg:items-center lg:gap-3">
+        <div className="mt-4 overflow-hidden rounded-[26px] border border-stone-200 bg-stone-50/70">
+          <div className="table-head hidden px-3 py-3 text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500 lg:grid lg:grid-cols-[minmax(0,1fr)_12rem_minmax(0,1fr)_8rem_8rem_8rem_auto] lg:items-center lg:gap-3">
             <div>Producto</div>
             <div>Formato</div>
             <div>Remito origen</div>
@@ -115,7 +115,8 @@ function ProductRowsCard({
             <div className="text-right">Precio</div>
             <div className="text-right">Total</div>
           </div>
-          {form.items.map((item, index) => {
+          <div className="grid gap-4 p-4 lg:block lg:p-0">
+            {form.items.map((item, index) => {
             const source = sourceItemsById[String(item.source_invoice_item_id || '')]
             const selectedSourceIds = new Set(
               form.items
@@ -146,7 +147,7 @@ function ProductRowsCard({
             const quantity = Number(item.quantity || 0)
             const price = Number(source?.unit_price ?? item.unit_price ?? 0)
             return (
-              <div key={index} className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm lg:grid-cols-[minmax(0,1fr)_12rem_minmax(0,1fr)_8rem_8rem_8rem_auto] lg:items-center">
+              <div key={index} className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-sm lg:rounded-none lg:border-0 lg:border-t lg:border-stone-200 lg:bg-white lg:grid-cols-[minmax(0,1fr)_12rem_minmax(0,1fr)_8rem_8rem_8rem_auto] lg:items-center">
                 <select
                   className="input"
                   value={selectedProductId}
@@ -200,10 +201,11 @@ function ProductRowsCard({
                 </div>
               </div>
             )
-          })}
-          {creditNoteSourceItems.length === 0 && form.customerId && (
-            <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-400">No hay productos disponibles para devolver de este cliente.</div>
-          )}
+            })}
+            {creditNoteSourceItems.length === 0 && form.customerId && (
+              <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-400 lg:rounded-none lg:border-0 lg:border-t lg:border-stone-200">No hay productos disponibles para devolver de este cliente.</div>
+            )}
+          </div>
         </div>
 
         <div className="mt-4">
@@ -223,7 +225,7 @@ function ProductRowsCard({
         </div>
 
         <div className="mt-6 flex flex-col gap-3 border-t border-stone-200 pt-5 sm:flex-row sm:flex-wrap sm:justify-start">
-          <Button variant="danger" className="w-full sm:min-w-[220px] sm:w-auto" onClick={onGenerate} disabled={generating}>
+          <Button variant="primary" className="w-full sm:min-w-[220px] sm:w-auto" onClick={onGenerate} disabled={generating}>
             {generating ? 'Guardando...' : editingInvoiceId ? 'Actualizar nota de crédito' : 'Generar nota de crédito'}
           </Button>
           <Button variant="secondary" className="w-full sm:min-w-[180px] sm:w-auto" onClick={onClearInvoice} disabled={generating}>
