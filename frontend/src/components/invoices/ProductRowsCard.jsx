@@ -215,9 +215,16 @@ function ProductRowsCard({
 
         <div className="mt-6 flex flex-col gap-3 border-t border-stone-200 pt-5 sm:flex-row sm:flex-wrap sm:justify-start">
           <Button variant="danger" className="w-full sm:min-w-[220px] sm:w-auto" onClick={onGenerate} disabled={generating}>
-            {generating ? 'Guardando...' : 'Generar nota de crédito'}
+            {generating ? 'Guardando...' : editingInvoiceId ? 'Actualizar nota de crédito' : 'Generar nota de crédito'}
           </Button>
-          <Button variant="secondary" className="w-full sm:min-w-[180px] sm:w-auto" onClick={onClearInvoice} disabled={generating}>Limpiar factura</Button>
+          <Button variant="secondary" className="w-full sm:min-w-[180px] sm:w-auto" onClick={onClearInvoice} disabled={generating}>
+            Limpiar nota de crédito
+          </Button>
+          {editingInvoiceId && (
+            <Button variant="secondary" className="w-full sm:min-w-[180px] sm:w-auto" onClick={onCancelEdit}>
+              Cancelar edición
+            </Button>
+          )}
         </div>
       </div>
     )

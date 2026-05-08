@@ -159,7 +159,9 @@ export default function OrderCreator() {
   }
 
   function handleClearInvoice() {
-    if (!window.confirm('¿Limpiar la factura actual? Se borrarán productos, cantidades y cambios sin guardar.')) return
+    const isCreditNote = (form.billingMode || 'internal_only') === 'internal_credit_note'
+    const label = isCreditNote ? 'la nota de crédito' : 'la factura'
+    if (!window.confirm(`¿Limpiar ${label} actual? Se borrarán productos, cantidades y cambios sin guardar.`)) return
     clearCurrentInvoice()
   }
 

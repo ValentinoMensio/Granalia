@@ -25,10 +25,6 @@ function isCreditNote(invoice) {
   return String(invoice?.document_type || '').toUpperCase() === 'NOTA_CREDITO'
 }
 
-function canEditInternalCreditNote(invoice) {
-  return isCreditNote(invoice) && String(invoice?.fiscal_status || '') === 'internal'
-}
-
 function invoiceTypeLabel(invoice) {
   if (isCreditNote(invoice)) return 'Nota crédito'
   if (invoice?.declared || invoice?.split_kind === 'fiscal') return 'Declarada'
@@ -101,6 +97,11 @@ function canCreateCreditNote(invoice) {
   if (!invoice || isCreditNote(invoice)) return false
   if (!isFiscalInvoice(invoice)) return true
   return String(invoice.fiscal_status || '') === 'authorized'
+}
+
+function canEditInvoice(invoice) {
+  if (!invoice) return false
+  return String(invoice.fiscal_status || '') !== 'authorized'
 }
 
 export default function InvoiceHistory() {
@@ -408,12 +409,7 @@ export default function InvoiceHistory() {
                   <Button variant="secondary" className="w-full" onClick={() => handleSelectInvoice(invoice.invoice_id)}>
                     Detalle
                   </Button>
-                  {isAdmin && !isCreditNote(invoice) && (
-                    <Button variant="secondary" className="w-full" onClick={() => handleEditInvoice(invoice.invoice_id)}>
-                      Editar
-                    </Button>
-                  )}
-                  {isAdmin && canEditInternalCreditNote(invoice) && (
+                  {isAdmin && canEditInvoice(invoice) && (
                     <Button variant="secondary" className="w-full" onClick={() => handleEditInvoice(invoice.invoice_id)}>
                       Editar
                     </Button>
@@ -490,12 +486,7 @@ export default function InvoiceHistory() {
                         <Button variant="ghost" className="px-0 py-0 text-brand-red" onClick={() => handleSelectInvoice(invoice.invoice_id)}>
                           Ver detalle
                         </Button>
-                        {isAdmin && !isCreditNote(invoice) && (
-                          <Button variant="ghost" className="px-0 py-0 text-brand-ink" onClick={() => handleEditInvoice(invoice.invoice_id)}>
-                            Editar
-                          </Button>
-                        )}
-                        {isAdmin && canEditInternalCreditNote(invoice) && (
+                        {isAdmin && canEditInvoice(invoice) && (
                           <Button variant="ghost" className="px-0 py-0 text-brand-ink" onClick={() => handleEditInvoice(invoice.invoice_id)}>
                             Editar
                           </Button>
@@ -751,14 +742,9 @@ export default function InvoiceHistory() {
                   Generar nota de crédito
                 </Button>
               )}
-              {isAdmin && !isCreditNote(invoiceDetail) && (
+              {isAdmin && canEditInvoice(invoiceDetail) && (
                 <Button variant="secondary" className="w-full sm:w-auto" onClick={() => handleEditInvoice(invoiceDetail.id)}>
-                  Editar factura
-                </Button>
-              )}
-              {isAdmin && canEditInternalCreditNote(invoiceDetail) && (
-                <Button variant="secondary" className="w-full sm:w-auto" onClick={() => handleEditInvoice(invoiceDetail.id)}>
-                  Editar nota de crédito
+                  Editar
                 </Button>
               )}
               <span className="btn-secondary w-full cursor-not-allowed opacity-50 sm:w-auto" aria-disabled="true">Descargar XLSX</span>

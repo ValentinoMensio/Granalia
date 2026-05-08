@@ -103,16 +103,17 @@ function useGranaliaData() {
   }
 
   function clearCurrentInvoice() {
+    const isInternalCreditNote = (form.billingMode || 'internal_only') === 'internal_credit_note'
     const sourceCustomers = customers
     const defaultPriceListId = bootstrap?.price_list?.id ? String(bootstrap.price_list.id) : ''
     setEditingInvoiceId(null)
     if (!sourceCustomers.length) {
       setForm({ ...createInitialForm(), priceListId: defaultPriceListId, internalPriceListId: defaultPriceListId, fiscalPriceListId: defaultPriceListId })
-      setStatus('Factura limpiada.')
+      setStatus(isInternalCreditNote ? 'Nota de crédito limpiada.' : 'Factura limpiada.')
       return
     }
     setForm(applyCustomerToForm({ ...createInitialForm(), priceListId: defaultPriceListId, internalPriceListId: defaultPriceListId, fiscalPriceListId: defaultPriceListId }, sourceCustomers[0]))
-    setStatus('Factura limpiada.')
+    setStatus(isInternalCreditNote ? 'Nota de crédito limpiada.' : 'Factura limpiada.')
   }
 
   function invoiceDownloadUrl(invoiceId) {
@@ -412,7 +413,8 @@ function useGranaliaData() {
     }
     setEditingInvoiceId(invoiceId)
     setForm(buildFormFromInvoiceDetail(detail, customers))
-    setStatus(`Editando factura ${invoiceId}.`)
+    const isCreditNote = String(detail?.document_type || '').toUpperCase() === 'NOTA_CREDITO'
+    setStatus(`Editando ${isCreditNote ? 'nota de crédito' : 'factura'} ${invoiceId}.`)
     return detail
   }
 
@@ -585,7 +587,8 @@ function useGranaliaData() {
     setGenerating(true)
     const previewWindow = window.open('', '_blank')
     if (previewWindow) {
-      previewWindow.document.title = 'Generando factura...'
+      const isInternalCreditNote = (form.billingMode || 'internal_only') === 'internal_credit_note'
+      previewWindow.document.title = isInternalCreditNote ? 'Generando nota de crédito...' : 'Generando factura...'
       previewWindow.document.body.innerHTML = '<p style="font-family: sans-serif; padding: 24px;">Generando previsualización...</p>'
     }
     try {
@@ -603,16 +606,20 @@ function useGranaliaData() {
       setEditingInvoiceId(null)
       const defaultPriceListId = bootstrap?.price_list?.id ? String(bootstrap.price_list.id) : ''
       setForm({ ...createInitialForm(), priceListId: defaultPriceListId, internalPriceListId: defaultPriceListId, fiscalPriceListId: defaultPriceListId })
+      const isInternalCreditNote = (form.billingMode || 'internal_only') === 'internal_credit_note'
+      const docLabel = isInternalCreditNote ? 'Nota de crédito' : 'Factura'
       const createdText = createdInvoices.length > 1
         ? `Comprobantes ${createdInvoices.map((invoice) => invoice.invoice_id).join(' y ')} guardados`
-        : `Factura ${previewInvoiceId} ${isEditing ? 'actualizada' : 'guardada'}`
+        : `${docLabel} ${previewInvoiceId} ${isEditing ? 'actualizada' : 'guardada'}`
       setStatus(`${createdText}${previewOpened ? ' y abierta para previsualizar' : ''}.`)
       return { invoiceId: previewInvoiceId, updated: isEditing }
     } catch (error) {
       if (previewWindow && !previewWindow.closed) {
         previewWindow.close()
       }
-      setStatus(`Error al ${editingInvoiceId !== null ? 'actualizar' : 'guardar'} la factura: ${error.message}`)
+      const isInternalCreditNote = (form.billingMode || 'internal_only') === 'internal_credit_note'
+      const docLabel = isInternalCreditNote ? 'la nota de crédito' : 'la factura'
+      setStatus(`Error al ${editingInvoiceId !== null ? 'actualizar' : 'guardar'} ${docLabel}: ${error.message}`)
     } finally {
       setGenerating(false)
     }

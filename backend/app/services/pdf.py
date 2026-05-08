@@ -264,11 +264,17 @@ def _draw_header(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
 
     _set_color(pdf, COLOR_TEXT)
     pdf.setFont(FONT_BOLD, 17)
-    fiscal_number = str(invoice.get("fiscal_number") or invoice.get("id") or "")
+    fiscal_number = str(invoice.get("fiscal_number") or "").strip()
     label = "Nota de Crédito" if _is_credit_note(invoice) else "Remito"
-    display_number = f"{label} #{_digits(invoice.get('id')) or invoice.get('id')}" if _is_credit_note(invoice) else re.sub(r"factura", label, fiscal_number, flags=re.IGNORECASE)
-    if not _is_credit_note(invoice) and not display_number.lower().startswith(label.lower()):
-        display_number = f"{label} #{display_number}"
+
+    # `fiscal_number` viene con el tipo técnico como prefijo (ej: "FACTURA 0001-00000189",
+    # "NOTA_CREDITO 0001-00000004"). En el PDF lo mostramos con el nombre comercial.
+    if fiscal_number:
+        number_part = fiscal_number.split(" ", 1)[1] if " " in fiscal_number else fiscal_number
+        display_number = f"{label} {number_part}"
+    else:
+        # Fallback defensivo: nunca deberíamos caer acá, pero evita títulos "#id".
+        display_number = f"{label} {_digits(invoice.get('internal_invoice_number') or invoice.get('invoice_number') or invoice.get('id')) or invoice.get('id')}"
     pdf.drawRightString(width - MARGIN, y - 8, display_number)
 
     pdf.setFont(FONT_REGULAR, 12)
