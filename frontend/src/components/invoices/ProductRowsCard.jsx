@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import Button from '../ui/Button'
 import Metric from '../ui/Metric'
 import { isX1KgLabel, money } from '../../lib/format'
@@ -76,19 +76,21 @@ function ProductRowsCard({
 }) {
   const isInternalCreditNote = (form.billingMode || 'internal_only') === 'internal_credit_note'
   const sourceItemsById = Object.fromEntries(creditNoteSourceItems.map((item) => [String(item.invoice_item_id), item]))
-  const sourceDates = useMemo(
-    () => Array.from(new Set(creditNoteSourceItems.map((item) => String(item.order_date || '').slice(0, 10)).filter(Boolean))).sort().reverse(),
+  const sourceProductOptions = useMemo(
+    () => Array.from(
+      creditNoteSourceItems.reduce((items, sourceItem) => {
+        const key = `${sourceItem.product_id || ''}:${sourceItem.offering_id || ''}`
+        if (!items.has(key)) {
+          items.set(key, {
+            key,
+            label: [sourceItem.product_name, sourceItem.offering_label].filter(Boolean).join(' / ') || sourceItem.label,
+          })
+        }
+        return items
+      }, new Map()).values()
+    ).sort((a, b) => String(a.label).localeCompare(String(b.label), 'es')),
     [creditNoteSourceItems]
   )
-  const [defaultSourceDate, setDefaultSourceDate] = useState('')
-
-  useEffect(() => {
-    if (!sourceDates.length) {
-      setDefaultSourceDate('')
-      return
-    }
-    setDefaultSourceDate((current) => (current && sourceDates.includes(current) ? current : sourceDates[0]))
-  }, [sourceDates])
 
   if (isInternalCreditNote) {
     return (
@@ -103,38 +105,24 @@ function ProductRowsCard({
           <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Elegí un cliente histórico para ver productos disponibles para devolución.</div>
         )}
 
-        {form.customerId && sourceDates.length > 0 && (
-          <div className="mt-4 grid gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-3 text-sm sm:grid-cols-[minmax(0,1fr)_16rem] sm:items-center">
-            <div>
-              <div className="font-semibold text-blue-950">Fecha predeterminada de origen</div>
-              <div className="mt-1 text-xs text-blue-900/70">Se usa como fecha inicial al agregar o completar líneas de devolución.</div>
-            </div>
-            <select className="input" value={defaultSourceDate} onChange={(event) => setDefaultSourceDate(event.target.value)}>
-              {sourceDates.map((sourceDate) => (
-                <option key={sourceDate} value={sourceDate}>{dateLabel(sourceDate)}</option>
-              ))}
-            </select>
-          </div>
-        )}
-
         <div className="mt-4 space-y-3">
           {form.items.map((item, index) => {
             const source = sourceItemsById[String(item.source_invoice_item_id || '')]
-            const selectedSourceDate = item.source_invoice_date || source?.order_date || defaultSourceDate
-            const sourceItemsForDate = creditNoteSourceItems.filter((sourceItem) => String(sourceItem.order_date || '').slice(0, 10) === String(selectedSourceDate || '').slice(0, 10))
+            const selectedProductKey = item.source_product_key || (item.product_id && item.offering_id ? `${item.product_id}:${item.offering_id}` : '')
+            const sourceItemsForProduct = creditNoteSourceItems.filter((sourceItem) => `${sourceItem.product_id || ''}:${sourceItem.offering_id || ''}` === selectedProductKey)
             const available = Number(source?.available_quantity || 0)
             const quantity = Number(item.quantity || 0)
             const price = Number(source?.unit_price ?? item.unit_price ?? 0)
             return (
-              <div key={index} className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm lg:grid-cols-[12rem_minmax(0,1fr)_8rem_8rem_8rem_auto] lg:items-center">
+              <div key={index} className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_8rem_8rem_8rem_auto] lg:items-center">
                 <select
                   className="input"
-                  value={selectedSourceDate || ''}
-                  onChange={(event) => onUpdateItem(index, 'source_invoice_date', event.target.value)}
+                  value={selectedProductKey}
+                  onChange={(event) => onUpdateItem(index, 'source_product_key', event.target.value)}
                 >
-                  <option value="">Fecha</option>
-                  {sourceDates.map((sourceDate) => (
-                    <option key={sourceDate} value={sourceDate}>{dateLabel(sourceDate)}</option>
+                  <option value="">Producto</option>
+                  {sourceProductOptions.map((productOption) => (
+                    <option key={productOption.key} value={productOption.key}>{productOption.label}</option>
                   ))}
                 </select>
                 <select
@@ -142,10 +130,10 @@ function ProductRowsCard({
                   value={item.source_invoice_item_id || ''}
                   onChange={(event) => onUpdateItem(index, 'source_invoice_item_id', event.target.value ? Number(event.target.value) : '')}
                 >
-                  <option value="">Producto facturado</option>
-                  {sourceItemsForDate.map((sourceItem) => (
+                  <option value="">Factura / remito</option>
+                  {sourceItemsForProduct.map((sourceItem) => (
                     <option key={sourceItem.invoice_item_id} value={sourceItem.invoice_item_id}>
-                      #{sourceItem.internal_invoice_number || sourceItem.invoice_id} · {sourceItem.label} · disp. {sourceItem.available_quantity}
+                      {dateLabel(sourceItem.order_date)} · #{sourceItem.internal_invoice_number || sourceItem.invoice_id} · disp. {sourceItem.available_quantity}
                     </option>
                   ))}
                 </select>

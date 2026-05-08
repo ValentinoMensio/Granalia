@@ -1,4 +1,4 @@
-const emptyItem = () => ({ product_id: '', offering_id: '', source_invoice_item_id: '', source_invoice_date: '', quantity: 0, bonus_quantity: 0, bonus_quantity_manual: false, unit_price: '' })
+const emptyItem = () => ({ product_id: '', offering_id: '', source_product_key: '', source_invoice_item_id: '', quantity: 0, bonus_quantity: 0, bonus_quantity_manual: false, unit_price: '' })
 
 const normalize = (value) =>
   (value || '')

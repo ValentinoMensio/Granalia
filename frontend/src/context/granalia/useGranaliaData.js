@@ -332,13 +332,15 @@ function useGranaliaData() {
     setForm((current) => {
       const items = [...current.items]
       items[index] = { ...items[index], [field]: value }
-      if (field === 'source_invoice_date') {
-        items[index].source_invoice_date = value || ''
+      if (field === 'source_product_key') {
+        const [productId, offeringId] = String(value || '').split(':')
+        const source = internalCreditNoteItems.find((entry) => String(entry.product_id || '') === productId && String(entry.offering_id || '') === offeringId)
+        items[index].source_product_key = value || ''
         items[index].source_invoice_item_id = ''
-        items[index].product_id = ''
-        items[index].product_name = ''
-        items[index].offering_id = ''
-        items[index].offering_label = ''
+        items[index].product_id = source?.product_id || ''
+        items[index].product_name = source?.product_name || source?.label || ''
+        items[index].offering_id = source?.offering_id || ''
+        items[index].offering_label = source?.offering_label || ''
         items[index].unit_price = ''
         items[index].bonus_quantity = 0
         items[index].quantity = 0
@@ -347,7 +349,7 @@ function useGranaliaData() {
       if (field === 'source_invoice_item_id') {
         const source = internalCreditNoteItems.find((entry) => String(entry.invoice_item_id) === String(value || ''))
         items[index].source_invoice_item_id = value || ''
-        items[index].source_invoice_date = source?.order_date || items[index].source_invoice_date || ''
+        items[index].source_product_key = source ? `${source.product_id || ''}:${source.offering_id || ''}` : items[index].source_product_key || ''
         items[index].product_id = source?.product_id || ''
         items[index].product_name = source?.product_name || source?.label || ''
         items[index].offering_id = source?.offering_id || ''
