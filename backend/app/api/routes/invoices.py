@@ -288,11 +288,11 @@ def build_credit_note_order(invoice: dict, payload: CreditNoteRequest, credited_
     return order, iva_by_key
 
 
-def build_internal_credit_note_from_sources(repository, order: dict, profile: dict) -> tuple[dict, list[dict[str, object]]]:
+def build_internal_credit_note_from_sources(repository, order: dict, profile: dict, *, credit_note_invoice_id: int | None = None) -> tuple[dict, list[dict[str, object]]]:
     customer_id = profile.get("id")
     if not customer_id:
         raise ValueError("Seleccioná un cliente histórico para generar una nota de crédito interna")
-    available_items = repository.list_internal_credit_note_available_items(int(customer_id))
+    available_items = repository.list_internal_credit_note_available_items(int(customer_id), credit_note_invoice_id=credit_note_invoice_id)
     available_by_id = {int(item["invoice_item_id"]): item for item in available_items}
     credit_items_by_key: dict[tuple[int, int, int], dict[str, object]] = {}
     source_links: list[dict[str, object]] = []
@@ -403,8 +403,12 @@ def arca_taxpayer_lookup(cuit: str, _: str = Depends(require_admin)) -> dict[str
 
 
 @router.get("/internal-credit-note-items")
-def internal_credit_note_items(customer_id: int = Query(..., ge=1), _: str = Depends(current_role)) -> list[dict[str, object]]:
-    return get_repository().list_internal_credit_note_available_items(customer_id)
+def internal_credit_note_items(
+    customer_id: int = Query(..., ge=1),
+    credit_note_invoice_id: int | None = Query(default=None, ge=1),
+    _: str = Depends(current_role),
+) -> list[dict[str, object]]:
+    return get_repository().list_internal_credit_note_available_items(customer_id, credit_note_invoice_id=credit_note_invoice_id)
 
 
 @router.get("/{invoice_id}", response_model=InvoiceDetailOut)
@@ -626,7 +630,7 @@ def update_invoice(invoice_id: int, payload: InvoiceRequest, _: str = Depends(re
     is_internal_credit_note = is_credit_note(invoice) and invoice.get("fiscal_status") == "internal"
     try:
         if is_internal_credit_note:
-            order, source_links = build_internal_credit_note_from_sources(repository, order, profile)
+            order, source_links = build_internal_credit_note_from_sources(repository, order, profile, credit_note_invoice_id=invoice_id)
             order["price_list_id"] = order.get("internal_price_list_id") or order.get("price_list_id")
             catalog = repository.get_catalog_for_price_list(int(order["price_list_id"])) if order.get("price_list_id") else repository.get_active_catalog()
             history_invoice = {"items": [

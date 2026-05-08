@@ -138,8 +138,8 @@ export default function OrderCreator() {
 
   useEffect(() => {
     if ((form.billingMode || 'internal_only') !== 'internal_credit_note') return
-    loadInternalCreditNoteItems(form.customerId).catch((error) => console.warn(error))
-  }, [form.billingMode, form.customerId])
+    loadInternalCreditNoteItems(form.customerId, editingInvoiceId).catch((error) => console.warn(error))
+  }, [form.billingMode, form.customerId, editingInvoiceId])
 
   const splitPreview = useMemo(
     () => buildSplitPreview(form, productsById, fiscalCatalog),

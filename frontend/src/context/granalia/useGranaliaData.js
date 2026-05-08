@@ -74,12 +74,16 @@ function useGranaliaData() {
     return data
   }
 
-  async function loadInternalCreditNoteItems(customerId) {
+  async function loadInternalCreditNoteItems(customerId, creditNoteInvoiceId = null) {
     if (!customerId) {
       setInternalCreditNoteItems([])
       return []
     }
-    const data = await request(`/api/invoices/internal-credit-note-items?customer_id=${customerId}`)
+    const params = new URLSearchParams({ customer_id: String(customerId) })
+    if (creditNoteInvoiceId) {
+      params.set('credit_note_invoice_id', String(creditNoteInvoiceId))
+    }
+    const data = await request(`/api/invoices/internal-credit-note-items?${params.toString()}`)
     setInternalCreditNoteItems(data)
     return data
   }

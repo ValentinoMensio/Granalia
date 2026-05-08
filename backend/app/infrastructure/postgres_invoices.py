@@ -472,7 +472,7 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
             result[int(item["id"])] = credited.get(key, 0.0)
         return result
 
-    def list_internal_credit_note_available_items(self, customer_id: int) -> list[dict[str, object]]:
+    def list_internal_credit_note_available_items(self, customer_id: int, credit_note_invoice_id: int | None = None) -> list[dict[str, object]]:
         with self.engine.connect() as connection:
             item_rows = connection.execute(
                 select(
@@ -513,16 +513,31 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                 )
                 .group_by(self.credit_note_item_sources.c.source_invoice_item_id)
             ).mappings().all()
+            credit_note_rows = []
+            if credit_note_invoice_id is not None:
+                credit_note_rows = connection.execute(
+                    select(
+                        self.credit_note_item_sources.c.source_invoice_item_id,
+                        func.coalesce(func.sum(self.credit_note_item_sources.c.quantity), 0).label("credit_note_quantity"),
+                    )
+                    .where(self.credit_note_item_sources.c.credit_note_invoice_id == credit_note_invoice_id)
+                    .group_by(self.credit_note_item_sources.c.source_invoice_item_id)
+                ).mappings().all()
         credited_by_item = {int(row["source_invoice_item_id"]): float(row["credited_quantity"] or 0) for row in credited_rows}
+        credit_note_by_item = {int(row["source_invoice_item_id"]): float(row["credit_note_quantity"] or 0) for row in credit_note_rows}
         items = []
         for row in item_rows:
             item = {key: serialize_value(value) for key, value in row.items()}
             quantity = float(item.get("quantity") or 0)
-            credited = credited_by_item.get(int(item["invoice_item_id"]), 0.0)
-            available = max(0.0, quantity - credited)
+            invoice_item_id = int(item["invoice_item_id"])
+            credited = credited_by_item.get(invoice_item_id, 0.0)
+            # En edición, volvemos a habilitar lo ya consumido por esta misma nota de crédito
+            # (para que el origen siga siendo seleccionable y se pueda ajustar).
+            credited_adjusted = max(0.0, credited - credit_note_by_item.get(invoice_item_id, 0.0))
+            available = max(0.0, quantity - credited_adjusted)
             if available <= 0:
                 continue
-            item["credited_quantity"] = credited
+            item["credited_quantity"] = credited_adjusted
             item["available_quantity"] = available
             items.append(item)
         return items
