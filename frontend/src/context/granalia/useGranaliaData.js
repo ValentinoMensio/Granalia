@@ -332,9 +332,22 @@ function useGranaliaData() {
     setForm((current) => {
       const items = [...current.items]
       items[index] = { ...items[index], [field]: value }
+      if (field === 'source_invoice_date') {
+        items[index].source_invoice_date = value || ''
+        items[index].source_invoice_item_id = ''
+        items[index].product_id = ''
+        items[index].product_name = ''
+        items[index].offering_id = ''
+        items[index].offering_label = ''
+        items[index].unit_price = ''
+        items[index].bonus_quantity = 0
+        items[index].quantity = 0
+        return { ...current, items }
+      }
       if (field === 'source_invoice_item_id') {
         const source = internalCreditNoteItems.find((entry) => String(entry.invoice_item_id) === String(value || ''))
         items[index].source_invoice_item_id = value || ''
+        items[index].source_invoice_date = source?.order_date || items[index].source_invoice_date || ''
         items[index].product_id = source?.product_id || ''
         items[index].product_name = source?.product_name || source?.label || ''
         items[index].offering_id = source?.offering_id || ''
