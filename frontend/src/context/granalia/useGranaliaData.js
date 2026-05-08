@@ -415,6 +415,9 @@ function useGranaliaData() {
     if (detail.price_list_id) {
       setCatalog(await request(`/api/price-lists/${detail.price_list_id}/catalog`))
     }
+    if (String(detail?.document_type || '').toUpperCase() === 'NOTA_CREDITO' && String(detail?.fiscal_status || '') === 'internal') {
+      await loadInternalCreditNoteItems(detail.customer_id, invoiceId)
+    }
     setEditingInvoiceId(invoiceId)
     setForm(buildFormFromInvoiceDetail(detail, customers))
     const isCreditNote = String(detail?.document_type || '').toUpperCase() === 'NOTA_CREDITO'

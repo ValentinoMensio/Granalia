@@ -542,52 +542,54 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
             items.append(item)
         return items
 
-    def save_credit_note_item_sources(self, credit_note_invoice_id: int, sources: list[dict[str, object]]) -> None:
+    def _insert_credit_note_item_sources(self, connection, credit_note_invoice_id: int, sources: list[dict[str, object]], created_at) -> None:
         if not sources:
             return
-        created_at = utc_now()
+        credit_items = connection.execute(
+            select(
+                self.invoice_items.c.id,
+                self.invoice_items.c.product_id,
+                self.invoice_items.c.offering_id,
+                self.invoice_items.c.unit_price,
+                self.invoice_items.c.quantity,
+            )
+            .where(self.invoice_items.c.invoice_id == credit_note_invoice_id)
+            .order_by(self.invoice_items.c.line_number)
+        ).mappings().all()
+        credit_items_by_key: dict[tuple[int, int, int], list[dict[str, object]]] = {}
+        for credit_item in credit_items:
+            key = (int(credit_item["product_id"]), int(credit_item["offering_id"]), int(credit_item["unit_price"] or 0))
+            credit_items_by_key.setdefault(key, []).append({**credit_item, "remaining_quantity": float(credit_item["quantity"] or 0)})
+        payloads = []
+        for source in sources:
+            key = (int(source["product_id"]), int(source["offering_id"]), int(source["unit_price"] or 0))
+            source_quantity = float(source["quantity"])
+            credit_item = next((item for item in credit_items_by_key.get(key, []) if float(item.get("remaining_quantity") or 0) + 0.000001 >= source_quantity), None)
+            if not credit_item:
+                raise ValueError("No se pudieron vincular las líneas de la nota de crédito")
+            credit_item["remaining_quantity"] = float(credit_item.get("remaining_quantity") or 0) - source_quantity
+            payloads.append(
+                {
+                    "credit_note_invoice_id": credit_note_invoice_id,
+                    "credit_note_item_id": int(credit_item["id"]),
+                    "source_invoice_id": int(source["source_invoice_id"]),
+                    "source_invoice_item_id": int(source["source_invoice_item_id"]),
+                    "quantity": source_quantity,
+                    "created_at": created_at,
+                }
+            )
+        connection.execute(self.credit_note_item_sources.insert(), payloads)
+
+    def save_credit_note_item_sources(self, credit_note_invoice_id: int, sources: list[dict[str, object]]) -> None:
         with self.engine.begin() as connection:
-            credit_items = connection.execute(
-                select(
-                    self.invoice_items.c.id,
-                    self.invoice_items.c.product_id,
-                    self.invoice_items.c.offering_id,
-                    self.invoice_items.c.unit_price,
-                    self.invoice_items.c.quantity,
-                )
-                .where(self.invoice_items.c.invoice_id == credit_note_invoice_id)
-                .order_by(self.invoice_items.c.line_number)
-            ).mappings().all()
-            credit_items_by_key: dict[tuple[int, int, int], list[dict[str, object]]] = {}
-            for credit_item in credit_items:
-                key = (int(credit_item["product_id"]), int(credit_item["offering_id"]), int(credit_item["unit_price"] or 0))
-                credit_items_by_key.setdefault(key, []).append({**credit_item, "remaining_quantity": float(credit_item["quantity"] or 0)})
-            payloads = []
-            for source in sources:
-                key = (int(source["product_id"]), int(source["offering_id"]), int(source["unit_price"] or 0))
-                source_quantity = float(source["quantity"])
-                credit_item = next((item for item in credit_items_by_key.get(key, []) if float(item.get("remaining_quantity") or 0) + 0.000001 >= source_quantity), None)
-                if not credit_item:
-                    raise ValueError("No se pudieron vincular las líneas de la nota de crédito")
-                credit_item["remaining_quantity"] = float(credit_item.get("remaining_quantity") or 0) - source_quantity
-                payloads.append(
-                    {
-                        "credit_note_invoice_id": credit_note_invoice_id,
-                        "credit_note_item_id": int(credit_item["id"]),
-                        "source_invoice_id": int(source["source_invoice_id"]),
-                        "source_invoice_item_id": int(source["source_invoice_item_id"]),
-                        "quantity": source_quantity,
-                        "created_at": created_at,
-                    }
-                )
-            connection.execute(self.credit_note_item_sources.insert(), payloads)
+            self._insert_credit_note_item_sources(connection, credit_note_invoice_id, sources, utc_now())
 
     def update_credit_note_item_sources(self, credit_note_invoice_id: int, sources: list[dict[str, object]]) -> None:
         with self.engine.begin() as connection:
             connection.execute(
                 self.credit_note_item_sources.delete().where(self.credit_note_item_sources.c.credit_note_invoice_id == credit_note_invoice_id)
             )
-        self.save_credit_note_item_sources(credit_note_invoice_id, sources)
+            self._insert_credit_note_item_sources(connection, credit_note_invoice_id, sources, utc_now())
 
     def save_invoice(
         self,
@@ -1101,6 +1103,9 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
         snapshot: InvoiceSnapshotData,
         filename: str,
         xlsx_bytes: bytes,
+        *,
+        credit_reason: str | None = None,
+        credit_note_sources: list[dict[str, object]] | None = None,
     ) -> int:
         updated_at = utc_now()
         order_date = datetime.strptime(order["date"], "%Y-%m-%d").date()
@@ -1150,37 +1155,40 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                 now=updated_at,
             )
 
+            invoice_values = {
+                "customer_id": customer_id,
+                "transport_id": transport_id,
+                "price_list_id": order.get("price_list_id"),
+                "client_name": order["client_name"],
+                "declared": bool(order.get("declared", False)),
+                "fiscal_status": str(existing_invoice.get("fiscal_status") or ("draft" if bool(order.get("declared", False)) else "internal")),
+                "price_list_name": price_list_name,
+                "price_list_effective_date": price_list_effective_date,
+                "customer_cuit": str(profile.get("cuit", "") or ""),
+                "customer_address": str(profile.get("address", "") or ""),
+                "customer_business_name": str(profile.get("business_name", "") or ""),
+                "customer_iva_condition": str(profile.get("iva_condition", "") or ""),
+                "customer_email": str(profile.get("email", "") or ""),
+                "order_date": order_date,
+                "secondary_line": order.get("secondary_line") or profile.get("secondary_line") or "",
+                "transport": transport_name,
+                "notes": order.get("notes") or profile.get("notes") or [],
+                "footer_discounts": footer_discounts,
+                "line_discounts_by_format": line_discounts_by_format,
+                "total_bultos": float(snapshot["summary"]["total_bultos"]),
+                "gross_total": int(snapshot["summary"]["gross_total"]),
+                "discount_total": int(snapshot["summary"]["discount_total"]),
+                "final_total": int(snapshot["summary"]["final_total"]),
+                "output_filename": filename,
+                "xlsx_data": xlsx_bytes,
+                "xlsx_size": len(xlsx_bytes),
+            }
+            if credit_reason is not None:
+                invoice_values["credit_reason"] = credit_reason
             connection.execute(
                 update(self.invoices)
                 .where(self.invoices.c.id == invoice_id)
-                .values(
-                    customer_id=customer_id,
-                    transport_id=transport_id,
-                    price_list_id=order.get("price_list_id"),
-                    client_name=order["client_name"],
-                    declared=bool(order.get("declared", False)),
-                    fiscal_status=str(existing_invoice.get("fiscal_status") or ("draft" if bool(order.get("declared", False)) else "internal")),
-                    price_list_name=price_list_name,
-                    price_list_effective_date=price_list_effective_date,
-                    customer_cuit=str(profile.get("cuit", "") or ""),
-                    customer_address=str(profile.get("address", "") or ""),
-                    customer_business_name=str(profile.get("business_name", "") or ""),
-                    customer_iva_condition=str(profile.get("iva_condition", "") or ""),
-                    customer_email=str(profile.get("email", "") or ""),
-                    order_date=order_date,
-                    secondary_line=order.get("secondary_line") or profile.get("secondary_line") or "",
-                    transport=transport_name,
-                    notes=order.get("notes") or profile.get("notes") or [],
-                    footer_discounts=footer_discounts,
-                    line_discounts_by_format=line_discounts_by_format,
-                    total_bultos=float(snapshot["summary"]["total_bultos"]),
-                    gross_total=int(snapshot["summary"]["gross_total"]),
-                    discount_total=int(snapshot["summary"]["discount_total"]),
-                    final_total=int(snapshot["summary"]["final_total"]),
-                    output_filename=filename,
-                    xlsx_data=xlsx_bytes,
-                    xlsx_size=len(xlsx_bytes),
-                )
+                .values(**invoice_values)
             )
 
             connection.execute(
@@ -1238,6 +1246,11 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                             for rate, values in breakdown.items()
                         ],
                     )
+            if credit_note_sources is not None:
+                connection.execute(
+                    self.credit_note_item_sources.delete().where(self.credit_note_item_sources.c.credit_note_invoice_id == invoice_id)
+                )
+                self._insert_credit_note_item_sources(connection, invoice_id, credit_note_sources, updated_at)
 
         return invoice_id
 

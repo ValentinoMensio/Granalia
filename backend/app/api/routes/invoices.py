@@ -642,18 +642,12 @@ def update_invoice(invoice_id: int, payload: InvoiceRequest, _: str = Depends(re
                     "unit_price": item.get("unit_price"),
                     "offering_net_weight_kg": item.get("offering_net_weight_kg"),
                 }
-                for item in repository.list_internal_credit_note_available_items(int(profile["id"]))
+                for item in repository.list_internal_credit_note_available_items(int(profile["id"]), credit_note_invoice_id=invoice_id)
             ]}
             catalog = catalog_with_invoice_history(catalog, history_invoice, order)
             filename, xlsx_bytes, snapshot = generate_invoice_document(order, profile, catalog)
-            repository.update_invoice(invoice_id, order, profile, snapshot, filename, xlsx_bytes)
-            repository.update_credit_note_item_sources(invoice_id, source_links)
-            order["notes"] = order.get("notes") or []
             credit_reason = " / ".join(order.get("notes") or []) or "Nota de crédito interna"
-            with repository.engine.begin() as connection:
-                connection.execute(
-                    repository.invoices.update().where(repository.invoices.c.id == invoice_id).values(credit_reason=credit_reason)
-                )
+            repository.update_invoice(invoice_id, order, profile, snapshot, filename, xlsx_bytes, credit_reason=credit_reason, credit_note_sources=source_links)
             return InvoiceCreateOut.model_validate({
                 "invoice_id": invoice_id,
                 "invoices": [{"invoice_id": invoice_id, "split_kind": "internal", "fiscal_status": "internal"}],

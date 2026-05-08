@@ -200,10 +200,61 @@ function buildFormFromInvoiceDetail(invoiceDetail, customers) {
   const isInternalCreditNote = String(invoiceDetail.document_type || '').toUpperCase() === 'NOTA_CREDITO' && String(invoiceDetail.fiscal_status || '') === 'internal'
   const grouped = new Map()
 
+  if (isInternalCreditNote) {
+    const items = []
+    for (const item of invoiceDetail.items || []) {
+      const sources = item.sources || []
+      if (!sources.length) {
+        items.push({
+          product_id: item.product_id || '',
+          offering_id: item.offering_id || '',
+          quantity: Number(item.quantity || 0),
+          bonus_quantity: 0,
+          unit_price: item.unit_price || '',
+          product_name: item.product_name || '',
+          offering_label: item.offering_label || '',
+          bonus_quantity_manual: false,
+        })
+        continue
+      }
+      for (const source of sources) {
+        items.push({
+          product_id: item.product_id || '',
+          offering_id: item.offering_id || '',
+          source_invoice_item_id: source.source_invoice_item_id || '',
+          quantity: Number(source.quantity || 0),
+          bonus_quantity: 0,
+          unit_price: item.unit_price || '',
+          product_name: item.product_name || '',
+          offering_label: item.offering_label || '',
+          bonus_quantity_manual: false,
+        })
+      }
+    }
+
+    return {
+      customerId: matchingCustomer ? String(matchingCustomer.id) : '',
+      priceListId: invoiceDetail.price_list_id ? String(invoiceDetail.price_list_id) : '',
+      internalPriceListId: invoiceDetail.price_list_id ? String(invoiceDetail.price_list_id) : '',
+      fiscalPriceListId: invoiceDetail.price_list_id ? String(invoiceDetail.price_list_id) : '',
+      billingMode: 'internal_credit_note',
+      declaredPercentage: Number(invoiceDetail.split_percentage || 30),
+      declared: false,
+      clientName: invoiceDetail.client_name || '',
+      date: invoiceDetail.order_date || new Date().toISOString().slice(0, 10),
+      secondaryLine: invoiceDetail.secondary_line || '',
+      transport: invoiceDetail.transport || '',
+      notes: (invoiceDetail.notes || []).join('\n'),
+      footerDiscounts: [...(invoiceDetail.footer_discounts || [])],
+      lineDiscountsByGroup: { ...(invoiceDetail.line_discounts_by_format || {}) },
+      automaticBonusRules: matchingCustomer?.automatic_bonus_rules || [],
+      automaticBonusDisablesLineDiscount: Boolean(matchingCustomer?.automatic_bonus_disables_line_discount),
+      items: items.length ? items : [{ product_id: '', offering_id: '', quantity: 0, bonus_quantity: 0, unit_price: '', bonus_quantity_manual: false }],
+    }
+  }
+
   for (const item of invoiceDetail.items || []) {
-    const key = isInternalCreditNote
-      ? `${item.product_id || ''}:${item.offering_id || ''}:${item.unit_price || ''}`
-      : `${item.product_id || ''}:${item.offering_id || ''}`
+    const key = `${item.product_id || ''}:${item.offering_id || ''}`
     const current = grouped.get(key) || {
       product_id: item.product_id || '',
       offering_id: item.offering_id || '',
@@ -215,15 +266,12 @@ function buildFormFromInvoiceDetail(invoiceDetail, customers) {
       bonus_quantity_manual: false,
     }
 
-    if (Number(item.unit_price || 0) === 0 && !isInternalCreditNote) {
+    if (Number(item.unit_price || 0) === 0) {
       current.bonus_quantity += Number(item.quantity || 0)
       current.bonus_quantity_manual = true
     } else {
       current.quantity += Number(item.quantity || 0)
       current.unit_price = Number(item.unit_price || 0)
-    }
-    if (isInternalCreditNote && item.sources && item.sources.length > 0 && !current.source_invoice_item_id) {
-      current.source_invoice_item_id = item.sources[0].source_invoice_item_id
     }
     grouped.set(key, current)
   }
@@ -233,7 +281,7 @@ function buildFormFromInvoiceDetail(invoiceDetail, customers) {
     priceListId: invoiceDetail.price_list_id ? String(invoiceDetail.price_list_id) : '',
     internalPriceListId: invoiceDetail.price_list_id ? String(invoiceDetail.price_list_id) : '',
     fiscalPriceListId: invoiceDetail.price_list_id ? String(invoiceDetail.price_list_id) : '',
-    billingMode: isInternalCreditNote ? 'internal_credit_note' : (invoiceDetail.batch_id ? 'split' : invoiceDetail.declared ? 'fiscal_only' : 'internal_only'),
+    billingMode: invoiceDetail.batch_id ? 'split' : invoiceDetail.declared ? 'fiscal_only' : 'internal_only',
     declaredPercentage: Number(invoiceDetail.split_percentage || 30),
     declared: Boolean(invoiceDetail.declared),
     clientName: invoiceDetail.client_name || '',
