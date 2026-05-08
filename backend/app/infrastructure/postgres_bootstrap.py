@@ -29,6 +29,7 @@ class PostgresBootstrapMixin(PostgresRepositoryProtocol):
             self._ensure_customer_billing_fields(connection=connection)
             self._ensure_fractional_invoice_quantities(connection=connection)
             self._ensure_price_list_invoice_fields(connection=connection)
+            self._ensure_price_list_version_history(connection=connection)
             self._ensure_offering_net_weight(connection=connection)
             self._ensure_invoice_historical_snapshot_fields(connection=connection)
             if os.getenv("GRANALIA_ENABLE_RUNTIME_ARCA_MIGRATIONS", "false").strip().lower() == "true":
@@ -60,6 +61,7 @@ class PostgresBootstrapMixin(PostgresRepositoryProtocol):
             "clients": clients,
             "transports": self.get_transports(),
             "price_lists": price_lists,
+            "price_list_versions": self.list_price_list_versions(),
             "price_list": self.get_active_price_list_meta(),
             "database": {
                 "type": "postgresql",

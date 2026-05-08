@@ -16,6 +16,7 @@ from ..types import (
     InvoiceFileData,
     InvoiceListItemData,
     PriceListMetaData,
+    PriceListVersionData,
     TransportData,
 )
 
@@ -26,6 +27,7 @@ class PostgresRepositoryProtocol(Protocol):
     engine: Engine
     catalogs: Table
     price_lists: Table
+    price_list_versions: Table
     transports: Table
     customers: Table
     products: Table
@@ -53,6 +55,7 @@ class PostgresRepositoryProtocol(Protocol):
     def rename_price_list(self, price_list_id: int, name: str) -> None: ...
     def get_transports(self) -> list[TransportData]: ...
     def list_price_lists(self) -> list[PriceListMetaData]: ...
+    def list_price_list_versions(self) -> list[PriceListVersionData]: ...
     def get_active_price_list_meta(self) -> PriceListMetaData | None: ...
     def list_invoices(self, limit: int = 50, date_from: date | None = None) -> list[InvoiceListItemData]: ...
     def get_invoice_detail(self, invoice_id: int) -> InvoiceDetailData | None: ...

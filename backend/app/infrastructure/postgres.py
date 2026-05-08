@@ -24,6 +24,7 @@ class PostgresRepository(
 ):
     catalogs: Table
     price_lists: Table
+    price_list_versions: Table
     transports: Table
     customers: Table
     products: Table

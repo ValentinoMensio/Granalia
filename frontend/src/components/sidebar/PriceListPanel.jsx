@@ -1,6 +1,13 @@
 import Panel from '../ui/Panel'
 import Button from '../ui/Button'
 
+function formatDate(value) {
+  const text = String(value || '').trim()
+  const match = text.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (match) return `${match[3]}-${match[2]}-${match[1]}`
+  return text || '-'
+}
+
 function PriceListPanel({ bootstrap, priceListUploadName, priceListUploadTargetId, uploading, onDelete, onRename, onFileChange, onUpload, onUploadNameChange, onUploadTargetChange }) {
   return (
     <Panel title="Lista de precios">
@@ -50,6 +57,25 @@ function PriceListPanel({ bootstrap, priceListUploadName, priceListUploadTargetI
               >
                 Eliminar
               </button>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-5 space-y-2 border-t border-slate-200 pt-4 text-xs text-slate-500">
+        <div className="font-bold uppercase tracking-[0.12em] text-slate-400">Historial de PDFs</div>
+        {(bootstrap?.price_list_versions || []).length === 0 && (
+          <div className="rounded-xl border border-dashed border-slate-200 px-3 py-2 text-slate-400">Sin cargas registradas.</div>
+        )}
+        {(bootstrap?.price_list_versions || []).slice(0, 12).map((version) => (
+          <div key={version.id} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+            <div className="flex items-center justify-between gap-3">
+              <span className="min-w-0 truncate font-semibold text-slate-700">{version.name}</span>
+              <span className="shrink-0 text-slate-400">v{version.version_number}</span>
+            </div>
+            <div className="mt-1 truncate text-slate-500">{version.filename}</div>
+            <div className="mt-1 flex items-center justify-between gap-3 font-mono text-[11px] text-slate-400">
+              <span>{formatDate(version.uploaded_at)}</span>
+              <span>{String(version.pdf_sha256 || '').slice(0, 10)}</span>
             </div>
           </div>
         ))}

@@ -312,6 +312,19 @@ class PriceListMetaOut(BaseModel):
     updated_at: str
 
 
+class PriceListVersionOut(BaseModel):
+    id: int
+    price_list_id: int | None = None
+    version_number: int
+    name: str
+    filename: str
+    content_type: str
+    size: int
+    pdf_sha256: str
+    source: str
+    uploaded_at: str
+
+
 class PriceListRename(BaseModel):
     name: NonEmptyStr
 
@@ -329,6 +342,7 @@ class BootstrapOut(BaseModel):
     clients: list[str] = Field(default_factory=list)
     transports: list[TransportOut] = Field(default_factory=list)
     price_lists: list[PriceListMetaOut] = Field(default_factory=list)
+    price_list_versions: list[PriceListVersionOut] = Field(default_factory=list)
     price_list: PriceListMetaOut | None = None
     database: DatabaseInfoOut
 

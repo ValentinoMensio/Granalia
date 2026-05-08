@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 import re
+import hashlib
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.engine import Engine
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.sql.schema import Table
 from typing import cast
 
 from ..core.utils import canonicalize_discount_config
-from ..types import CatalogOfferingData, CatalogProductData, PriceListMetaData
+from ..types import CatalogOfferingData, CatalogProductData, PriceListMetaData, PriceListVersionData
 from .postgres_protocol import PostgresRepositoryProtocol
 from .postgres_utils import serialize_value, utc_now
 
@@ -47,6 +48,7 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
     catalogs: Table
     customers: Table
     price_lists: Table
+    price_list_versions: Table
 
     def _catalog_snapshot(self, *, connection, active_only: bool = True) -> list[CatalogProductData]:
         product_query = select(self.products).order_by(self.products.c.name)
@@ -570,10 +572,65 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
                 "updated_at": now,
             }
             connection.execute(self.catalogs.insert().values(**catalog_payload))
+            self._record_price_list_version(
+                connection=connection,
+                price_list_id=saved_price_list_id,
+                name=str(price_list_payload["name"]),
+                filename=filename,
+                pdf_bytes=pdf_bytes,
+                source=source,
+                catalog_snapshot=normalized_catalog,
+                uploaded_at=now,
+            )
 
         price_list_payload["id"] = saved_price_list_id
         price_list_payload.pop("pdf_data", None)
         return cast(PriceListMetaData, serialize_value(price_list_payload))
+
+    def _record_price_list_version(
+        self,
+        *,
+        connection,
+        price_list_id: int,
+        name: str,
+        filename: str,
+        pdf_bytes: bytes,
+        source: str,
+        catalog_snapshot: list[CatalogProductData],
+        uploaded_at,
+    ) -> int | None:
+        pdf_hash = hashlib.sha256(pdf_bytes).hexdigest()
+        existing_id = connection.execute(
+            select(self.price_list_versions.c.id).where(self.price_list_versions.c.pdf_sha256 == pdf_hash).limit(1)
+        ).scalar_one_or_none()
+        if existing_id is not None:
+            return None
+
+        next_version = int(
+            connection.execute(
+                select(func.coalesce(func.max(self.price_list_versions.c.version_number), 0) + 1)
+                .where(self.price_list_versions.c.price_list_id == price_list_id)
+            ).scalar_one()
+        )
+        return int(
+            connection.execute(
+                self.price_list_versions.insert()
+                .values(
+                    price_list_id=price_list_id,
+                    version_number=next_version,
+                    name=name,
+                    filename=filename,
+                    content_type="application/pdf",
+                    size=len(pdf_bytes),
+                    pdf_sha256=pdf_hash,
+                    pdf_data=pdf_bytes,
+                    source=source,
+                    catalog_snapshot=catalog_snapshot,
+                    uploaded_at=uploaded_at,
+                )
+                .returning(self.price_list_versions.c.id)
+            ).scalar_one()
+        )
 
     def list_price_lists(self) -> list[PriceListMetaData]:
         with self.engine.connect() as connection:
@@ -582,6 +639,25 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
                 .order_by(self.price_lists.c.active.desc(), self.price_lists.c.id.desc())
             ).mappings().all()
         return cast(list[PriceListMetaData], [{key: serialize_value(value) for key, value in row.items()} for row in rows])
+
+    def list_price_list_versions(self) -> list[PriceListVersionData]:
+        with self.engine.connect() as connection:
+            rows = connection.execute(
+                select(
+                    self.price_list_versions.c.id,
+                    self.price_list_versions.c.price_list_id,
+                    self.price_list_versions.c.version_number,
+                    self.price_list_versions.c.name,
+                    self.price_list_versions.c.filename,
+                    self.price_list_versions.c.content_type,
+                    self.price_list_versions.c.size,
+                    self.price_list_versions.c.pdf_sha256,
+                    self.price_list_versions.c.source,
+                    self.price_list_versions.c.uploaded_at,
+                )
+                .order_by(self.price_list_versions.c.uploaded_at.desc(), self.price_list_versions.c.id.desc())
+            ).mappings().all()
+        return cast(list[PriceListVersionData], [{key: serialize_value(value) for key, value in row.items()} for row in rows])
 
     def get_catalog_for_price_list(self, price_list_id: int) -> list[CatalogProductData]:
         with self.engine.connect() as connection:

@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
 from ...dependencies import get_repository, require_admin
-from ...schemas import MAX_NAME_LENGTH, PriceListMetaOut, PriceListProductUpdate, PriceListRename, PriceListUploadOut, ProductCatalogOut, StatusResponse
+from ...schemas import MAX_NAME_LENGTH, PriceListMetaOut, PriceListProductUpdate, PriceListRename, PriceListUploadOut, PriceListVersionOut, ProductCatalogOut, StatusResponse
 from ...services.catalog import build_catalog_snapshot_from_pdf
 
 
@@ -45,6 +45,11 @@ async def upload_price_list(file: UploadFile = File(...), name: str = Form(defau
 @router.get("", response_model=list[PriceListMetaOut])
 def list_price_lists(_: str = Depends(require_admin)) -> list[PriceListMetaOut]:
     return [PriceListMetaOut.model_validate(item) for item in get_repository().list_price_lists()]
+
+
+@router.get("/versions", response_model=list[PriceListVersionOut])
+def list_price_list_versions(_: str = Depends(require_admin)) -> list[PriceListVersionOut]:
+    return [PriceListVersionOut.model_validate(item) for item in get_repository().list_price_list_versions()]
 
 
 @router.patch("/{price_list_id}", response_model=StatusResponse)

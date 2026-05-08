@@ -267,6 +267,19 @@ class PriceListMetaData(TypedDict):
     updated_at: str | datetime
 
 
+class PriceListVersionData(TypedDict):
+    id: int
+    price_list_id: int | None
+    version_number: int
+    name: str
+    filename: str
+    content_type: str
+    size: int
+    pdf_sha256: str
+    source: str
+    uploaded_at: str | datetime
+
+
 class DatabaseInfoData(TypedDict):
     type: str
     url: str
@@ -278,5 +291,6 @@ class BootstrapPayloadData(TypedDict):
     clients: list[str]
     transports: list[TransportData]
     price_lists: list[PriceListMetaData]
+    price_list_versions: list[PriceListVersionData]
     price_list: PriceListMetaData | None
     database: DatabaseInfoData

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+
 from sqlalchemy import select, text, update
 from sqlalchemy.engine import Engine
 from sqlalchemy.dialects.postgresql import insert
@@ -21,6 +23,8 @@ class PostgresMigrationMixin(PostgresRepositoryProtocol):
     invoice_items: Table
     invoice_tax_breakdown: Table
     arca_requests: Table
+    price_lists: Table
+    price_list_versions: Table
 
     def _column_exists(self, connection, table_name: str, column_name: str) -> bool:
         return bool(
@@ -491,6 +495,67 @@ class PostgresMigrationMixin(PostgresRepositoryProtocol):
             if not self._column_exists(connection, "invoices", "price_list_name"):
                 connection.execute(text("ALTER TABLE invoices ADD COLUMN price_list_name VARCHAR(255) NOT NULL DEFAULT ''"))
             connection.execute(text("UPDATE invoices i SET price_list_id = p.id, price_list_name = p.name FROM price_lists p WHERE p.active = true AND COALESCE(i.price_list_name, '') = ''"))
+
+    def _ensure_price_list_version_history(self, *, connection) -> None:
+        if not self._table_exists(connection, "price_lists"):
+            return
+        if not self._table_exists(connection, "price_list_versions"):
+            connection.execute(
+                text(
+                    """
+                    CREATE TABLE price_list_versions (
+                        id BIGSERIAL PRIMARY KEY,
+                        price_list_id BIGINT REFERENCES price_lists(id) ON DELETE SET NULL,
+                        version_number INTEGER NOT NULL,
+                        name VARCHAR(255) NOT NULL,
+                        filename VARCHAR(255) NOT NULL,
+                        content_type VARCHAR(120) NOT NULL,
+                        size INTEGER NOT NULL,
+                        pdf_sha256 VARCHAR(64) NOT NULL UNIQUE,
+                        pdf_data BYTEA NOT NULL,
+                        source VARCHAR(120) NOT NULL,
+                        catalog_snapshot JSONB NOT NULL,
+                        uploaded_at TIMESTAMPTZ NOT NULL,
+                        UNIQUE (price_list_id, version_number)
+                    )
+                    """
+                )
+            )
+
+        rows = connection.execute(select(self.price_lists).order_by(self.price_lists.c.id)).mappings().all()
+        for row in rows:
+            pdf_data = bytes(row.get("pdf_data") or b"")
+            if not pdf_data:
+                continue
+            pdf_hash = hashlib.sha256(pdf_data).hexdigest()
+            exists = connection.execute(
+                select(self.price_list_versions.c.id).where(self.price_list_versions.c.pdf_sha256 == pdf_hash).limit(1)
+            ).scalar_one_or_none()
+            if exists:
+                continue
+            catalog_snapshot = []
+            if self._table_exists(connection, "catalogs"):
+                catalog_snapshot = connection.execute(
+                    select(self.catalogs.c.catalog)
+                    .where(self.catalogs.c.price_list_id == row["id"])
+                    .order_by(self.catalogs.c.active.desc(), self.catalogs.c.id.desc())
+                    .limit(1)
+                ).scalar_one_or_none() or []
+            connection.execute(
+                self.price_list_versions.insert().values(
+                    price_list_id=row["id"],
+                    version_number=1,
+                    name=row["name"],
+                    filename=row["filename"],
+                    content_type=row["content_type"],
+                    size=row["size"],
+                    pdf_sha256=pdf_hash,
+                    pdf_data=pdf_data,
+                    source=row["source"],
+                    catalog_snapshot=catalog_snapshot,
+                    uploaded_at=row["uploaded_at"],
+                )
+            )
 
     def _ensure_invoice_historical_snapshot_fields(self, *, connection) -> None:
         if self._table_exists(connection, "invoices"):
