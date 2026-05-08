@@ -6,8 +6,8 @@
 
 @layer base {
   :root {
-    --bg: 240 242 246;
-    --bg-strong: 228 232 238;
+    --bg: 225 229 236;
+    --bg-strong: 207 214 224;
     --surface: 255 255 255;
     --surface-muted: 245 247 250;
     --border: 209 213 219;
@@ -30,7 +30,10 @@
   body {
     font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     color: rgb(var(--text));
-    background: rgb(var(--bg));
+    background:
+      radial-gradient(circle at top left, rgba(31, 64, 122, 0.12), transparent 34rem),
+      linear-gradient(135deg, rgb(var(--bg-strong)) 0%, rgb(var(--bg)) 42%, rgb(213 219 229) 100%);
+    background-attachment: fixed;
     min-width: 0;
   }
 
@@ -55,6 +58,7 @@
     @apply rounded-lg border bg-white shadow-sm;
     border-color: rgb(var(--border));
     background: rgb(var(--surface));
+    box-shadow: 0 10px 28px rgba(var(--shadow),0.08);
   }
 
   .surface-muted {

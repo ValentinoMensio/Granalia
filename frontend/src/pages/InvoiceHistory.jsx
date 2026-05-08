@@ -733,7 +733,7 @@ export default function InvoiceHistory() {
 
             <div className="flex flex-col gap-3 border-t border-stone-200 pt-4 sm:flex-row sm:flex-wrap sm:justify-end">
               {isAdmin && canCreateCreditNote(invoiceDetail) && (
-                <Button variant="secondary" className="w-full sm:w-auto" onClick={() => openCreditNoteModal(invoiceDetail.id)}>
+                <Button variant="danger" className="w-full sm:w-auto" onClick={() => openCreditNoteModal(invoiceDetail.id)}>
                   Generar nota de crédito
                 </Button>
               )}
