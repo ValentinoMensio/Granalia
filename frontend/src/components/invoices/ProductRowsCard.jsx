@@ -79,11 +79,11 @@ function ProductRowsCard({
   const sourceProductOptions = useMemo(
     () => Array.from(
       creditNoteSourceItems.reduce((items, sourceItem) => {
-        const key = `${sourceItem.product_id || ''}:${sourceItem.offering_id || ''}`
+        const key = String(sourceItem.product_id || '')
         if (!items.has(key)) {
           items.set(key, {
             key,
-            label: [sourceItem.product_name, sourceItem.offering_label].filter(Boolean).join(' / ') || sourceItem.label,
+            label: sourceItem.product_name || sourceItem.label,
           })
         }
         return items
@@ -108,17 +108,40 @@ function ProductRowsCard({
         <div className="mt-4 space-y-3">
           {form.items.map((item, index) => {
             const source = sourceItemsById[String(item.source_invoice_item_id || '')]
-            const selectedProductKey = item.source_product_key || (item.product_id && item.offering_id ? `${item.product_id}:${item.offering_id}` : '')
-            const sourceItemsForProduct = creditNoteSourceItems.filter((sourceItem) => `${sourceItem.product_id || ''}:${sourceItem.offering_id || ''}` === selectedProductKey)
+            const selectedSourceIds = new Set(
+              form.items
+                .filter((_, itemIndex) => itemIndex !== index)
+                .map((currentItem) => String(currentItem.source_invoice_item_id || ''))
+                .filter(Boolean)
+            )
+            const selectedProductId = String(item.product_id || '')
+            const selectedOfferingId = String(item.offering_id || '')
+            const sourceOfferingOptions = Array.from(
+              creditNoteSourceItems
+                .filter((sourceItem) => String(sourceItem.product_id || '') === selectedProductId)
+                .reduce((items, sourceItem) => {
+                  const key = String(sourceItem.offering_id || '')
+                  if (!items.has(key)) {
+                    items.set(key, { key, label: sourceItem.offering_label || 'Sin formato' })
+                  }
+                  return items
+                }, new Map()).values()
+            ).sort((a, b) => String(a.label).localeCompare(String(b.label), 'es'))
+            const sourceItemsForOffering = creditNoteSourceItems.filter((sourceItem) => {
+              const sourceId = String(sourceItem.invoice_item_id || '')
+              return String(sourceItem.product_id || '') === selectedProductId
+                && String(sourceItem.offering_id || '') === selectedOfferingId
+                && (!selectedSourceIds.has(sourceId) || sourceId === String(item.source_invoice_item_id || ''))
+            })
             const available = Number(source?.available_quantity || 0)
             const quantity = Number(item.quantity || 0)
             const price = Number(source?.unit_price ?? item.unit_price ?? 0)
             return (
-              <div key={index} className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_8rem_8rem_8rem_auto] lg:items-center">
+              <div key={index} className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm lg:grid-cols-[minmax(0,1fr)_12rem_minmax(0,1fr)_8rem_8rem_8rem_auto] lg:items-center">
                 <select
                   className="input"
-                  value={selectedProductKey}
-                  onChange={(event) => onUpdateItem(index, 'source_product_key', event.target.value)}
+                  value={selectedProductId}
+                  onChange={(event) => onUpdateItem(index, 'source_product_id', event.target.value ? Number(event.target.value) : '')}
                 >
                   <option value="">Producto</option>
                   {sourceProductOptions.map((productOption) => (
@@ -127,11 +150,23 @@ function ProductRowsCard({
                 </select>
                 <select
                   className="input"
+                  value={selectedOfferingId}
+                  onChange={(event) => onUpdateItem(index, 'source_offering_id', event.target.value ? Number(event.target.value) : '')}
+                  disabled={!selectedProductId}
+                >
+                  <option value="">Formato</option>
+                  {sourceOfferingOptions.map((offeringOption) => (
+                    <option key={offeringOption.key} value={offeringOption.key}>{offeringOption.label}</option>
+                  ))}
+                </select>
+                <select
+                  className="input"
                   value={item.source_invoice_item_id || ''}
                   onChange={(event) => onUpdateItem(index, 'source_invoice_item_id', event.target.value ? Number(event.target.value) : '')}
+                  disabled={!selectedOfferingId}
                 >
                   <option value="">Factura / remito</option>
-                  {sourceItemsForProduct.map((sourceItem) => (
+                  {sourceItemsForOffering.map((sourceItem) => (
                     <option key={sourceItem.invoice_item_id} value={sourceItem.invoice_item_id}>
                       {dateLabel(sourceItem.order_date)} · #{sourceItem.internal_invoice_number || sourceItem.invoice_id} · disp. {sourceItem.available_quantity}
                     </option>

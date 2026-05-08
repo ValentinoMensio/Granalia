@@ -296,23 +296,27 @@ def build_internal_credit_note_from_sources(repository, order: dict, profile: di
     available_by_id = {int(item["invoice_item_id"]): item for item in available_items}
     credit_items = []
     source_links: list[dict[str, object]] = []
+    requested_by_source: dict[int, float] = {}
     for requested in order.get("items", []):
         source_item_id = requested.get("source_invoice_item_id")
         if not source_item_id:
             raise ValueError("Seleccioná el remito/factura origen de cada producto a devolver")
-        source = available_by_id.get(int(source_item_id))
+        source_item_id = int(source_item_id)
+        source = available_by_id.get(source_item_id)
         if not source:
             raise ValueError("La línea origen no está disponible para devolución")
         quantity = float(requested.get("quantity") or 0)
         available = float(source.get("available_quantity") or 0)
         if quantity <= 0:
             continue
-        if quantity > available + 0.000001:
+        requested_total = requested_by_source.get(source_item_id, 0.0) + quantity
+        if requested_total > available + 0.000001:
             raise ValueError(f"La cantidad a devolver de {source.get('label')} supera la disponible ({available:g})")
+        requested_by_source[source_item_id] = requested_total
         credit_items.append({
             "product_id": int(source["product_id"]),
             "offering_id": int(source["offering_id"]),
-            "source_invoice_item_id": int(source_item_id),
+            "source_invoice_item_id": source_item_id,
             "offering_label": str(source.get("offering_label") or ""),
             "quantity": quantity,
             "bonus_quantity": 0,
@@ -320,7 +324,7 @@ def build_internal_credit_note_from_sources(repository, order: dict, profile: di
         })
         source_links.append({
             "source_invoice_id": int(source["invoice_id"]),
-            "source_invoice_item_id": int(source_item_id),
+            "source_invoice_item_id": source_item_id,
             "quantity": quantity,
         })
     if not credit_items:
