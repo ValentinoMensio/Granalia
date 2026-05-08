@@ -506,38 +506,37 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                 )
                 .order_by(self.invoices.c.order_date.desc(), self.invoices.c.id.desc(), self.invoice_items.c.line_number)
             ).mappings().all()
-            credited_rows = connection.execute(
-                select(
-                    self.credit_note_item_sources.c.source_invoice_item_id,
-                    func.coalesce(func.sum(self.credit_note_item_sources.c.quantity), 0).label("credited_quantity"),
-                )
-                .group_by(self.credit_note_item_sources.c.source_invoice_item_id)
-            ).mappings().all()
-            credit_note_rows = []
+            credited_query = select(
+                self.credit_note_item_sources.c.source_invoice_item_id,
+                func.coalesce(func.sum(self.credit_note_item_sources.c.quantity), 0).label("credited_quantity"),
+            )
             if credit_note_invoice_id is not None:
-                credit_note_rows = connection.execute(
-                    select(
-                        self.credit_note_item_sources.c.source_invoice_item_id,
-                        func.coalesce(func.sum(self.credit_note_item_sources.c.quantity), 0).label("credit_note_quantity"),
-                    )
-                    .where(self.credit_note_item_sources.c.credit_note_invoice_id == credit_note_invoice_id)
-                    .group_by(self.credit_note_item_sources.c.source_invoice_item_id)
-                ).mappings().all()
+                credited_query = credited_query.where(self.credit_note_item_sources.c.credit_note_invoice_id != credit_note_invoice_id)
+            credited_rows = connection.execute(
+                credited_query.group_by(self.credit_note_item_sources.c.source_invoice_item_id)
+            ).mappings().all()
+            if credit_note_invoice_id is not None:
+                current_source_ids = {
+                    int(row["source_invoice_item_id"])
+                    for row in connection.execute(
+                        select(self.credit_note_item_sources.c.source_invoice_item_id).where(
+                            self.credit_note_item_sources.c.credit_note_invoice_id == credit_note_invoice_id
+                        )
+                    ).mappings().all()
+                }
+            else:
+                current_source_ids = set()
         credited_by_item = {int(row["source_invoice_item_id"]): float(row["credited_quantity"] or 0) for row in credited_rows}
-        credit_note_by_item = {int(row["source_invoice_item_id"]): float(row["credit_note_quantity"] or 0) for row in credit_note_rows}
         items = []
         for row in item_rows:
             item = {key: serialize_value(value) for key, value in row.items()}
             quantity = float(item.get("quantity") or 0)
             invoice_item_id = int(item["invoice_item_id"])
             credited = credited_by_item.get(invoice_item_id, 0.0)
-            # En edición, volvemos a habilitar lo ya consumido por esta misma nota de crédito
-            # (para que el origen siga siendo seleccionable y se pueda ajustar).
-            credited_adjusted = max(0.0, credited - credit_note_by_item.get(invoice_item_id, 0.0))
-            available = max(0.0, quantity - credited_adjusted)
-            if available <= 0:
+            available = max(0.0, quantity - credited)
+            if available <= 0 and invoice_item_id not in current_source_ids:
                 continue
-            item["credited_quantity"] = credited_adjusted
+            item["credited_quantity"] = credited
             item["available_quantity"] = available
             items.append(item)
         return items
