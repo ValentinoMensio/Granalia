@@ -465,7 +465,10 @@ function useGranaliaData() {
     try {
       const formData = new FormData()
       formData.append('file', pdfFile)
-      formData.append('name', priceListUploadName.trim() || pdfFile.name.replace(/\.pdf$/i, ''))
+      const uploadName = priceListUploadName.trim()
+      if (uploadName || !priceListUploadTargetId) {
+        formData.append('name', uploadName || pdfFile.name.replace(/\.pdf$/i, ''))
+      }
       formData.append('activate', 'true')
       if (priceListUploadTargetId) {
         formData.append('price_list_id', priceListUploadTargetId)
@@ -506,6 +509,20 @@ function useGranaliaData() {
     const nextBootstrap = await request('/api/bootstrap')
     applyBootstrap(nextBootstrap)
     setStatus('Lista de precios renombrada.')
+  }
+
+  async function activatePriceList(priceListId) {
+    if (!priceListId) return
+    await request(`/api/price-lists/${priceListId}/activate`, { method: 'POST' })
+    const nextBootstrap = await request('/api/bootstrap')
+    applyBootstrap(nextBootstrap)
+    setForm((current) => ({
+      ...current,
+      priceListId: String(priceListId),
+      internalPriceListId: String(priceListId),
+      fiscalPriceListId: String(priceListId),
+    }))
+    setStatus('Lista predeterminada actualizada.')
   }
 
   async function generateInvoice() {
@@ -606,6 +623,7 @@ function useGranaliaData() {
     uploadPriceList,
     deletePriceList,
     renamePriceList,
+    activatePriceList,
     generateInvoice,
     refreshAll: loadAll,
   }

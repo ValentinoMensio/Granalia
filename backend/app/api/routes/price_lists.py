@@ -24,7 +24,7 @@ async def upload_price_list(file: UploadFile = File(...), name: str = Form(defau
     if len(pdf_bytes) > MAX_PRICE_LIST_PDF_BYTES:
         raise HTTPException(status_code=413, detail="El PDF no puede superar 20 MB")
     repository = get_repository()
-    list_name = name.strip() or filename
+    list_name = name.strip() or (None if price_list_id is not None else filename)
     try:
         base_catalog = repository.get_catalog_for_price_list(price_list_id) if price_list_id is not None else repository.get_active_catalog()
         updated_catalog = build_catalog_snapshot_from_pdf(pdf_bytes, base_catalog)
@@ -59,6 +59,15 @@ def rename_price_list(price_list_id: int, payload: PriceListRename, _: str = Dep
     except (RuntimeError, ValueError) as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
     return StatusResponse(status="updated")
+
+
+@router.post("/{price_list_id}/activate", response_model=StatusResponse)
+def activate_price_list(price_list_id: int, _: str = Depends(require_admin)) -> StatusResponse:
+    try:
+        get_repository().activate_price_list(price_list_id)
+    except (RuntimeError, ValueError) as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    return StatusResponse(status="activated")
 
 
 @router.get("/{price_list_id}/catalog", response_model=list[ProductCatalogOut])

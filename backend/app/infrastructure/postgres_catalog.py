@@ -717,6 +717,34 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
             if result.rowcount == 0:
                 raise ValueError("Lista de precios no encontrada")
 
+    def activate_price_list(self, price_list_id: int) -> None:
+        now = utc_now()
+        with self.engine.begin() as connection:
+            price_list = connection.execute(
+                select(self.price_lists.c.id).where(self.price_lists.c.id == price_list_id)
+            ).mappings().first()
+            if not price_list:
+                raise ValueError("Lista de precios no encontrada")
+            catalog = connection.execute(
+                select(self.catalogs.c.catalog)
+                .where(self.catalogs.c.price_list_id == price_list_id)
+                .order_by(self.catalogs.c.id.desc())
+                .limit(1)
+            ).scalar_one_or_none()
+            if not catalog:
+                raise ValueError("Catalogo de lista no encontrado")
+
+            connection.execute(update(self.price_lists).where(self.price_lists.c.active.is_(True)).values(active=False, updated_at=now))
+            connection.execute(update(self.catalogs).where(self.catalogs.c.active.is_(True)).values(active=False, updated_at=now))
+            self._sync_catalog_tables(cast(list[CatalogProductData], serialize_value(catalog)), connection=connection, now=now)
+            normalized_catalog = self._catalog_snapshot(connection=connection)
+            connection.execute(update(self.price_lists).where(self.price_lists.c.id == price_list_id).values(active=True, updated_at=now))
+            connection.execute(
+                update(self.catalogs)
+                .where(self.catalogs.c.price_list_id == price_list_id)
+                .values(active=True, catalog=normalized_catalog, updated_at=now)
+            )
+
     def get_active_price_list_meta(self) -> PriceListMetaData | None:
         with self.engine.connect() as connection:
             row = connection.execute(

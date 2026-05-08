@@ -14,7 +14,7 @@ function ivaRateLabel(value) {
 }
 
 export default function Management() {
-  const { setStatus, customers, bootstrap, catalog, priceListUploadName, priceListUploadTargetId, uploading, setPdfFile, setPriceListUploadName, setPriceListUploadTargetId, uploadPriceList, deletePriceList, renamePriceList, refreshAll } = useGranalia()
+  const { setStatus, customers, bootstrap, catalog, priceListUploadName, priceListUploadTargetId, uploading, setPdfFile, setPriceListUploadName, setPriceListUploadTargetId, uploadPriceList, deletePriceList, renamePriceList, activatePriceList, refreshAll } = useGranalia()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const requestedTab = searchParams.get('tab')
@@ -85,6 +85,18 @@ export default function Management() {
       await renamePriceList(priceList.id, nextName)
     } catch (e) {
       setStatus(`Error al renombrar lista: ${e.message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleActivatePriceList(priceList) {
+    if (priceList.active) return
+    setLoading(true)
+    try {
+      await activatePriceList(priceList.id)
+    } catch (e) {
+      setStatus(`Error al activar lista: ${e.message}`)
     } finally {
       setLoading(false)
     }
@@ -399,6 +411,7 @@ export default function Management() {
               uploading={uploading}
               onDelete={handleDeletePriceList}
               onRename={handleRenamePriceList}
+              onActivate={handleActivatePriceList}
               onFileChange={setPdfFile}
               onUploadNameChange={setPriceListUploadName}
               onUploadTargetChange={setPriceListUploadTargetId}
