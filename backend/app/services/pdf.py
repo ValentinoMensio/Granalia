@@ -266,7 +266,7 @@ def _draw_header(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
     pdf.setFont(FONT_BOLD, 17)
     fiscal_number = str(invoice.get("fiscal_number") or invoice.get("id") or "")
     label = "Nota de Crédito" if _is_credit_note(invoice) else "Remito"
-    display_number = label if _is_credit_note(invoice) else re.sub(r"factura", label, fiscal_number, flags=re.IGNORECASE)
+    display_number = f"{label} #{_digits(invoice.get('id')) or invoice.get('id')}" if _is_credit_note(invoice) else re.sub(r"factura", label, fiscal_number, flags=re.IGNORECASE)
     if not _is_credit_note(invoice) and not display_number.lower().startswith(label.lower()):
         display_number = f"{label} #{display_number}"
     pdf.drawRightString(width - MARGIN, y - 8, display_number)
