@@ -106,6 +106,15 @@ function ProductRowsCard({
         )}
 
         <div className="mt-4 space-y-3">
+          <div className="hidden rounded-2xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500 lg:grid lg:grid-cols-[minmax(0,1fr)_12rem_minmax(0,1fr)_8rem_8rem_8rem_auto] lg:items-center lg:gap-3">
+            <div>Producto</div>
+            <div>Formato</div>
+            <div>Remito origen</div>
+            <div className="text-right">Disponible</div>
+            <div className="text-right">Cantidad</div>
+            <div className="text-right">Precio</div>
+            <div className="text-right">Total</div>
+          </div>
           {form.items.map((item, index) => {
             const source = sourceItemsById[String(item.source_invoice_item_id || '')]
             const selectedSourceIds = new Set(
