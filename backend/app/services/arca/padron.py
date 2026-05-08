@@ -76,7 +76,7 @@ def response_error(root: ET.Element) -> str:
 
 def padron_config(config: ArcaConfig) -> ArcaConfig:
     cache_path = Path(config.token_cache_path)
-    service = config.padron_service or "ws_sr_padron_a5"
+    service = config.padron_service or "ws_sr_constancia_inscripcion"
     return replace(
         config,
         service=service,
@@ -85,11 +85,18 @@ def padron_config(config: ArcaConfig) -> ArcaConfig:
 
 
 def padron_scope(config: ArcaConfig) -> str:
-    return (config.padron_service or config.service or "ws_sr_padron_a5").rsplit("_", 1)[-1].lower()
+    namespace = config.padron_namespace or ""
+    if namespace.startswith("http://") and namespace.endswith(".soap.ws.server.puc.sr/"):
+        return namespace.removeprefix("http://").removesuffix(".soap.ws.server.puc.sr/")
+    return "a5"
 
 
 def padron_namespace(config: ArcaConfig) -> str:
-    return f"http://{padron_scope(config)}.soap.ws.server.puc.sr/"
+    return config.padron_namespace or f"http://{padron_scope(config)}.soap.ws.server.puc.sr/"
+
+
+def padron_operation(config: ArcaConfig) -> str:
+    return config.padron_operation or "getPersona"
 
 
 def auth_xml(config: ArcaConfig, ticket: ArcaAuthTicket, cuit: str) -> str:
@@ -101,21 +108,23 @@ def auth_xml(config: ArcaConfig, ticket: ArcaAuthTicket, cuit: str) -> str:
 
 def soap_envelope(config: ArcaConfig, body: str) -> str:
     namespace = padron_namespace(config)
+    operation = padron_operation(config)
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:padron="{namespace}">
   <soapenv:Header/>
   <soapenv:Body>
-    <padron:getPersona>{body}</padron:getPersona>
+    <padron:{operation}>{body}</padron:{operation}>
   </soapenv:Body>
 </soapenv:Envelope>"""
 
 
 def request_persona(config: ArcaConfig, ticket: ArcaAuthTicket, cuit: str) -> ET.Element:
     namespace = padron_namespace(config)
+    operation = padron_operation(config)
     request = urllib.request.Request(
         config.padron_url,
         data=soap_envelope(config, auth_xml(config, ticket, cuit)).encode("utf-8"),
-        headers={"Content-Type": "text/xml; charset=utf-8", "SOAPAction": f"{namespace}getPersona"},
+        headers={"Content-Type": "text/xml; charset=utf-8", "SOAPAction": f"{namespace}{operation}"},
         method="POST",
     )
     context = ssl.create_default_context()
@@ -179,6 +188,27 @@ def response_field_names(root: ET.Element) -> list[str]:
     return names[:80]
 
 
+def parse_constancia_inscripcion(root: ET.Element, cuit_digits: str) -> dict[str, str]:
+    return {
+        "cuit": cuit_digits,
+        "business_name": fiscal_name(root),
+        "address": fiscal_address(root),
+        "iva_condition": iva_condition(root),
+    }
+
+
+def parse_padron_response(config: ArcaConfig, root: ET.Element, cuit_digits: str) -> dict[str, str]:
+    parser = (config.padron_parser or "constancia_inscripcion").strip().lower()
+    if parser == "constancia_inscripcion":
+        return parse_constancia_inscripcion(root, cuit_digits)
+    return {
+        "cuit": cuit_digits,
+        "business_name": fiscal_name(root),
+        "address": fiscal_address(root),
+        "iva_condition": iva_condition(root),
+    }
+
+
 def lookup_taxpayer_data(cuit: object, config: ArcaConfig | None = None) -> dict[str, object]:
     cuit_digits = digits_only(cuit)
     if len(cuit_digits) != 11:
@@ -191,7 +221,10 @@ def lookup_taxpayer_data(cuit: object, config: ArcaConfig | None = None) -> dict
         "service": base_config.padron_service,
         "ta_service": base_config.padron_service,
         "wsaa_url": base_config.wsaa_url,
+        "wsdl_url": base_config.padron_wsdl_url,
         "url": base_config.padron_url,
+        "operation": base_config.padron_operation,
+        "namespace": base_config.padron_namespace,
         "configured": bool(base_config.enabled and base_config.cuit and base_config.cert_path and base_config.key_path),
         "data": None,
         "error": None,
@@ -207,12 +240,7 @@ def lookup_taxpayer_data(cuit: object, config: ArcaConfig | None = None) -> dict
         logger.warning("No se pudieron obtener datos fiscales ARCA para CUIT %s: %s", cuit_digits, error)
         result["error"] = str(error)
         return result
-    data = {
-        "cuit": cuit_digits,
-        "business_name": fiscal_name(root),
-        "address": fiscal_address(root),
-        "iva_condition": iva_condition(root),
-    }
+    data = parse_padron_response(config, root, cuit_digits)
     result["data"] = {key: value for key, value in data.items() if value}
     result["fields"] = response_field_names(root)
     result["ok"] = bool(data["business_name"] or data["address"])

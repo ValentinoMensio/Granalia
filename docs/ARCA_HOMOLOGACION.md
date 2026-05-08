@@ -8,6 +8,9 @@ GRANALIA_ARCA_ENV=homologacion
 GRANALIA_ARCA_SERVICE=wsmtxca
 GRANALIA_ARCA_CUIT=20225790346
 GRANALIA_ARCA_POINT_OF_SALE=<punto_de_venta_wsmtxca>
+GRANALIA_ARCA_PADRON_SERVICE=ws_sr_constancia_inscripcion
+GRANALIA_ARCA_PADRON_WSDL_URL=https://awshomo.arca.gob.ar/sr-padron/webservices/personaServiceA5?WSDL
+GRANALIA_ARCA_PADRON_URL=https://awshomo.arca.gob.ar/sr-padron/webservices/personaServiceA5
 GRANALIA_ARCA_CERT_PATH=/ruta/al/certificado.crt
 GRANALIA_ARCA_KEY_PATH=/ruta/a/la/private.key
 GRANALIA_ARCA_KEY_PASSWORD=<si_aplica>
@@ -21,6 +24,8 @@ URLs por defecto en homologacion:
 ```bash
 GRANALIA_ARCA_WSAA_URL=https://wsaahomo.afip.gov.ar/ws/services/LoginCms
 GRANALIA_ARCA_SERVICE_URL=https://fwshomo.afip.gov.ar/wsmtxca/services/MTXCAService
+GRANALIA_ARCA_PADRON_WSDL_URL=https://awshomo.arca.gob.ar/sr-padron/webservices/personaServiceA5?WSDL
+GRANALIA_ARCA_PADRON_URL=https://awshomo.arca.gob.ar/sr-padron/webservices/personaServiceA5
 ```
 
 ## Diagnostico WSAA/WSMTXCA
@@ -72,3 +77,6 @@ Casos minimos:
 
 Los metodos usados por defecto son de `wsmtxca`: `consultarPuntosVentaCAE`, `consultarUltimoComprobanteAutorizado`, `consultarComprobante` y `autorizarComprobante`.
 El parametro `GRANALIA_ARCA_WSFE_URL` sigue soportado por compatibilidad, pero para WSMTXCA se recomienda `GRANALIA_ARCA_SERVICE_URL`.
+
+Para precargar datos fiscales del receptor, el backend usa por defecto `ws_sr_constancia_inscripcion` con el endpoint `personaServiceA5`.
+Ese servicio reemplaza a los viejos `ws_sr_padron_*` para la consulta de constancia de inscripcion.
