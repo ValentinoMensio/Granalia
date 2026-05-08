@@ -106,7 +106,7 @@ function ProductRowsCard({
         )}
 
         <div className="mt-4 overflow-hidden rounded-[26px] border border-stone-200 bg-stone-50/70">
-          <div className="table-head hidden px-3 py-3 text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500 lg:grid lg:grid-cols-[minmax(0,1fr)_12rem_minmax(0,1fr)_8rem_8rem_8rem_auto] lg:items-center lg:gap-3">
+          <div className="table-head hidden px-3 py-3 text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500 lg:grid lg:grid-cols-[minmax(0,1fr)_12rem_minmax(0,1fr)_8rem_8rem_8rem_8rem_auto] lg:items-center lg:gap-3">
             <div>Producto</div>
             <div>Formato</div>
             <div>Remito origen</div>
@@ -114,6 +114,7 @@ function ProductRowsCard({
             <div className="text-right">Cantidad</div>
             <div className="text-right">Precio</div>
             <div className="text-right">Total</div>
+            <div />
           </div>
           <div className="grid gap-4 p-4 lg:block lg:p-0">
             {form.items.map((item, index) => {
@@ -147,7 +148,7 @@ function ProductRowsCard({
             const quantity = Number(item.quantity || 0)
             const price = Number(source?.unit_price ?? item.unit_price ?? 0)
             return (
-              <div key={index} className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-sm lg:rounded-none lg:border-0 lg:border-t lg:border-stone-200 lg:bg-white lg:grid-cols-[minmax(0,1fr)_12rem_minmax(0,1fr)_8rem_8rem_8rem_auto] lg:items-center">
+              <div key={index} className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-sm lg:rounded-none lg:border-0 lg:border-t lg:border-stone-200 lg:bg-white lg:grid-cols-[minmax(0,1fr)_12rem_minmax(0,1fr)_8rem_8rem_8rem_8rem_auto] lg:items-center">
                 <select
                   className="input"
                   value={selectedProductId}
@@ -195,8 +196,10 @@ function ProductRowsCard({
                   disabled={!source}
                 />
                 <div className="font-semibold text-slate-700 lg:text-right">${money(price)}</div>
-                <div className="flex items-center justify-between gap-3 lg:justify-end">
+                <div className="font-semibold text-brand-red lg:text-right">
                   <span className="font-semibold text-brand-red">${money(quantity * price)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 lg:justify-end">
                   <Button variant="ghost" className="px-2 py-2 text-xs text-slate-500" onClick={() => onRemoveItem(index)}>Quitar</Button>
                 </div>
               </div>
