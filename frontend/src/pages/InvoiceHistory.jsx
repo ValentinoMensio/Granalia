@@ -25,6 +25,10 @@ function isCreditNote(invoice) {
   return String(invoice?.document_type || '').toUpperCase() === 'NOTA_CREDITO'
 }
 
+function canEditInternalCreditNote(invoice) {
+  return isCreditNote(invoice) && String(invoice?.fiscal_status || '') === 'internal'
+}
+
 function invoiceTypeLabel(invoice) {
   if (isCreditNote(invoice)) return 'Nota crédito'
   if (invoice?.declared || invoice?.split_kind === 'fiscal') return 'Declarada'
@@ -409,6 +413,11 @@ export default function InvoiceHistory() {
                       Editar
                     </Button>
                   )}
+                  {isAdmin && canEditInternalCreditNote(invoice) && (
+                    <Button variant="secondary" className="w-full" onClick={() => handleEditInvoice(invoice.invoice_id)}>
+                      Editar
+                    </Button>
+                  )}
                   <span className="btn-secondary w-full cursor-not-allowed opacity-50" aria-disabled="true">XLSX</span>
                   <a
                     href={invoicePdfUrl(invoice.invoice_id)}
@@ -482,6 +491,11 @@ export default function InvoiceHistory() {
                           Ver detalle
                         </Button>
                         {isAdmin && !isCreditNote(invoice) && (
+                          <Button variant="ghost" className="px-0 py-0 text-brand-ink" onClick={() => handleEditInvoice(invoice.invoice_id)}>
+                            Editar
+                          </Button>
+                        )}
+                        {isAdmin && canEditInternalCreditNote(invoice) && (
                           <Button variant="ghost" className="px-0 py-0 text-brand-ink" onClick={() => handleEditInvoice(invoice.invoice_id)}>
                             Editar
                           </Button>
@@ -740,6 +754,11 @@ export default function InvoiceHistory() {
               {isAdmin && !isCreditNote(invoiceDetail) && (
                 <Button variant="secondary" className="w-full sm:w-auto" onClick={() => handleEditInvoice(invoiceDetail.id)}>
                   Editar factura
+                </Button>
+              )}
+              {isAdmin && canEditInternalCreditNote(invoiceDetail) && (
+                <Button variant="secondary" className="w-full sm:w-auto" onClick={() => handleEditInvoice(invoiceDetail.id)}>
+                  Editar nota de crédito
                 </Button>
               )}
               <span className="btn-secondary w-full cursor-not-allowed opacity-50 sm:w-auto" aria-disabled="true">Descargar XLSX</span>
