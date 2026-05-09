@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useGranalia } from '../context/GranaliaContext'
 import { request } from '../lib/api'
-import { money } from '../lib/format'
+import { compareProducts, money } from '../lib/format'
 import Button from '../components/ui/Button'
 import DateRangePicker from '../components/ui/DateRangePicker'
 import Metric from '../components/ui/Metric'
@@ -164,8 +164,8 @@ function buildCustomerProductRanking(items) {
     .sort((a, b) => b.total - a.total)
 }
 
-function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false, onRowClick, selectedLabel = '', embedded = false }) {
-  const [sort, setSort] = useState({ key: 'total', direction: 'desc' })
+function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false, onRowClick, selectedLabel = '', embedded = false, defaultSort = { key: 'total', direction: 'desc' } }) {
+  const [sort, setSort] = useState(defaultSort)
   const [showAllMobile, setShowAllMobile] = useState(false)
   const columns = [
     { key: 'label', label: 'Grupo', align: 'left' },
@@ -177,8 +177,12 @@ function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false
   ]
   const sortedRows = useMemo(() => {
     return [...rows].sort((a, b) => {
-      if (sort.key === 'label') {
+      if (sort.key === 'label' || sort.key === 'monthKey') {
         const result = String(a.label || '').localeCompare(String(b.label || ''), 'es')
+        if (sort.key === 'monthKey') {
+          const monthResult = String(a.monthKey || '').localeCompare(String(b.monthKey || ''), 'es')
+          return sort.direction === 'asc' ? monthResult : -monthResult
+        }
         return sort.direction === 'asc' ? result : -result
       }
       const result = Number(b[sort.key] || 0) - Number(a[sort.key] || 0)
@@ -425,7 +429,7 @@ export default function InvoiceStats() {
       const label = itemProductLabel(item)
       if (!grouped.has(label)) grouped.set(label, { id: label, label })
     }
-    return Array.from(grouped.values()).sort((a, b) => a.label.localeCompare(b.label, 'es'))
+    return Array.from(grouped.values()).sort(compareProducts)
   }, [invoiceItems])
   const offeringOptionsByProduct = useMemo(() => {
     const grouped = new Map()
@@ -477,7 +481,8 @@ export default function InvoiceStats() {
       const total = filteredItems.reduce((sum, item) => sum + Number(item.total || 0), 0)
       const bultos = filteredItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0)
       const average = invoiceCount ? Math.round(total / invoiceCount) : 0
-      return { gross, discount, total, bultos, average }
+      const averageKg = totalWeight ? total / totalWeight : 0
+      return { gross, discount, total, bultos, average, averageKg }
     }
 
     const gross = filteredInvoices.reduce((sum, invoice) => sum + invoiceStatsGross(invoice), 0)
@@ -485,8 +490,9 @@ export default function InvoiceStats() {
     const total = filteredInvoices.reduce((sum, invoice) => sum + invoiceStatsTotal(invoice), 0)
     const bultos = filteredInvoices.reduce((sum, invoice) => sum + Number(invoice.total_bultos || 0), 0)
     const average = filteredInvoices.length ? Math.round(total / filteredInvoices.length) : 0
-    return { gross, discount, total, bultos, average }
-  }, [filteredInvoices, filteredItems, hasProductFilter, invoiceCount])
+    const averageKg = totalWeight ? total / totalWeight : 0
+    return { gross, discount, total, bultos, average, averageKg }
+  }, [filteredInvoices, filteredItems, hasProductFilter, invoiceCount, totalWeight])
   const byMonth = useMemo(() => buildMonthlyItemRanking(filteredItems), [filteredItems])
   const chartYear = useMemo(
     () => yearFromFilters(filters, hasProductFilter ? filteredItems : filteredInvoices),
@@ -666,8 +672,9 @@ export default function InvoiceStats() {
         </section>
       </div>
 
-      <section className="grid gap-3 md:grid-cols-2">
+      <section className="grid gap-3 md:grid-cols-3">
         <Metric label="Promedio por factura" value={`$${money(summary.average)}`} />
+        <Metric label="Precio promedio por kg" value={`$${money(summary.averageKg)}`} />
         <Metric label="Clientes con facturas" value={money(new Set((hasProductFilter ? filteredItems : filteredInvoices).map((row) => row.customer_id || row.client_name)).size)} />
       </section>
 
@@ -696,7 +703,7 @@ export default function InvoiceStats() {
         </section>
 
         <section className="surface p-4 pr-5 sm:p-6 sm:pr-8">
-          <RankingTable title={loadingItems ? 'Totales por mes (cargando...)' : 'Totales por mes'} rows={byMonth} showWeight embedded />
+          <RankingTable title={loadingItems ? 'Totales por mes (cargando...)' : 'Totales por mes'} rows={byMonth} showWeight embedded defaultSort={{ key: 'monthKey', direction: 'asc' }} />
           <div className="mt-6 border-t border-stone-200 pt-6">
             <MonthlyBarChart
               rows={monthlyChartRows}

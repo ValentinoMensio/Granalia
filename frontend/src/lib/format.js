@@ -8,6 +8,49 @@ const normalize = (value) =>
     .trim()
     .replace(/\s+/g, ' ')
 
+const PRODUCT_ORDER_MAIN = [
+  'Arvejas Partidas',
+  'Avena Arrollada',
+  'Avena Instantanea',
+  'Garbanzos',
+  'Harina de Maiz',
+  'Harina de Maiz Blanco',
+  'Maiz Pisingallo',
+  'Porotos Alubia',
+  'Maiz Partido Colorado',
+  'Porotos Negros',
+  'Porotos Colorados',
+  'Porotos Manteca',
+  'Porotos Pallares',
+  'Porotos Soja',
+  'Semola de Trigo',
+  'Trigo Machacado Burgol',
+  'Trigo Pelado',
+]
+
+const PRODUCT_ORDER_SECONDARY = [
+  'Mijo',
+  'Alpiste',
+  'Mezcla para Pajaros',
+]
+
+const productOrderIndex = new Map(
+  [...PRODUCT_ORDER_MAIN, ...PRODUCT_ORDER_SECONDARY].map((name, index) => [normalize(name), index])
+)
+
+const productSortKey = (value) => {
+  const label = String(value || '')
+  const normalized = normalize(label)
+  if (productOrderIndex.has(normalized)) return [0, productOrderIndex.get(normalized), label]
+  return [1, Number.MAX_SAFE_INTEGER, label]
+}
+
+const compareProducts = (a, b) => {
+  const left = productSortKey(typeof a === 'string' ? a : a?.name || a?.label)
+  const right = productSortKey(typeof b === 'string' ? b : b?.name || b?.label)
+  return left[0] - right[0] || left[1] - right[1] || left[2].localeCompare(right[2], 'es')
+}
+
 const money = (value) => new Intl.NumberFormat('es-AR').format(Math.round(value || 0))
 
 const percent = (value) => `${Math.round(Number(value || 0) * 10000) / 100}%`
@@ -115,4 +158,4 @@ const summarizeAutomaticBonuses = (customer, catalog = []) => {
     .join(', ')
 }
 
-export { date, discountKeyForLabel, emptyItem, isX1KgLabel, money, normalize, percent, summarizeAutomaticBonuses, summarizeDiscounts }
+export { compareProducts, date, discountKeyForLabel, emptyItem, isX1KgLabel, money, normalize, percent, summarizeAutomaticBonuses, summarizeDiscounts }

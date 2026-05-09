@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import Button from '../ui/Button'
 import Metric from '../ui/Metric'
-import { discountKeyForLabel, isX1KgLabel, money, percent } from '../../lib/format'
+import { compareProducts, discountKeyForLabel, isX1KgLabel, money, percent } from '../../lib/format'
 
 function lineDiscountRateForItem(form, item, offeringLabel) {
   const lineDiscounts = form.lineDiscountsByGroup || {}
@@ -51,16 +51,16 @@ function parseOfferingSelectValue(value) {
 
 function productsWithHistoricalSelection(catalog, selectedId, selectedName) {
   if (!selectedId) {
-    return catalog
+    return [...catalog].sort(compareProducts)
   }
   if (catalog.some((entry) => String(entry.id) === String(selectedId))) {
     return catalog.map((entry) => (
       String(entry.id) === String(selectedId)
         ? { ...entry, name: selectedName || entry.name }
         : entry
-    ))
+    )).sort(compareProducts)
   }
-  return [...catalog, { id: selectedId, name: `${selectedName || 'Producto anterior'} (inactivo)`, offerings: [] }]
+  return [...catalog, { id: selectedId, name: `${selectedName || 'Producto anterior'} (inactivo)`, offerings: [] }].sort(compareProducts)
 }
 
 function parseQuantityInput(value, allowsFractionalQuantity) {
@@ -100,7 +100,7 @@ function ProductRowsCard({
         }
         return items
       }, new Map()).values()
-    ).sort((a, b) => String(a.label).localeCompare(String(b.label), 'es')),
+    ).sort(compareProducts),
     [creditNoteSourceItems]
   )
 

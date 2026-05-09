@@ -1,5 +1,5 @@
 import Button from '../ui/Button'
-import { discountKeyForLabel } from '../../lib/format'
+import { compareProducts, discountKeyForLabel } from '../../lib/format'
 
 function AutomaticBonusRules({ rules, catalog, disablesLineDiscount, onAdd, onChange, onRemove, onDisablesLineDiscountChange }) {
   const allOfferings = Array.from(
@@ -44,7 +44,7 @@ function AutomaticBonusRules({ rules, catalog, disablesLineDiscount, onAdd, onCh
                   onChange={(event) => onChange(index, 'product_id', event.target.value)}
                 >
                   <option value="">Todos</option>
-                  {catalog.map((productItem) => (
+                  {[...catalog].sort(compareProducts).map((productItem) => (
                     <option key={productItem.id} value={productItem.id}>{productItem.name}</option>
                   ))}
                 </select>
