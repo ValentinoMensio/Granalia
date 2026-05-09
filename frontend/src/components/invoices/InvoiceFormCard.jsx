@@ -134,7 +134,7 @@ function InvoiceFormCard({
           <button
             type="button"
             onClick={() => setDiscountsOpen(true)}
-            className="mt-4 flex h-11 w-full items-center justify-center rounded-xl border border-blue-200 bg-blue-50 text-xl font-semibold leading-none text-blue-700 transition hover:border-blue-300 hover:bg-blue-100"
+            className="mt-4 flex h-10 w-full items-center justify-center rounded-xl border border-blue-200 bg-blue-50 text-xl font-semibold leading-none text-blue-700 transition hover:border-blue-300 hover:bg-blue-100"
             aria-label="Desplegar configuración de descuentos y bonificación"
           >
             Ocultar ▼
@@ -219,7 +219,7 @@ function InvoiceFormCard({
             <button
               type="button"
               onClick={() => setDiscountsOpen(false)}
-              className="mt-5 flex h-11 w-full items-center justify-center rounded-xl border border-blue-200 bg-blue-50 text-xl font-semibold leading-none text-blue-700 transition hover:border-blue-300 hover:bg-blue-100"
+              className="mt-5 flex h-10 w-full items-center justify-center rounded-xl border border-blue-200 bg-blue-50 text-xl font-semibold leading-none text-blue-700 transition hover:border-blue-300 hover:bg-blue-100"
               aria-label="Ocultar configuración de descuentos y bonificación"
             >
               Editar ▲
