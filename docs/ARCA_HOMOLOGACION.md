@@ -5,10 +5,10 @@
 ```bash
 GRANALIA_ARCA_ENABLED=true
 GRANALIA_ARCA_ENV=homologacion
-GRANALIA_ARCA_SERVICE=wsmtxca
 GRANALIA_ARCA_CUIT=20225790346
-GRANALIA_ARCA_POINT_OF_SALE=<punto_de_venta_wsmtxca>
+GRANALIA_ARCA_POINT_OF_SALE=<punto_de_venta_wsfev1>
 GRANALIA_ARCA_PADRON_SERVICE=ws_sr_constancia_inscripcion
+GRANALIA_ARCA_PADRON_OPERATION=getPersona_v2
 GRANALIA_ARCA_PADRON_WSDL_URL=https://awshomo.arca.gob.ar/sr-padron/webservices/personaServiceA5?WSDL
 GRANALIA_ARCA_PADRON_URL=https://awshomo.arca.gob.ar/sr-padron/webservices/personaServiceA5
 GRANALIA_ARCA_CERT_PATH=/ruta/al/certificado.crt
@@ -23,12 +23,12 @@ URLs por defecto en homologacion:
 
 ```bash
 GRANALIA_ARCA_WSAA_URL=https://wsaahomo.afip.gov.ar/ws/services/LoginCms
-GRANALIA_ARCA_SERVICE_URL=https://fwshomo.afip.gov.ar/wsmtxca/services/MTXCAService
+GRANALIA_ARCA_WSFE_URL=https://wswhomo.afip.gov.ar/wsfev1/service.asmx
 GRANALIA_ARCA_PADRON_WSDL_URL=https://awshomo.arca.gob.ar/sr-padron/webservices/personaServiceA5?WSDL
 GRANALIA_ARCA_PADRON_URL=https://awshomo.arca.gob.ar/sr-padron/webservices/personaServiceA5
 ```
 
-## Diagnostico WSAA/WSMTXCA
+## Diagnostico WSAA/WSFEv1
 
 Desde la raiz del repo:
 
@@ -39,8 +39,10 @@ PYTHONPATH=backend python3 backend/scripts/arca_homologacion.py
 Debe validar:
 
 - WSAA `loginCms` con token/sign.
-- `consultarPuntosVentaCAE` contiene `GRANALIA_ARCA_POINT_OF_SALE`.
-- `consultarUltimoComprobanteAutorizado` responde para Factura A (`codigoTipoComprobante=1`).
+- `FEParamGetPtosVenta` contiene `GRANALIA_ARCA_POINT_OF_SALE`.
+- `FECompUltimoAutorizado` responde para Factura A (`CbteTipo=1`).
+- WSAA de padron pide token/sign con service `ws_sr_constancia_inscripcion`.
+- Si se define `GRANALIA_ARCA_TEST_CUIT`, padron responde con `getPersona_v2` para esa CUIT.
 
 ## Modo seguro sin generar comprobantes
 
@@ -75,8 +77,8 @@ Casos minimos:
 
 ## Servicio
 
-Los metodos usados por defecto son de `wsmtxca`: `consultarPuntosVentaCAE`, `consultarUltimoComprobanteAutorizado`, `consultarComprobante` y `autorizarComprobante`.
-El parametro `GRANALIA_ARCA_WSFE_URL` sigue soportado por compatibilidad, pero para WSMTXCA se recomienda `GRANALIA_ARCA_SERVICE_URL`.
+El sistema usa WSFEv1 para facturacion: `FEParamGetPtosVenta`, `FECompUltimoAutorizado`, `FECompConsultar` y `FECAESolicitar`.
+Usar `GRANALIA_ARCA_WSFE_URL` para sobrescribir el endpoint de facturacion. No configurar endpoints WSMTXCA en este sistema.
 
-Para precargar datos fiscales del receptor, el backend usa por defecto `ws_sr_constancia_inscripcion` con el endpoint `personaServiceA5`.
+Para precargar datos fiscales del receptor, el backend usa por defecto `ws_sr_constancia_inscripcion` con el endpoint `personaServiceA5` y la operacion `getPersona_v2`.
 Ese servicio reemplaza a los viejos `ws_sr_padron_*` para la consulta de constancia de inscripcion.

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import socket
 import ssl
+import unicodedata
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -19,6 +20,10 @@ logger = logging.getLogger(__name__)
 
 
 class ArcaPadronError(RuntimeError):
+    pass
+
+
+class ArcaPadronBusinessError(ArcaPadronError):
     pass
 
 
@@ -74,6 +79,27 @@ def response_error(root: ET.Element) -> str:
     return "; ".join(texts)
 
 
+def business_error_message(message: str) -> str:
+    normalized = " ".join(message.split())
+    lower = unicodedata.normalize("NFKD", normalized).encode("ascii", "ignore").decode("ascii").lower()
+    if not normalized:
+        return ""
+    if "datos biometricos" in lower:
+        return f"ARCA bloqueo la constancia de inscripcion del CUIT: {normalized}"
+    if "domicilio fiscal electronico" in lower:
+        return f"ARCA no permite consultar el CUIT hasta constituir el domicilio fiscal electronico: {normalized}"
+    if "no existe persona" in lower:
+        return f"ARCA no encontro una persona registrada para ese CUIT: {normalized}"
+    return ""
+
+
+def padron_error(message: str) -> ArcaPadronError:
+    business_message = business_error_message(message)
+    if business_message:
+        return ArcaPadronBusinessError(business_message)
+    return ArcaPadronError(message)
+
+
 def padron_config(config: ArcaConfig) -> ArcaConfig:
     cache_path = Path(config.token_cache_path)
     service = config.padron_service or "ws_sr_constancia_inscripcion"
@@ -96,14 +122,16 @@ def padron_namespace(config: ArcaConfig) -> str:
 
 
 def padron_operation(config: ArcaConfig) -> str:
-    return config.padron_operation or "getPersona"
+    return config.padron_operation or "getPersona_v2"
 
 
 def auth_xml(config: ArcaConfig, ticket: ArcaAuthTicket, cuit: str) -> str:
+    represented_cuit = digits_only(config.cuit)
+    persona_cuit = digits_only(cuit)
     return f"""<token>{escape(ticket.token)}</token>
 <sign>{escape(ticket.sign)}</sign>
-<cuitRepresentada>{escape(config.cuit)}</cuitRepresentada>
-<idPersona>{escape(cuit)}</idPersona>"""
+<cuitRepresentada>{escape(represented_cuit)}</cuitRepresentada>
+<idPersona>{escape(persona_cuit)}</idPersona>"""
 
 
 def soap_envelope(config: ArcaConfig, body: str) -> str:
@@ -136,16 +164,18 @@ def request_persona(config: ArcaConfig, ticket: ArcaAuthTicket, cuit: str) -> ET
         body = error.read().decode("utf-8", errors="replace")
         try:
             root = ET.fromstring(body)
-            fault = first_text(root, "faultstring") or first_text(root, "descripcionError") or first_text(root, "errorConstancia")
+            fault = response_error(root)
         except ET.ParseError:
             fault = body.strip()
-        raise ArcaPadronError(f"HTTP {error.code}: {fault or error.reason}") from error
+        if fault:
+            raise padron_error(fault) from error
+        raise ArcaPadronError(f"HTTP {error.code}: {error.reason}") from error
     except (socket.timeout, TimeoutError, urllib.error.URLError) as error:
         raise ArcaPadronError(f"No se pudo consultar padron ARCA: {error}") from error
     root = ET.fromstring(body)
     error = response_error(root)
     if error:
-        raise ArcaPadronError(error)
+        raise padron_error(error)
     return root
 
 

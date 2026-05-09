@@ -34,6 +34,17 @@ class ArcaConfig:
         return bool(self.enabled and self.cuit and self.point_of_sale and self.cert_path and self.key_path and self.service == "wsfev1")
 
 
+def digits_only(value: object) -> str:
+    return "".join(ch for ch in str(value or "") if ch.isdigit())
+
+
+def wsfe_service_url(default_service_url: str) -> str:
+    configured = os.getenv("GRANALIA_ARCA_WSFE_URL", "").strip()
+    if configured and "wsmtxca" not in configured.lower():
+        return configured
+    return default_service_url
+
+
 def padron_service_defaults(environment: str, service_name: str) -> dict[str, str]:
     normalized = service_name.strip().lower() or "ws_sr_constancia_inscripcion"
     if normalized == "ws_sr_constancia_inscripcion":
@@ -44,7 +55,7 @@ def padron_service_defaults(environment: str, service_name: str) -> dict[str, st
             "wsdl_url": wsdl_url,
             "endpoint_url": wsdl_url.removesuffix("?WSDL"),
             "namespace": "http://a5.soap.ws.server.puc.sr/",
-            "operation": "getPersona",
+            "operation": "getPersona_v2",
             "parser": "constancia_inscripcion",
         }
 
@@ -79,11 +90,11 @@ def get_arca_config() -> ArcaConfig:
     return ArcaConfig(
         enabled=os.getenv("GRANALIA_ARCA_ENABLED", "false").strip().lower() == "true",
         environment=environment,
-        cuit=os.getenv("GRANALIA_ARCA_CUIT", "").strip(),
+        cuit=digits_only(os.getenv("GRANALIA_ARCA_CUIT", "")),
         point_of_sale=int(point_of_sale) if point_of_sale.isdigit() else None,
         service=service,
         wsaa_url=os.getenv("GRANALIA_ARCA_WSAA_URL", default_wsaa_url).strip() or default_wsaa_url,
-        wsfe_url=os.getenv("GRANALIA_ARCA_SERVICE_URL", os.getenv("GRANALIA_ARCA_WSFE_URL", default_service_url)).strip() or default_service_url,
+        wsfe_url=wsfe_service_url(default_service_url),
         padron_wsdl_url=os.getenv("GRANALIA_ARCA_PADRON_WSDL_URL", padron_defaults["wsdl_url"]).strip() or padron_defaults["wsdl_url"],
         padron_url=os.getenv("GRANALIA_ARCA_PADRON_URL", padron_defaults["endpoint_url"]).strip() or padron_defaults["endpoint_url"],
         padron_service=padron_defaults["service"],

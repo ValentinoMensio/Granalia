@@ -7,6 +7,12 @@ import Button from '../components/ui/Button'
 import PageSectionHeader from '../components/ui/PageSectionHeader'
 import AutomaticBonusRules from '../components/invoices/AutomaticBonusRules'
 
+function taxpayerLookupErrorMessage(error) {
+  const message = String(error || 'sin datos')
+  if (message.startsWith('ARCA ')) return message
+  return `No se pudieron obtener datos fiscales de ARCA: ${message}`
+}
+
 export default function CustomerEditor() {
   const { id } = useParams()
   const customerId = Number(id)
@@ -90,7 +96,7 @@ export default function CustomerEditor() {
       const result = await request(`/api/customers/taxpayer/${cuitDigits}`)
       setLastTaxpayerCuit(cuitDigits)
       if (!result.ok || !result.data) {
-        setStatus(`No se pudieron obtener datos fiscales de ARCA: ${result.error || 'sin datos'}`)
+        setStatus(taxpayerLookupErrorMessage(result.error))
         return
       }
       const data = result.data
@@ -110,7 +116,7 @@ export default function CustomerEditor() {
         setStatus(`ARCA respondió, pero no devolvió ${missing}.`)
       }
     } catch (error) {
-      setStatus(`No se pudieron obtener datos fiscales de ARCA: ${error.message}`)
+      setStatus(taxpayerLookupErrorMessage(error.message))
     } finally {
       setTaxpayerLoading(false)
     }

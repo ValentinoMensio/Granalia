@@ -54,10 +54,11 @@ def parse_yyyymmdd(value: str) -> date | None:
 
 
 def auth_xml(config: ArcaConfig, ticket: ArcaAuthTicket) -> str:
+    cuit = "".join(ch for ch in str(config.cuit or "") if ch.isdigit())
     return f"""<ar:Auth>
   <ar:Token>{escape(ticket.token)}</ar:Token>
   <ar:Sign>{escape(ticket.sign)}</ar:Sign>
-  <ar:Cuit>{escape(config.cuit)}</ar:Cuit>
+  <ar:Cuit>{escape(cuit)}</ar:Cuit>
 </ar:Auth>"""
 
 
@@ -83,6 +84,20 @@ def request_operation(config: ArcaConfig, operation: str, body: str) -> ET.Eleme
     try:
         with urllib.request.urlopen(request, timeout=config.timeout_seconds, context=context) as response:
             response_body = response.read().decode("utf-8")
+    except urllib.error.HTTPError as error:
+        response_body = error.read().decode("utf-8", errors="replace")
+        try:
+            root = ET.fromstring(response_body)
+        except ET.ParseError:
+            raise WsfeTechnicalError(f"Error tecnico WSFE HTTP {error.code}: {response_body.strip() or error.reason}") from error
+        fault = first_text(root, "faultstring")
+        errors = parse_errors(root)
+        if fault:
+            raise WsfeError(fault) from error
+        if errors:
+            message = "; ".join(str(item.get("Msg") or item.get("Code")) for item in errors)
+            raise WsfeError(message) from error
+        raise WsfeTechnicalError(f"Error tecnico WSFE HTTP {error.code}: {error.reason}") from error
     except (socket.timeout, TimeoutError, urllib.error.URLError) as error:
         raise WsfeTechnicalError(f"Error tecnico WSFE: {error}") from error
     root = ET.fromstring(response_body)

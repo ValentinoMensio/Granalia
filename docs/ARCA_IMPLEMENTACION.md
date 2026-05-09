@@ -88,9 +88,9 @@ Esta regla favorece la parte declarada cuando el calculo no da entero.
 
 ## Web Service ARCA A Usar
 
-ARCA ofrece mas de un Web Service para factura electronica. La decision debe cerrarse antes de implementar homologacion real.
+ARCA ofrece mas de un Web Service para factura electronica. Granalia usa WSFEv1 para la autorizacion fiscal.
 
-### Opcion Recomendada Inicial: WSFEv1
+### Servicio Usado: WSFEv1
 
 Usar `wsfev1` si Granalia solo necesita autorizar Factura A con importes agregados:
 
@@ -104,11 +104,7 @@ Usar `wsfev1` si Granalia solo necesita autorizar Factura A con importes agregad
 
 Con WSFEv1 no se envia el detalle de cada producto a ARCA. El detalle de items se mantiene en Granalia para PDF, auditoria interna y reconstruccion historica.
 
-### Opcion A Evaluar: WSMTXCA
-
-Evaluar `wsmtxca` si se requiere enviar detalle de items/productos a ARCA.
-
-Decision pendiente: confirmar con contador/asesor fiscal si alcanza WSFEv1 para la operacion de Granalia. Para la primera version se recomienda disenar el dominio de forma compatible con WSFEv1 y conservar snapshots internos completos por linea.
+El sistema no usa WSMTXCA. Si en el futuro se requiere enviar detalle de items/productos a ARCA, debera implementarse como cambio explicito y separado.
 
 ## Modelo De Datos Propuesto
 
@@ -292,7 +288,6 @@ Variables sugeridas:
 - `GRANALIA_ARCA_KEY_PASSWORD`
 - `GRANALIA_ARCA_WSAA_URL`
 - `GRANALIA_ARCA_WSFE_URL`
-- `GRANALIA_ARCA_SERVICE=wsfev1`
 
 Mientras `GRANALIA_ARCA_ENABLED=false`, el boton `Autorizar en ARCA` debe aparecer deshabilitado o devolver un error claro: `ARCA no configurado`.
 
@@ -316,7 +311,6 @@ Responsabilidades:
 - `models.py`: tipos internos normalizados.
 - `wsaa.py`: autenticacion, TRA, CMS, token/sign.
 - `wsfe.py`: operaciones WSFEv1.
-- `wsmtxca.py`: placeholder futuro si se confirma necesidad de detalle de items ante ARCA.
 - `client.py`: interfaz de alto nivel usada por rutas/servicios de facturacion.
 
 ## Endpoints Propuestos
@@ -547,20 +541,19 @@ Declarada autorizada:
 
 ## Preguntas Pendientes
 
-1. Usar WSFEv1 o WSMTXCA? Si no se requiere detalle de items ante ARCA, WSFEv1 alcanza; si ARCA debe recibir detalle de productos, evaluar WSMTXCA.
-2. La lista declarada, cuando exista, tiene precios netos sin IVA o precios finales con IVA incluido?
-3. El IVA se define por producto o por presentacion?
-4. La contrasena de autorizacion debe pedirse tambien para `Solo interna`?
-5. Quien administra/cambia la contrasena de autorizacion: variable de entorno o UI de administracion?
-6. En modo dividido, si una linea tiene cantidad 1 y porcentaje declarado bajo, esta confirmado que queda 1 declarado y 0 interno por redondeo hacia arriba?
-7. Si una factura split tiene parte fiscal autorizada, se bloquea la edicion de todo el batch o solo de la factura fiscal? Recomendacion: bloquear todo el batch.
-8. Se necesitaran notas de credito/debito en la primera version o se dejan para una segunda etapa?
-9. Los clientes tienen condicion IVA registrada o hay que agregarla?
-10. El punto de venta ARCA ya existe o debe crearse/habilitarse?
-11. Se quiere agrupar visualmente el historial por pedido/batch o mostrar cada comprobante como fila independiente con referencia al batch?
-12. Las facturas internas deben seguir usando la misma numeracion visible actual o una secuencia separada `Interna`?
-13. El PDF de factura declarada draft debe imprimirse o solo previsualizarse como borrador?
-14. Cual sera la politica final de retencion de logs ARCA sanitizados?
+1. La lista declarada, cuando exista, tiene precios netos sin IVA o precios finales con IVA incluido?
+2. El IVA se define por producto o por presentacion?
+3. La contrasena de autorizacion debe pedirse tambien para `Solo interna`?
+4. Quien administra/cambia la contrasena de autorizacion: variable de entorno o UI de administracion?
+5. En modo dividido, si una linea tiene cantidad 1 y porcentaje declarado bajo, esta confirmado que queda 1 declarado y 0 interno por redondeo hacia arriba?
+6. Si una factura split tiene parte fiscal autorizada, se bloquea la edicion de todo el batch o solo de la factura fiscal? Recomendacion: bloquear todo el batch.
+7. Se necesitaran notas de credito/debito en la primera version o se dejan para una segunda etapa?
+8. Los clientes tienen condicion IVA registrada o hay que agregarla?
+9. El punto de venta ARCA ya existe o debe crearse/habilitarse?
+10. Se quiere agrupar visualmente el historial por pedido/batch o mostrar cada comprobante como fila independiente con referencia al batch?
+11. Las facturas internas deben seguir usando la misma numeracion visible actual o una secuencia separada `Interna`?
+12. El PDF de factura declarada draft debe imprimirse o solo previsualizarse como borrador?
+13. Cual sera la politica final de retencion de logs ARCA sanitizados?
 
 ## Riesgos Y Mitigaciones
 
