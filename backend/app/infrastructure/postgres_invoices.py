@@ -13,7 +13,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.sql.schema import Table
 
 from ..core.utils import canonicalize_discount_config
-from ..types import CustomerProfileData, InvoiceDetailData, InvoiceFileData, InvoiceListItemData, InvoiceSnapshotData, OrderData
+from ..types import CustomerProfileData, InvoiceDetailData, InvoiceListItemData, InvoiceSnapshotData, OrderData
 from .postgres_protocol import PostgresRepositoryProtocol
 from .postgres_utils import serialize_value, utc_now
 
@@ -171,8 +171,6 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     self.invoices.c.gross_total,
                     self.invoices.c.discount_total,
                     self.invoices.c.final_total,
-                    self.invoices.c.output_filename,
-                    self.invoices.c.xlsx_size,
                     self.invoices.c.created_at,
                 )
                 .order_by(self.invoices.c.order_date.desc(), self.invoices.c.id.desc())
@@ -380,8 +378,6 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     self.invoices.c.gross_total,
                     self.invoices.c.discount_total,
                     self.invoices.c.final_total,
-                    self.invoices.c.output_filename,
-                    self.invoices.c.xlsx_size,
                     self.invoices.c.created_at,
                     self.invoices.c.client_name.label("customer_name"),
                     self.invoices.c.transport.label("transport_name"),
@@ -595,8 +591,6 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
         order: OrderData,
         profile: CustomerProfileData,
         snapshot: InvoiceSnapshotData,
-        filename: str,
-        xlsx_bytes: bytes,
         *,
         update_customer: bool = True,
         batch_id: int | None = None,
@@ -647,9 +641,6 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
             "gross_total": int(snapshot["summary"]["gross_total"]),
             "discount_total": int(snapshot["summary"]["discount_total"]),
             "final_total": int(snapshot["summary"]["final_total"]),
-            "output_filename": filename,
-            "xlsx_data": xlsx_bytes,
-            "xlsx_size": len(xlsx_bytes),
             "created_at": created_at,
         }
         item_payloads = []
@@ -884,9 +875,6 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     "gross_total": int(snapshot["summary"]["gross_total"]),
                     "discount_total": int(snapshot["summary"]["discount_total"]),
                     "final_total": int(snapshot["summary"]["final_total"]),
-                    "output_filename": str(doc["filename"]),
-                    "xlsx_data": doc["xlsx_bytes"],
-                    "xlsx_size": len(cast(bytes, doc["xlsx_bytes"])),
                     "created_at": created_at,
                 }
                 invoice_id = int(connection.execute(self.invoices.insert().values(**invoice_payload).returning(self.invoices.c.id)).scalar_one())
@@ -1100,8 +1088,6 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
         order: OrderData,
         profile: CustomerProfileData,
         snapshot: InvoiceSnapshotData,
-        filename: str,
-        xlsx_bytes: bytes,
         *,
         credit_reason: str | None = None,
         credit_note_sources: list[dict[str, object]] | None = None,
@@ -1178,9 +1164,6 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                 "gross_total": int(snapshot["summary"]["gross_total"]),
                 "discount_total": int(snapshot["summary"]["discount_total"]),
                 "final_total": int(snapshot["summary"]["final_total"]),
-                "output_filename": filename,
-                "xlsx_data": xlsx_bytes,
-                "xlsx_size": len(xlsx_bytes),
             }
             if credit_reason is not None:
                 invoice_values["credit_reason"] = credit_reason
@@ -1277,13 +1260,3 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
             )
             if result.rowcount == 0:
                 raise ValueError("Factura no encontrada")
-
-    def get_invoice_file(self, invoice_id: int) -> InvoiceFileData | None:
-        with self.engine.connect() as connection:
-            row = connection.execute(
-                select(self.invoices.c.output_filename, self.invoices.c.xlsx_data, self.invoices.c.xlsx_size).where(self.invoices.c.id == invoice_id)
-            ).mappings().first()
-        if not row:
-            return None
-        payload: InvoiceFileData = cast(InvoiceFileData, {key: serialize_value(value) for key, value in row.items()})
-        return payload

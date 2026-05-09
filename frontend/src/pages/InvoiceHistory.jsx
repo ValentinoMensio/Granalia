@@ -433,7 +433,6 @@ export default function InvoiceHistory() {
                       Editar
                     </Button>
                   )}
-                  <span className="btn-secondary w-full cursor-not-allowed opacity-50" aria-disabled="true">XLSX</span>
                   <a
                     href={invoicePdfUrl(invoice.invoice_id)}
                     target="_blank"
@@ -769,7 +768,6 @@ export default function InvoiceHistory() {
               >
                 Descargar PDF
               </a>
-              <span className="btn-secondary w-full cursor-not-allowed opacity-50 sm:w-auto" aria-disabled="true">Descargar XLSX</span>
               {isAdmin && canAuthorizeInArca(invoiceDetail) && (
                 <Button variant="primary" className="w-full bg-blue-600 shadow-blue-600/20 hover:bg-blue-700 sm:w-auto" onClick={() => openAuthorizationModal(invoiceDetail)}>
                   Autorizar en ARCA

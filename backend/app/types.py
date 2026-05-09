@@ -158,8 +158,6 @@ class InvoiceListItemData(TypedDict):
     discount_total: int
     final_total: int
     fiscal_total: NotRequired[float | None]
-    output_filename: str
-    xlsx_size: int
     created_at: str | datetime
 
 
@@ -236,8 +234,6 @@ class InvoiceDetailData(TypedDict):
     gross_total: int
     discount_total: int
     final_total: int
-    output_filename: str
-    xlsx_size: int
     created_at: str | datetime
     customer_name: str | None
     customer_cuit: str | None
@@ -248,12 +244,6 @@ class InvoiceDetailData(TypedDict):
     transport_name: str | None
     items: list[InvoiceItemDetailData]
     credit_notes: NotRequired[list[InvoiceListItemData]]
-
-
-class InvoiceFileData(TypedDict):
-    output_filename: str
-    xlsx_data: bytes
-    xlsx_size: int
 
 
 class PriceListMetaData(TypedDict):

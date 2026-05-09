@@ -363,13 +363,13 @@ def build_and_save_split(repository, order: dict, profile: dict, *, update_custo
     batch_invoices = []
     response_invoices = []
     if internal_order.get("items"):
-        internal_filename, internal_xlsx, internal_snapshot = generate_invoice_document(internal_order, profile, internal_catalog)
-        batch_invoices.append({"order": internal_order, "snapshot": internal_snapshot, "filename": internal_filename, "xlsx_bytes": internal_xlsx, "split_kind": "internal", "split_percentage": 100 - declared_percentage, "fiscal_status": "internal"})
+        internal_snapshot = generate_invoice_document(internal_order, profile, internal_catalog)
+        batch_invoices.append({"order": internal_order, "snapshot": internal_snapshot, "split_kind": "internal", "split_percentage": 100 - declared_percentage, "fiscal_status": "internal"})
     if fiscal_order.get("items"):
         fiscal_profile = profile_with_arca_taxpayer_data(profile)
-        fiscal_filename, fiscal_xlsx, fiscal_snapshot = generate_invoice_document(fiscal_order, fiscal_profile, fiscal_catalog)
+        fiscal_snapshot = generate_invoice_document(fiscal_order, fiscal_profile, fiscal_catalog)
         fiscal_snapshot = fiscalize_snapshot(fiscal_snapshot, fiscal_catalog)
-        batch_invoices.append({"order": fiscal_order, "profile": fiscal_profile, "snapshot": fiscal_snapshot, "filename": fiscal_filename, "xlsx_bytes": fiscal_xlsx, "split_kind": "fiscal", "split_percentage": declared_percentage, "fiscal_status": "draft"})
+        batch_invoices.append({"order": fiscal_order, "profile": fiscal_profile, "snapshot": fiscal_snapshot, "split_kind": "fiscal", "split_percentage": declared_percentage, "fiscal_status": "draft"})
     if not batch_invoices:
         raise ValueError("No hay cantidades para generar")
     batch_id, invoice_ids = repository.save_invoice_batch(
@@ -380,10 +380,9 @@ def build_and_save_split(repository, order: dict, profile: dict, *, update_custo
     )
     for invoice_id, doc in zip(invoice_ids, batch_invoices):
         response_invoices.append({"invoice_id": invoice_id, "split_kind": doc.get("split_kind"), "fiscal_status": doc.get("fiscal_status")})
-    first_doc = batch_invoices[0]
-    first_snapshot = first_doc["snapshot"]
+    first_snapshot = batch_invoices[0]["snapshot"]
     first_invoice_id = invoice_ids[0]
-    return InvoiceCreateOut.model_validate({"invoice_id": first_invoice_id, "batch_id": batch_id, "invoices": response_invoices, "filename": first_doc["filename"], "download_url": f"/api/invoices/{first_invoice_id}/xlsx", "summary": first_snapshot["summary"]})
+    return InvoiceCreateOut.model_validate({"invoice_id": first_invoice_id, "batch_id": batch_id, "invoices": response_invoices, "summary": first_snapshot["summary"]})
 
 
 @router.get("", response_model=list[InvoiceListItemOut])
@@ -418,23 +417,6 @@ def invoice_detail(invoice_id: int, role: str = Depends(current_role)) -> Invoic
         raise HTTPException(status_code=404, detail="Factura no encontrada")
     ensure_invoice_visible_for_role(invoice, role)
     return InvoiceDetailOut.model_validate(invoice)
-
-
-@router.get("/{invoice_id}/xlsx")
-def download_invoice(invoice_id: int, role: str = Depends(current_role)) -> Response:
-    repository = get_repository()
-    invoice_detail_data = repository.get_invoice_detail(invoice_id)
-    if not invoice_detail_data:
-        raise HTTPException(status_code=404, detail="Factura no encontrada")
-    ensure_invoice_visible_for_role(invoice_detail_data, role)
-    invoice = repository.get_invoice_file(invoice_id)
-    if not invoice:
-        raise HTTPException(status_code=404, detail="Factura no encontrada")
-    return Response(
-        content=invoice["xlsx_data"],
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{invoice["output_filename"]}"'},
-    )
 
 
 @router.get("/{invoice_id}/pdf")
@@ -475,13 +457,11 @@ def create_invoice(payload: InvoiceRequest, role: str = Depends(current_role)) -
                 for item in repository.list_internal_credit_note_available_items(int(profile["id"]))
             ]}
             catalog = catalog_with_invoice_history(catalog, history_invoice, order)
-            filename, xlsx_bytes, snapshot = generate_invoice_document(order, profile, catalog)
+            snapshot = generate_invoice_document(order, profile, catalog)
             credit_note_id = repository.save_invoice(
                 order,
                 profile,
                 snapshot,
-                filename,
-                xlsx_bytes,
                 update_customer=False,
                 split_kind="internal",
                 fiscal_status="internal",
@@ -493,8 +473,6 @@ def create_invoice(payload: InvoiceRequest, role: str = Depends(current_role)) -
             return InvoiceCreateOut.model_validate({
                 "invoice_id": credit_note_id,
                 "invoices": [{"invoice_id": credit_note_id, "split_kind": "internal", "fiscal_status": "internal"}],
-                "filename": filename,
-                "download_url": f"/api/invoices/{credit_note_id}/xlsx",
                 "summary": snapshot["summary"],
             })
 
@@ -502,13 +480,11 @@ def create_invoice(payload: InvoiceRequest, role: str = Depends(current_role)) -
             order["declared"] = False
             order["price_list_id"] = order.get("internal_price_list_id") or order.get("price_list_id")
             catalog = repository.get_catalog_for_price_list(int(order["price_list_id"])) if order.get("price_list_id") else repository.get_active_catalog()
-            filename, xlsx_bytes, snapshot = generate_invoice_document(order, profile, catalog)
-            invoice_id = repository.save_invoice(order, profile, snapshot, filename, xlsx_bytes, update_customer=role == "admin", split_kind="internal", fiscal_status="internal")
+            snapshot = generate_invoice_document(order, profile, catalog)
+            invoice_id = repository.save_invoice(order, profile, snapshot, update_customer=role == "admin", split_kind="internal", fiscal_status="internal")
             return InvoiceCreateOut.model_validate({
                 "invoice_id": invoice_id,
                 "invoices": [{"invoice_id": invoice_id, "split_kind": "internal", "fiscal_status": "internal"}],
-                "filename": filename,
-                "download_url": f"/api/invoices/{invoice_id}/xlsx",
                 "summary": snapshot["summary"],
             })
 
@@ -518,14 +494,12 @@ def create_invoice(payload: InvoiceRequest, role: str = Depends(current_role)) -
             order["items"] = [{**item, "bonus_quantity": 0} for item in order.get("items", [])]
             profile = profile_with_arca_taxpayer_data(profile)
             catalog = repository.get_catalog_for_price_list(int(order["price_list_id"])) if order.get("price_list_id") else repository.get_active_catalog()
-            filename, xlsx_bytes, snapshot = generate_invoice_document(order, profile, catalog)
+            snapshot = generate_invoice_document(order, profile, catalog)
             snapshot = fiscalize_snapshot(snapshot, catalog)
-            invoice_id = repository.save_invoice(order, profile, snapshot, filename, xlsx_bytes, update_customer=role == "admin", split_kind="fiscal", fiscal_status="draft")
+            invoice_id = repository.save_invoice(order, profile, snapshot, update_customer=role == "admin", split_kind="fiscal", fiscal_status="draft")
             return InvoiceCreateOut.model_validate({
                 "invoice_id": invoice_id,
                 "invoices": [{"invoice_id": invoice_id, "split_kind": "fiscal", "fiscal_status": "draft"}],
-                "filename": filename,
-                "download_url": f"/api/invoices/{invoice_id}/xlsx",
                 "summary": snapshot["summary"],
             })
 
@@ -549,7 +523,7 @@ def create_credit_note(invoice_id: int, payload: CreditNoteRequest, _: str = Dep
         profile = profile_from_invoice(invoice)
         catalog = repository.get_catalog_for_price_list(int(order["price_list_id"])) if order.get("price_list_id") else repository.get_active_catalog()
         catalog = catalog_with_invoice_history(catalog, invoice, order)
-        filename, xlsx_bytes, snapshot = generate_invoice_document(order, profile, catalog)
+        snapshot = generate_invoice_document(order, profile, catalog)
         if is_fiscal_invoice(invoice):
             for row in snapshot.get("rows", []):
                 key = (str(row.get("product_id") or ""), str(row.get("offering_id") or ""))
@@ -561,8 +535,6 @@ def create_credit_note(invoice_id: int, payload: CreditNoteRequest, _: str = Dep
             order,
             profile,
             snapshot,
-            filename,
-            xlsx_bytes,
             update_customer=False,
             split_kind="fiscal" if is_fiscal_invoice(invoice) else "internal",
             fiscal_status="draft" if is_fiscal_invoice(invoice) else "internal",
@@ -591,8 +563,6 @@ def create_credit_note(invoice_id: int, payload: CreditNoteRequest, _: str = Dep
     return InvoiceCreateOut.model_validate({
         "invoice_id": credit_note_id,
         "invoices": [{"invoice_id": credit_note_id, "split_kind": "fiscal" if is_fiscal_invoice(invoice) else "internal", "fiscal_status": "draft" if is_fiscal_invoice(invoice) else "internal"}],
-        "filename": filename,
-        "download_url": f"/api/invoices/{credit_note_id}/xlsx",
         "summary": snapshot["summary"],
     })
 
@@ -645,14 +615,12 @@ def update_invoice(invoice_id: int, payload: InvoiceRequest, _: str = Depends(re
                 for item in repository.list_internal_credit_note_available_items(int(profile["id"]), credit_note_invoice_id=invoice_id)
             ]}
             catalog = catalog_with_invoice_history(catalog, history_invoice, order)
-            filename, xlsx_bytes, snapshot = generate_invoice_document(order, profile, catalog)
+            snapshot = generate_invoice_document(order, profile, catalog)
             credit_reason = " / ".join(order.get("notes") or []) or "Nota de crédito interna"
-            repository.update_invoice(invoice_id, order, profile, snapshot, filename, xlsx_bytes, credit_reason=credit_reason, credit_note_sources=source_links)
+            repository.update_invoice(invoice_id, order, profile, snapshot, credit_reason=credit_reason, credit_note_sources=source_links)
             return InvoiceCreateOut.model_validate({
                 "invoice_id": invoice_id,
                 "invoices": [{"invoice_id": invoice_id, "split_kind": "internal", "fiscal_status": "internal"}],
-                "filename": filename,
-                "download_url": f"/api/invoices/{invoice_id}/xlsx",
                 "summary": snapshot["summary"],
             })
         if str(order.get("billing_mode") or "") == "fiscal_only" or (bool(order.get("declared")) and batch_id is None):
@@ -664,14 +632,12 @@ def update_invoice(invoice_id: int, payload: InvoiceRequest, _: str = Depends(re
 
         base_catalog = repository.get_catalog_for_price_list(int(order["price_list_id"])) if order.get("price_list_id") else repository.get_active_catalog()
         catalog = catalog_with_invoice_history(base_catalog, invoice, order)
-        filename, xlsx_bytes, snapshot = generate_invoice_document(order, profile, catalog)
-        repository.update_invoice(invoice_id, order, profile, snapshot, filename, xlsx_bytes)
+        snapshot = generate_invoice_document(order, profile, catalog)
+        repository.update_invoice(invoice_id, order, profile, snapshot)
     except (RuntimeError, ValueError) as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
     return InvoiceCreateOut.model_validate({
         "invoice_id": invoice_id,
-        "filename": filename,
-        "download_url": f"/api/invoices/{invoice_id}/xlsx",
         "summary": snapshot["summary"],
     })
 

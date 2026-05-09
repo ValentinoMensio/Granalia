@@ -128,10 +128,6 @@ function useGranaliaData() {
     setStatus(isInternalCreditNote ? 'Nota de crédito limpiada.' : 'Factura limpiada.')
   }
 
-  function invoiceDownloadUrl(invoiceId) {
-    return `${API_BASE}/api/invoices/${invoiceId}/xlsx`
-  }
-
   function invoicePdfUrl(invoiceId) {
     return `${API_BASE}/api/invoices/${invoiceId}/pdf`
   }
@@ -143,16 +139,6 @@ function useGranaliaData() {
       return true
     }
     return Boolean(window.open(url, '_blank'))
-  }
-
-  function downloadInvoice(invoiceId) {
-    const link = document.createElement('a')
-    link.href = invoiceDownloadUrl(invoiceId)
-    link.target = '_blank'
-    link.rel = 'noreferrer'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
   }
 
   function applyCustomer(customerId, profile, sourceCustomers = customers) {
@@ -681,9 +667,7 @@ function useGranaliaData() {
     deleteInvoice,
     authorizeInvoiceInArca,
     createCreditNote,
-    invoiceDownloadUrl,
     invoicePdfUrl,
-    downloadInvoice,
     applyCustomer,
     updateFormField,
     addFooterDiscountRow,

@@ -32,9 +32,8 @@ export default function Login() {
             <h1 className="mt-8 text-4xl font-extrabold tracking-[-0.05em]">Facturación simple para operación diaria.</h1>
             <p className="mt-4 max-w-sm text-sm leading-6 text-white/62">Clientes, transportes, productos, historial y emisión en una interfaz pensada para velocidad y control.</p>
           </div>
-          <div className="grid grid-cols-3 gap-3 text-xs text-white/60">
+          <div className="grid grid-cols-2 gap-3 text-xs text-white/60">
             <div className="rounded-2xl border border-white/10 p-3">PDF</div>
-            <div className="rounded-2xl border border-white/10 p-3">XLSX</div>
             <div className="rounded-2xl border border-white/10 p-3">PostgreSQL</div>
           </div>
         </div>

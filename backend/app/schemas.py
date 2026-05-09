@@ -394,8 +394,6 @@ class InvoiceListItemOut(BaseModel):
     discount_total: int
     final_total: int
     fiscal_total: float | None = None
-    output_filename: str
-    xlsx_size: int
     created_at: str
 
 
@@ -473,8 +471,6 @@ class InvoiceDetailOut(BaseModel):
     gross_total: int
     discount_total: int
     final_total: int
-    output_filename: str
-    xlsx_size: int
     created_at: str
     customer_name: str | None = None
     customer_cuit: str | None = None
@@ -491,8 +487,6 @@ class InvoiceCreateOut(BaseModel):
     invoice_id: int
     batch_id: int | None = None
     invoices: list[dict[str, Any]] = Field(default_factory=list)
-    filename: str
-    download_url: str
     summary: InvoiceSummaryOut
 
 

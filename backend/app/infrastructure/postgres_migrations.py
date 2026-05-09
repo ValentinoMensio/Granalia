@@ -245,9 +245,6 @@ class PostgresMigrationMixin(PostgresRepositoryProtocol):
                     gross_total INTEGER NOT NULL,
                     discount_total INTEGER NOT NULL,
                     final_total INTEGER NOT NULL,
-                    output_filename VARCHAR(255) NOT NULL,
-                    xlsx_data BYTEA NOT NULL,
-                    xlsx_size INTEGER NOT NULL,
                     created_at TIMESTAMPTZ NOT NULL
                 )
             """))
@@ -256,8 +253,7 @@ class PostgresMigrationMixin(PostgresRepositoryProtocol):
                     customer_id, transport_id, legacy_key, client_name,
                     order_date, secondary_line, transport, notes,
                     footer_discounts, line_discounts_by_format, total_bultos,
-                    gross_total, discount_total, final_total, output_filename,
-                    xlsx_data, xlsx_size, created_at
+                    gross_total, discount_total, final_total, created_at
                 )
                 SELECT
                     customers_new.id,
@@ -274,9 +270,6 @@ class PostgresMigrationMixin(PostgresRepositoryProtocol):
                     invoices.gross_total,
                     invoices.discount_total,
                     invoices.final_total,
-                    invoices.output_filename,
-                    invoices.xlsx_data,
-                    invoices.xlsx_size,
                     invoices.created_at
                 FROM invoices
                 LEFT JOIN customers_new ON customers_new.customer_key = invoices.customer_key

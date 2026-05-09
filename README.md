@@ -2,11 +2,11 @@
 
 Aplicacion web para gestionar pedidos, clientes, transportes, productos, listas de precios y facturas de Granalia.
 
-El sistema esta compuesto por una API FastAPI, una web React/Vite y una base PostgreSQL. La informacion operativa se persiste en base de datos y los comprobantes XLSX/PDF se generan desde la API.
+El sistema esta compuesto por una API FastAPI, una web React/Vite y una base PostgreSQL. La informacion operativa se persiste en base de datos y los comprobantes PDF se generan desde la API.
 
 ## Stack
 
-- Backend: FastAPI, SQLAlchemy, Alembic, PostgreSQL, OpenPyXL, ReportLab, pypdf.
+- Backend: FastAPI, SQLAlchemy, Alembic, PostgreSQL, ReportLab, pypdf.
 - Frontend: React 18, React Router, Vite y Tailwind CSS.
 - Base de datos: PostgreSQL 16.
 - Despliegue: Docker Compose y Caddy.
@@ -15,7 +15,7 @@ El sistema esta compuesto por una API FastAPI, una web React/Vite y una base Pos
 
 - Inicio de sesion con cookie HTTP-only, token CSRF y roles `admin` / `operator`.
 - Creacion, edicion, descarga y eliminacion de facturas.
-- Descarga de facturas en XLSX y PDF.
+- Descarga de facturas en PDF.
 - Historial de facturas con estadisticas para administradores.
 - Gestion de clientes, productos, presentaciones y transportes.
 - Carga de listas de precios PDF y actualizacion del catalogo activo.
@@ -359,7 +359,6 @@ Facturas:
 - `GET /api/invoices`
 - `GET /api/invoices/stats/items`
 - `GET /api/invoices/{invoice_id}`
-- `GET /api/invoices/{invoice_id}/xlsx`
 - `GET /api/invoices/{invoice_id}/pdf`
 - `POST /api/invoices`
 - `PUT /api/invoices/{invoice_id}`
@@ -377,6 +376,6 @@ Listas de precios:
 
 - Ejecutar migraciones antes de iniciar la API en desarrollo.
 - En produccion, el contenedor `api` corre migraciones al arrancar.
-- El XLSX no se usa como almacenamiento principal; se genera desde datos persistidos en PostgreSQL.
+- Los comprobantes se generan como PDF desde datos persistidos en PostgreSQL.
 - La lista de precios activa sale de la base de datos.
 - Subir un PDF de precios puede actualizar el catalogo activo.
