@@ -125,10 +125,14 @@ function InvoiceFormCard({
         </Field>
       </div>
 
-      {!isCreditNote && <div className="mt-6 border-t border-stone-200 pt-6">
-        <h3 className="subsection-title mb-5 text-xl">Configuración de descuentos</h3>
+      {!isCreditNote && <details className="group mt-6 border-t border-stone-200 pt-6">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-2xl px-1 py-2 text-left marker:hidden">
+          <h3 className="subsection-title text-xl">Configuración de descuentos</h3>
+          <span className="text-sm font-semibold text-brand-red group-open:hidden">Desplegar</span>
+          <span className="hidden text-sm font-semibold text-brand-red group-open:inline">Ocultar</span>
+        </summary>
 
-        <div className="grid gap-8 md:grid-cols-2">
+        <div className="mt-5 grid gap-8 md:grid-cols-2">
           <div className="space-y-4">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <label className="text-sm font-medium text-slate-700">Descuentos Globales (al pie)</label>
@@ -188,7 +192,7 @@ function InvoiceFormCard({
             </div>
           </div>
         </div>
-      </div>}
+      </details>}
 
       {!isCreditNote && <div className="mt-6 border-t border-stone-200 pt-6">
         <AutomaticBonusRules

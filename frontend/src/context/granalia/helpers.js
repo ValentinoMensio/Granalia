@@ -11,10 +11,34 @@ function buildProductsById(catalog) {
   return Object.fromEntries(catalog.map((product) => [product.id, product]))
 }
 
+function kilogramsPerUnit(label) {
+  const text = String(label || '').toLowerCase().replace(/\s+/g, '')
+  const packMatch = text.match(/(\d+)x(\d+(?:[.,]\d+)?)(kg|gr|g)?/)
+  if (packMatch) {
+    const units = Number(packMatch[1] || 0)
+    const size = Number(String(packMatch[2] || '0').replace(',', '.'))
+    const unit = packMatch[3] || 'gr'
+    return units * (unit === 'kg' ? size : size / 1000)
+  }
+
+  const bagMatch = text.match(/x(\d+(?:[.,]\d+)?)kg/)
+  if (bagMatch) return Number(String(bagMatch[1] || '0').replace(',', '.'))
+  return 0
+}
+
+function lineDiscountRateForItem(form, item, offeringLabel) {
+  const lineDiscounts = form.lineDiscountsByGroup || {}
+  if (!Object.values(lineDiscounts).some((rate) => Number(rate) > 0)) return 0
+  if (form.automaticBonusDisablesLineDiscount && Number(item?.bonus_quantity || 0) > 0) return 0
+  return Number(lineDiscounts[discountKeyForLabel(offeringLabel)] || 0)
+}
+
 function buildTotals(form, productsById) {
   let subtotal = 0
   let bultos = 0
+  let weight = 0
   let total = 0
+  const hasLineDiscounts = Object.values(form.lineDiscountsByGroup || {}).some((rate) => Number(rate) > 0)
 
   for (const item of form.items) {
     const product = productsById[item.product_id]
@@ -26,16 +50,20 @@ function buildTotals(form, productsById) {
     const bonus = Number(item.bonus_quantity || 0)
     const unitPrice = hasManualPrice ? Number(item.unit_price || 0) : Number(offering.price || 0)
     const gross = qty * unitPrice
+    const rate = hasLineDiscounts ? lineDiscountRateForItem(form, item, item.offering_label || offering?.label) : 0
     subtotal += gross
     bultos += qty + bonus
-    total += gross
+    weight += (qty + bonus) * Number(offering?.net_weight_kg || kilogramsPerUnit(item.offering_label || offering?.label))
+    total += gross - (gross * rate)
   }
 
-  for (const discount of form.footerDiscounts || []) {
-    total -= total * Number(discount.rate || 0)
+  if (!hasLineDiscounts) {
+    for (const discount of form.footerDiscounts || []) {
+      total -= total * Number(discount.rate || 0)
+    }
   }
 
-  return { subtotal, bultos, total }
+  return { subtotal, bultos, weight, total }
 }
 
 function buildAvailableDiscountGroups(catalog) {
@@ -307,5 +335,6 @@ export {
   buildProductsById,
   buildProfilePayload,
   buildTotals,
+  lineDiscountRateForItem,
   splitNotes,
 }

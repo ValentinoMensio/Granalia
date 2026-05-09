@@ -1,7 +1,18 @@
 import { useMemo } from 'react'
 import Button from '../ui/Button'
 import Metric from '../ui/Metric'
-import { isX1KgLabel, money } from '../../lib/format'
+import { discountKeyForLabel, isX1KgLabel, money, percent } from '../../lib/format'
+
+function lineDiscountRateForItem(form, item, offeringLabel) {
+  const lineDiscounts = form.lineDiscountsByGroup || {}
+  if (!Object.values(lineDiscounts).some((rate) => Number(rate) > 0)) return 0
+  if (form.automaticBonusDisablesLineDiscount && Number(item?.bonus_quantity || 0) > 0) return 0
+  return Number(lineDiscounts[discountKeyForLabel(offeringLabel)] || 0)
+}
+
+function weight(value) {
+  return new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(Number(value || 0))
+}
 
 function dateLabel(value) {
   const text = String(value || '').trim()
@@ -75,6 +86,7 @@ function ProductRowsCard({
   onUpdateItem,
 }) {
   const isInternalCreditNote = (form.billingMode || 'internal_only') === 'internal_credit_note'
+  const hasLineDiscounts = Object.values(form.lineDiscountsByGroup || {}).some((rate) => Number(rate) > 0)
   const sourceItemsById = Object.fromEntries(creditNoteSourceItems.map((item) => [String(item.invoice_item_id), item]))
   const sourceProductOptions = useMemo(
     () => Array.from(
@@ -221,8 +233,9 @@ function ProductRowsCard({
           </Button>
         </div>
 
-        <div className="mt-6 grid gap-3 md:grid-cols-3">
+        <div className="mt-6 grid gap-3 md:grid-cols-4">
           <Metric label="Total bultos" value={money(totals.bultos)} />
+          <Metric label="Total Kg" value={weight(totals.weight)} />
           <Metric label="Subtotal" value={money(totals.subtotal)} />
           <Metric label="Total a acreditar" value={money(totals.total)} />
         </div>
@@ -298,7 +311,8 @@ function ProductRowsCard({
                 const allowsFractionalQuantity = isX1KgLabel(item.offering_label || offering?.label)
                 const price = item.unit_price === '' || item.unit_price === undefined ? Number(offering?.price || 0) : Number(item.unit_price || 0)
                 const quantity = Number(item.quantity || 0)
-                const rowTotal = quantity * price
+                const discountRate = hasLineDiscounts ? lineDiscountRateForItem(form, item, item.offering_label || offering?.label) : 0
+                const rowTotal = quantity * price * (1 - discountRate)
                 const productOptions = editingInvoiceId ? productsWithHistoricalSelection(catalog, item.product_id, item.product_name) : catalog
 
                 return (
@@ -381,6 +395,7 @@ function ProductRowsCard({
                       <td className="table-cell text-right align-middle">
                       <span className="text-sm font-semibold text-brand-red">
                         ${money(rowTotal)}
+                        {discountRate > 0 ? <span className="block text-[11px] font-medium text-slate-400">Dto. {percent(discountRate)}</span> : null}
                       </span>
                     </td>
 
@@ -408,7 +423,8 @@ function ProductRowsCard({
             const allowsFractionalQuantity = isX1KgLabel(item.offering_label || offering?.label)
             const price = item.unit_price === '' || item.unit_price === undefined ? Number(offering?.price || 0) : Number(item.unit_price || 0)
             const quantity = Number(item.quantity || 0)
-            const rowTotal = quantity * price
+            const discountRate = hasLineDiscounts ? lineDiscountRateForItem(form, item, item.offering_label || offering?.label) : 0
+            const rowTotal = quantity * price * (1 - discountRate)
             const productOptions = editingInvoiceId ? productsWithHistoricalSelection(catalog, item.product_id, item.product_name) : catalog
 
             return (
@@ -513,6 +529,7 @@ function ProductRowsCard({
                       </div>
                       <div className="text-sm font-semibold text-brand-red">
                         ${money(rowTotal)}
+                        {discountRate > 0 ? <span className="block text-[11px] font-medium text-slate-400">Dto. {percent(discountRate)}</span> : null}
                       </div>
                     </div>
                   </div>
@@ -601,8 +618,9 @@ function ProductRowsCard({
         </div>
       )}
 
-      <div className="mt-6 grid gap-3 md:grid-cols-3">
+      <div className="mt-6 grid gap-3 md:grid-cols-4">
         <Metric label="Total bultos" value={money(totals.bultos)} />
+        <Metric label="Total Kg" value={weight(totals.weight)} />
         <Metric label="Subtotal" value={money(totals.subtotal)} />
         <Metric label="Total estimado" value={money(totals.total)} />
       </div>

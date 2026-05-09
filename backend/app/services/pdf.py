@@ -121,13 +121,21 @@ def _discount_summary(invoice: dict) -> str:
         return " + ".join(f"{rate:g}%" for rate in rates) or "Sin descuentos"
 
     footer_discounts = invoice.get("footer_discounts") or []
-    rates = [
-        round(float(item.get("rate") or 0) * 100, 2)
-        for item in footer_discounts
-        if float(item.get("rate") or 0) > 0
-    ]
+    rate = round(sum(float(item.get("rate") or 0) for item in footer_discounts if float(item.get("rate") or 0) > 0) * 100, 2)
 
-    return " + ".join(f"{rate:g}%" for rate in rates) or "Sin descuentos"
+    return f"{rate:g}%" if rate > 0 else "Sin descuentos"
+
+
+def _item_discount_text(item: dict) -> str:
+    rate = float(item.get("discount_rate") or 0)
+    if rate <= 0:
+        return "-"
+    percent = round(rate * 100, 2)
+    return f"{percent:g}%"
+
+
+def _has_line_discounts(invoice: dict) -> bool:
+    return any(float(rate or 0) > 0 for rate in (invoice.get("line_discounts_by_format") or {}).values())
 
 
 def _set_color(pdf: canvas.Canvas, color: tuple[float, float, float]) -> None:
@@ -329,8 +337,9 @@ def _draw_items_header(pdf: canvas.Canvas, width: float, y: float) -> float:
     _set_color(pdf, COLOR_TEXT)
 
     pdf.drawString(MARGIN + TABLE_INNER_PAD_X, y, "Producto")
-    pdf.drawRightString(MARGIN + 260, y, "Cant.")
-    pdf.drawRightString(MARGIN + 370, y, "Precio")
+    pdf.drawRightString(MARGIN + 245, y, "Cant.")
+    pdf.drawRightString(MARGIN + 335, y, "Precio")
+    pdf.drawRightString(MARGIN + 410, y, "Dto.")
     pdf.drawRightString(width - MARGIN - TABLE_INNER_PAD_X, y, "Total")
 
     y -= 12
@@ -350,12 +359,13 @@ def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: in
         str(item.get("label") or ""),
         FONT_BOLD,
         font_size,
-        max_width=242,
+        max_width=220,
     )
 
     pdf.drawString(MARGIN + TABLE_INNER_PAD_X, y, label)
-    pdf.drawRightString(MARGIN + 250, y, format_quantity(item.get("quantity") or 0))
-    pdf.drawRightString(MARGIN + 370, y, _money(item.get("unit_price") or 0))
+    pdf.drawRightString(MARGIN + 245, y, format_quantity(item.get("quantity") or 0))
+    pdf.drawRightString(MARGIN + 335, y, _money(item.get("unit_price") or 0))
+    pdf.drawRightString(MARGIN + 410, y, _item_discount_text(item))
     pdf.drawRightString(width - MARGIN - TABLE_INNER_PAD_X, y, _money(item.get("total") or 0))
 
     pdf.setStrokeColorRGB(0.45, 0.45, 0.45)
@@ -380,7 +390,7 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
     notes = [str(note or "").strip() for note in invoice.get("notes", []) if str(note or "").strip()]
 
     discount_summary = _discount_summary(invoice)
-    has_discount = float(invoice.get("discount_total") or 0) > 0
+    has_summary_discount = float(invoice.get("discount_total") or 0) > 0 and not _has_line_discounts(invoice)
 
     y -= 14
 
@@ -437,7 +447,7 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
             pdf.drawString(shipment_value_x, shipment_y - (index * 14), line)
         shipment_y -= max(17, len(value_lines) * 14)
 
-    if has_discount:
+    if has_summary_discount:
         _set_color(pdf, COLOR_TEXT)
         pdf.setFont(FONT_BOLD, SUMMARY_FONT_SIZE)
         pdf.drawString(totals_label_x, section_top_y, "Subtotal")
