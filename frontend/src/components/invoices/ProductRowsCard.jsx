@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import Button from '../ui/Button'
 import Metric from '../ui/Metric'
-import { compareProducts, discountKeyForLabel, isX1KgLabel, money, percent } from '../../lib/format'
+import { compareProducts, discountKeyForLabel, isX1KgLabel, money, percent, productSelectOptionRows } from '../../lib/format'
 
 function lineDiscountRateForItem(form, item, offeringLabel) {
   const lineDiscounts = form.lineDiscountsByGroup || {}
@@ -167,9 +167,12 @@ function ProductRowsCard({
                   onChange={(event) => onUpdateItem(index, 'source_product_id', event.target.value ? Number(event.target.value) : '')}
                 >
                   <option value="">Producto</option>
-                  {sourceProductOptions.map((productOption) => (
-                    <option key={productOption.key} value={productOption.key}>{productOption.label}</option>
-                  ))}
+                  {productSelectOptionRows(sourceProductOptions).map((row) =>
+                    row.kind === 'separator' ? (
+                      <option key={row.key} value={`__${row.key}`} disabled>{row.label}</option>
+                    ) : (
+                      <option key={row.item.key} value={row.item.key}>{row.item.label}</option>
+                    ))}
                 </select>
                 <select
                   className="input"
@@ -330,11 +333,14 @@ function ProductRowsCard({
                         }
                       >
                         <option value="">Producto</option>
-                        {productOptions.map((productItem) => (
-                          <option key={productItem.id} value={productItem.id}>
-                            {productItem.name}
-                          </option>
-                        ))}
+                        {productSelectOptionRows(productOptions).map((row) =>
+                          row.kind === 'separator' ? (
+                            <option key={row.key} value={`__${row.key}`} disabled>{row.label}</option>
+                          ) : (
+                            <option key={row.item.id} value={row.item.id}>
+                              {row.item.name}
+                            </option>
+                          ))}
                       </select>
                     </td>
 
@@ -446,11 +452,14 @@ function ProductRowsCard({
                       }
                     >
                       <option value="">Producto</option>
-                      {productOptions.map((productItem) => (
-                        <option key={productItem.id} value={productItem.id}>
-                          {productItem.name}
-                        </option>
-                      ))}
+                      {productSelectOptionRows(productOptions).map((row) =>
+                        row.kind === 'separator' ? (
+                          <option key={row.key} value={`__${row.key}`} disabled>{row.label}</option>
+                        ) : (
+                          <option key={row.item.id} value={row.item.id}>
+                            {row.item.name}
+                          </option>
+                        ))}
                     </select>
                   </div>
 

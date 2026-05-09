@@ -14,7 +14,9 @@ const PRODUCT_ORDER_MAIN = [
   'Avena Instantanea',
   'Garbanzos',
   'Harina de Maiz',
-  'Harina de Maiz Blanco',
+  'H. de Maiz Blanco',
+  'Lentejas',
+  'Maiz Pisado Blanco',
   'Maiz Pisingallo',
   'Porotos Alubia',
   'Maiz Partido Colorado',
@@ -24,7 +26,7 @@ const PRODUCT_ORDER_MAIN = [
   'Porotos Pallares',
   'Porotos Soja',
   'Semola de Trigo',
-  'Trigo Machacado Burgol',
+  'Trigo Burgol',
   'Trigo Pelado',
 ]
 
@@ -37,6 +39,42 @@ const PRODUCT_ORDER_SECONDARY = [
 const productOrderIndex = new Map(
   [...PRODUCT_ORDER_MAIN, ...PRODUCT_ORDER_SECONDARY].map((name, index) => [normalize(name), index])
 )
+
+const PRODUCT_MAIN_NAME_SET = new Set(PRODUCT_ORDER_MAIN.map((name) => normalize(name)))
+const PRODUCT_SECONDARY_NAME_SET = new Set(PRODUCT_ORDER_SECONDARY.map((name) => normalize(name)))
+
+const PRODUCT_SELECT_SEPARATOR_MAIN = '----- linea principal -----'
+const PRODUCT_SELECT_SEPARATOR_SECONDARY = '----- segunda seleccion -----'
+const PRODUCT_SELECT_SEPARATOR_OTHERS = '---- Otros productos ----'
+
+const productTierForSelect = (item) => {
+  const label = String(typeof item === 'string' ? item : item?.name || item?.label || '')
+  const key = normalize(label)
+  if (PRODUCT_MAIN_NAME_SET.has(key)) return 'main'
+  if (PRODUCT_SECONDARY_NAME_SET.has(key)) return 'secondary'
+  return 'other'
+}
+
+/** Filas para `<select>`: separadores deshabilitados y productos en el orden ya ordenado (p. ej. con compareProducts). */
+const productSelectOptionRows = (sortedProducts) => {
+  const tierLabel = {
+    main: PRODUCT_SELECT_SEPARATOR_MAIN,
+    secondary: PRODUCT_SELECT_SEPARATOR_SECONDARY,
+    other: PRODUCT_SELECT_SEPARATOR_OTHERS,
+  }
+  const rows = []
+  let prevTier = null
+  let sepSeq = 0
+  for (const item of sortedProducts) {
+    const tier = productTierForSelect(item)
+    if (tier !== prevTier) {
+      rows.push({ kind: 'separator', key: `sep-${tier}-${sepSeq++}`, label: tierLabel[tier] })
+      prevTier = tier
+    }
+    rows.push({ kind: 'product', item })
+  }
+  return rows
+}
 
 const productSortKey = (value) => {
   const label = String(value || '')
@@ -158,4 +196,16 @@ const summarizeAutomaticBonuses = (customer, catalog = []) => {
     .join(', ')
 }
 
-export { compareProducts, date, discountKeyForLabel, emptyItem, isX1KgLabel, money, normalize, percent, summarizeAutomaticBonuses, summarizeDiscounts }
+export {
+  compareProducts,
+  date,
+  discountKeyForLabel,
+  emptyItem,
+  isX1KgLabel,
+  money,
+  normalize,
+  percent,
+  productSelectOptionRows,
+  summarizeAutomaticBonuses,
+  summarizeDiscounts,
+}
