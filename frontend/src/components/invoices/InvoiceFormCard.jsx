@@ -128,9 +128,11 @@ function InvoiceFormCard({
       {!isCreditNote && <details className="group mt-6 border-t border-stone-200 pt-6">
         <h3 className="subsection-title text-xl">Configuración de descuentos y bonificación automática</h3>
 
-        <summary className="mt-4 flex cursor-pointer list-none items-center justify-center rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 marker:hidden">
+        <summary className="mt-4 flex cursor-pointer list-none items-center justify-center gap-2 rounded-xl bg-blue-500 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-600 marker:hidden">
           <span className="group-open:hidden">Desplegar configuración</span>
           <span className="hidden group-open:inline">Ocultar configuración</span>
+          <span className="text-base leading-none group-open:hidden">⌄</span>
+          <span className="hidden text-base leading-none group-open:inline">⌃</span>
         </summary>
 
         <div className="mt-5 grid gap-8 md:grid-cols-2">
