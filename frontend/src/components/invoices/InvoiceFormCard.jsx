@@ -126,10 +126,11 @@ function InvoiceFormCard({
       </div>
 
       {!isCreditNote && <details className="group mt-6 border-t border-stone-200 pt-6">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-2xl px-1 py-2 text-left marker:hidden">
-          <h3 className="subsection-title text-xl">Configuración de descuentos</h3>
-          <span className="text-sm font-semibold text-brand-red group-open:hidden">Desplegar</span>
-          <span className="hidden text-sm font-semibold text-brand-red group-open:inline">Ocultar</span>
+        <h3 className="subsection-title text-xl">Configuración de descuentos y bonificación automática</h3>
+
+        <summary className="mt-4 flex cursor-pointer list-none items-center justify-center rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 marker:hidden">
+          <span className="group-open:hidden">Desplegar configuración</span>
+          <span className="hidden group-open:inline">Ocultar configuración</span>
         </summary>
 
         <div className="mt-5 grid gap-8 md:grid-cols-2">
@@ -192,19 +193,19 @@ function InvoiceFormCard({
             </div>
           </div>
         </div>
-      </details>}
 
-      {!isCreditNote && <div className="mt-6 border-t border-stone-200 pt-6">
-        <AutomaticBonusRules
-          rules={form.automaticBonusRules}
-          disablesLineDiscount={form.automaticBonusDisablesLineDiscount}
-          catalog={bootstrap?.catalog || []}
-          onAdd={onAddAutomaticBonusRule}
-          onChange={onAutomaticBonusRuleChange}
-          onRemove={onRemoveAutomaticBonusRule}
-          onDisablesLineDiscountChange={(value) => onFieldChange('automaticBonusDisablesLineDiscount', value)}
-        />
-      </div>}
+        <div className="mt-6 border-t border-stone-200 pt-6">
+          <AutomaticBonusRules
+            rules={form.automaticBonusRules}
+            disablesLineDiscount={form.automaticBonusDisablesLineDiscount}
+            catalog={bootstrap?.catalog || []}
+            onAdd={onAddAutomaticBonusRule}
+            onChange={onAutomaticBonusRuleChange}
+            onRemove={onRemoveAutomaticBonusRule}
+            onDisablesLineDiscountChange={(value) => onFieldChange('automaticBonusDisablesLineDiscount', value)}
+          />
+        </div>
+      </details>}
 
       {onSave && !isCreditNote && (
         <div className="mt-6 flex flex-wrap gap-3 border-t border-stone-200 pt-5">

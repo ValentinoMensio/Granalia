@@ -339,7 +339,7 @@ def _draw_items_header(pdf: canvas.Canvas, width: float, y: float) -> float:
     pdf.drawString(MARGIN + TABLE_INNER_PAD_X, y, "Producto")
     pdf.drawRightString(MARGIN + 245, y, "Cant.")
     pdf.drawRightString(MARGIN + 335, y, "Precio")
-    pdf.drawRightString(MARGIN + 410, y, "Dto.")
+    pdf.drawRightString(MARGIN + 390, y, "Dto.")
     pdf.drawRightString(width - MARGIN - TABLE_INNER_PAD_X, y, "Total")
 
     y -= 12
@@ -365,7 +365,7 @@ def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: in
     pdf.drawString(MARGIN + TABLE_INNER_PAD_X, y, label)
     pdf.drawRightString(MARGIN + 245, y, format_quantity(item.get("quantity") or 0))
     pdf.drawRightString(MARGIN + 335, y, _money(item.get("unit_price") or 0))
-    pdf.drawRightString(MARGIN + 410, y, _item_discount_text(item))
+    pdf.drawRightString(MARGIN + 390, y, _item_discount_text(item))
     pdf.drawRightString(width - MARGIN - TABLE_INNER_PAD_X, y, _money(item.get("total") or 0))
 
     pdf.setStrokeColorRGB(0.45, 0.45, 0.45)
