@@ -313,7 +313,7 @@ function ProductRowsCard({
                 const quantity = Number(item.quantity || 0)
                 const discountRate = hasLineDiscounts ? lineDiscountRateForItem(form, item, item.offering_label || offering?.label) : 0
                 const rowTotal = quantity * price * (1 - discountRate)
-                const productOptions = editingInvoiceId ? productsWithHistoricalSelection(catalog, item.product_id, item.product_name) : catalog
+                const productOptions = productsWithHistoricalSelection(catalog, item.product_id, item.product_name)
 
                 return (
                     <tr key={index} className="table-row">
@@ -425,7 +425,7 @@ function ProductRowsCard({
             const quantity = Number(item.quantity || 0)
             const discountRate = hasLineDiscounts ? lineDiscountRateForItem(form, item, item.offering_label || offering?.label) : 0
             const rowTotal = quantity * price * (1 - discountRate)
-            const productOptions = editingInvoiceId ? productsWithHistoricalSelection(catalog, item.product_id, item.product_name) : catalog
+            const productOptions = productsWithHistoricalSelection(catalog, item.product_id, item.product_name)
 
             return (
               <div key={index} className="surface-muted p-4">
