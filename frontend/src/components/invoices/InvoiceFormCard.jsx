@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import Field from '../ui/Field'
 import Button from '../ui/Button'
 import AutomaticBonusRules from './AutomaticBonusRules'
@@ -23,6 +24,7 @@ function InvoiceFormCard({
   onSave,
   onCancelEdit,
 }) {
+  const [discountsOpen, setDiscountsOpen] = useState(false)
   const defaultPriceListName = bootstrap?.price_list?.name || 'sin lista activa'
   const priceLists = bootstrap?.price_lists || []
   const billingMode = form.billingMode || (form.declared ? 'fiscal_only' : 'internal_only')
@@ -125,89 +127,106 @@ function InvoiceFormCard({
         </Field>
       </div>
 
-      {!isCreditNote && <details className="group mt-6 border-t border-stone-200 pt-6">
-        <h3 className="subsection-title text-xl">Configuración de descuentos y bonificación automática</h3>
+      {!isCreditNote && <div className="mt-6 border-t border-stone-200 pt-6">
+        <h3 className="subsection-title text-xl">Configuración de descuentos y bonificación</h3>
 
-        <summary className="mt-4 flex cursor-pointer list-none items-center justify-center gap-2 rounded-xl bg-blue-500 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-600 marker:hidden">
-          <span className="group-open:hidden">Desplegar configuración</span>
-          <span className="hidden group-open:inline">Ocultar configuración</span>
-          <span className="text-base leading-none group-open:hidden">⌄</span>
-          <span className="hidden text-base leading-none group-open:inline">⌃</span>
-        </summary>
+        {!discountsOpen && (
+          <button
+            type="button"
+            onClick={() => setDiscountsOpen(true)}
+            className="mt-4 flex h-11 w-full items-center justify-center rounded-xl border border-blue-200 bg-blue-50 text-xl font-semibold leading-none text-blue-700 transition hover:border-blue-300 hover:bg-blue-100"
+            aria-label="Desplegar configuración de descuentos y bonificación"
+          >
+            ˅
+          </button>
+        )}
 
-        <div className="mt-5 grid gap-8 md:grid-cols-2">
-          <div className="space-y-4">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <label className="text-sm font-medium text-slate-700">Descuentos Globales (al pie)</label>
-              <Button variant="ghost" className="px-0 py-0 text-xs text-brand-red" onClick={onAddFooterDiscount}>
-                + Agregar
-              </Button>
-            </div>
-            <div className="space-y-2">
-              {(form.footerDiscounts || []).map((discount, index) => (
-                <div key={index} className="grid grid-cols-[minmax(0,1fr)_5rem_auto] items-center gap-2">
-                  <input
-                    type="text"
-                    value={discount.label}
-                    onChange={(event) => onFooterDiscountChange(index, 'label', event.target.value)}
-                    placeholder="Ej: Mayorista"
-                    className="input flex-1 py-1.5 text-xs"
-                  />
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="number"
-                      value={Number(discount.rate || 0) * 100}
-                      onChange={(event) => onFooterDiscountChange(index, 'rate', event.target.value)}
-                      className="input w-16 py-1.5 text-right text-xs"
-                    />
-                    <span className="text-xs text-slate-400">%</span>
-                  </div>
-                  <button onClick={() => onRemoveFooterDiscount(index)} className="text-slate-300 hover:text-red-500">
-                    ✕
-                  </button>
+        {discountsOpen && (
+          <>
+            <div className="mt-5 grid gap-8 md:grid-cols-2">
+              <div className="space-y-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <label className="text-sm font-medium text-slate-700">Descuentos Globales (al pie)</label>
+                  <Button variant="ghost" className="px-0 py-0 text-xs text-brand-red" onClick={onAddFooterDiscount}>
+                    + Agregar
+                  </Button>
                 </div>
-              ))}
-              {(!form.footerDiscounts || form.footerDiscounts.length === 0) && (
-                <p className="text-xs italic text-slate-400">No hay descuentos globales configurados.</p>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-slate-700">Descuentos por Grupo (línea)</label>
-            </div>
-            <div className="max-h-64 space-y-2 overflow-y-auto pr-2">
-              {availableDiscountGroups.map((group) => (
-                <div key={group} className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 p-2">
-                  <span className="text-xs font-medium text-slate-600">{group}</span>
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="number"
-                      value={(form.lineDiscountsByGroup?.[group] || 0) * 100}
-                      onChange={(event) => onLineDiscountChange(group, event.target.value)}
-                      className="input w-14 px-1 py-0.5 text-right text-xs"
-                    />
-                    <span className="text-xs text-slate-400">%</span>
-                  </div>
+                <div className="space-y-2">
+                  {(form.footerDiscounts || []).map((discount, index) => (
+                    <div key={index} className="grid grid-cols-[minmax(0,1fr)_5rem_auto] items-center gap-2">
+                      <input
+                        type="text"
+                        value={discount.label}
+                        onChange={(event) => onFooterDiscountChange(index, 'label', event.target.value)}
+                        placeholder="Ej: Mayorista"
+                        className="input flex-1 py-1.5 text-xs"
+                      />
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          value={Number(discount.rate || 0) * 100}
+                          onChange={(event) => onFooterDiscountChange(index, 'rate', event.target.value)}
+                          className="input w-16 py-1.5 text-right text-xs"
+                        />
+                        <span className="text-xs text-slate-400">%</span>
+                      </div>
+                      <button onClick={() => onRemoveFooterDiscount(index)} className="text-slate-300 hover:text-red-500">
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                  {(!form.footerDiscounts || form.footerDiscounts.length === 0) && (
+                    <p className="text-xs italic text-slate-400">No hay descuentos globales configurados.</p>
+                  )}
                 </div>
-              ))}
-            </div>
-          </div>
-        </div>
+              </div>
 
-        <div className="mt-6 border-t border-stone-200 pt-6">
-          <AutomaticBonusRules
-            rules={form.automaticBonusRules}
-            disablesLineDiscount={form.automaticBonusDisablesLineDiscount}
-            catalog={bootstrap?.catalog || []}
-            onAdd={onAddAutomaticBonusRule}
-            onChange={onAutomaticBonusRuleChange}
-            onRemove={onRemoveAutomaticBonusRule}
-            onDisablesLineDiscountChange={(value) => onFieldChange('automaticBonusDisablesLineDiscount', value)}
-          />
-        </div>
-      </details>}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-slate-700">Descuentos por Grupo (línea)</label>
+                </div>
+                <div className="max-h-64 space-y-2 overflow-y-auto pr-2">
+                  {availableDiscountGroups.map((group) => (
+                    <div key={group} className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 p-2">
+                      <span className="text-xs font-medium text-slate-600">{group}</span>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          value={(form.lineDiscountsByGroup?.[group] || 0) * 100}
+                          onChange={(event) => onLineDiscountChange(group, event.target.value)}
+                          className="input w-14 px-1 py-0.5 text-right text-xs"
+                        />
+                        <span className="text-xs text-slate-400">%</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 border-t border-stone-200 pt-6">
+              <AutomaticBonusRules
+                rules={form.automaticBonusRules}
+                disablesLineDiscount={form.automaticBonusDisablesLineDiscount}
+                catalog={bootstrap?.catalog || []}
+                onAdd={onAddAutomaticBonusRule}
+                onChange={onAutomaticBonusRuleChange}
+                onRemove={onRemoveAutomaticBonusRule}
+                onDisablesLineDiscountChange={(value) => onFieldChange('automaticBonusDisablesLineDiscount', value)}
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setDiscountsOpen(false)}
+              className="mt-5 flex h-11 w-full items-center justify-center rounded-xl border border-blue-200 bg-blue-50 text-xl font-semibold leading-none text-blue-700 transition hover:border-blue-300 hover:bg-blue-100"
+              aria-label="Ocultar configuración de descuentos y bonificación"
+            >
+              ˆ
+            </button>
+          </>
+        )}
+      </div>}
 
       {onSave && !isCreditNote && (
         <div className="mt-6 flex flex-wrap gap-3 border-t border-stone-200 pt-5">
