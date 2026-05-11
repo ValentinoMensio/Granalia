@@ -185,7 +185,7 @@ def _item_discount_text(item: dict) -> str:
     if rate <= 0:
         return "-"
     percent = round(rate * 100, 2)
-    return f"{percent:g}%".replace(".", ",")
+    return f"{percent:g}%"
 
 
 def _has_line_discounts(invoice: dict) -> bool:
@@ -333,7 +333,7 @@ def _draw_header(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
     # Encabezado simple: leyenda, comprobante y fecha apilados a la derecha.
     if not _is_credit_note(invoice):
         pdf.setFont(FONT_BOLD, 10)
-        pdf.drawRightString(right_x, y - 4, "DOCUMENTO NO VÁLIDO COMO FACTURA")
+        pdf.drawRightString(right_x, y - 4, "DOCUMENTO NO VALIDO COMO FACTURA")
         title_y = y - 25
     else:
         title_y = y - 8
@@ -396,14 +396,14 @@ def _table_columns(width: float) -> dict[str, float]:
     right = width - MARGIN - TABLE_INNER_PAD_X
     product_x = MARGIN + TABLE_INNER_PAD_X
 
-    cant_x = MARGIN + 228
-    precio_x = MARGIN + 318
-    dto_x = MARGIN + 358
+    cant_x = MARGIN + 238
+    precio_x = MARGIN + 323
+    dto_x = MARGIN + 368
     total_x = right
 
     return {
         "product_x": product_x,
-        "product_width": cant_x - product_x - 26,
+        "product_width": cant_x - product_x - 34,
         "cant_x": cant_x,
         "precio_x": precio_x,
         "dto_x": dto_x,
@@ -412,43 +412,30 @@ def _table_columns(width: float) -> dict[str, float]:
 
 
 def _draw_issuer_footer(pdf: canvas.Canvas, width: float, y: float) -> float:
-    """Datos del emisor al pie, en formato horizontal y prolijo."""
-    left_x = MARGIN + TABLE_INNER_PAD_X
-    right_x = width - MARGIN - TABLE_INNER_PAD_X
-    mid_x = width / 2
-    top_y = max(46, min(y, 86))
+    """Datos del emisor al pie del remito, sin quitar protagonismo al cliente."""
+    issuer_lines = [
+        "De: Mensio Oscar Leandro",
+        "CUIT: 20-22579034-6 - ING. BRUTOS: 280405086",
+        "Fecha inicio Actividades: Marzo 2011 - IVA RESPONSABLE INSCRIPTO",
+        "Celestina Agüero 609 - Altura Ruta 5 - Km. 29 - TEL.: (03547) 1557433",
+        "B°. Parque San Juan - (5186) Alta Gracia (Pcia. de Cba.)",
+    ]
 
-    _line(pdf, MARGIN, top_y + 12, width - MARGIN)
-
+    top_y = max(52, min(y, 92))
+    _line(pdf, MARGIN, top_y + 14, width - MARGIN)
     pdf.setFont(FONT_BOLD, 8)
     _set_color(pdf, COLOR_MUTED)
-    pdf.drawString(left_x, top_y, "DATOS DEL EMISOR")
+    pdf.drawString(MARGIN + TABLE_INNER_PAD_X, top_y, "DATOS DEL EMISOR")
 
-    row1_y = top_y - 13
-    row2_y = row1_y - 11
-    row3_y = row2_y - 11
-
-    pdf.setFont(FONT_REGULAR, 7.4)
-    _set_color(pdf, COLOR_TEXT)
-
-    # Lista horizontal: tres datos en la primera fila.
-    pdf.drawString(left_x, row1_y, "De: Mensio Oscar Leandro")
-    pdf.drawCentredString(mid_x, row1_y, "CUIT: 20-22579034-6")
-    pdf.drawRightString(right_x, row1_y, "Ing. Brutos: 280405086")
-
-    # Segunda fila: datos impositivos, separados pero en una sola línea.
-    pdf.drawString(left_x, row2_y, "Inicio de actividades: Marzo 2011")
-    pdf.drawRightString(right_x, row2_y, "IVA Responsable Inscripto")
-
-    # Tercera fila: domicilio completo a lo largo de la página.
-    address = (
-        "Domicilio: Celestina Agüero 609 - Altura Ruta 5 - Km. 29 - "
-        "TEL.: (03547) 1557433 - B°. Parque San Juan - (5186) Alta Gracia (Pcia. de Cba.)"
-    )
-    pdf.drawString(left_x, row3_y, _truncate(address, FONT_REGULAR, 7.4, right_x - left_x))
+    line_y = top_y - 12
+    pdf.setFont(FONT_REGULAR, 7.5)
+    for line in issuer_lines:
+        pdf.drawString(MARGIN + TABLE_INNER_PAD_X, line_y, line)
+        line_y -= 10
 
     _set_color(pdf, COLOR_TEXT)
-    return row3_y - 8
+    return line_y - 6
+
 
 def _draw_items_header(pdf: canvas.Canvas, width: float, y: float) -> float:
     columns = _table_columns(width)
