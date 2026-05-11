@@ -69,8 +69,12 @@ def _fiscal_percent(value: object) -> str:
 
 
 def _fiscal_document_number(value: object) -> str:
-    number = int(value or 0)
-    return str(number).zfill(8) if number else "-"
+    digits = _digits(value)
+    if not digits:
+        return "-"
+    # Si viene con punto de venta + número (ej: FACTURA 0001-00000189),
+    # nos quedamos con los últimos 8 dígitos del número de comprobante.
+    return digits[-8:].zfill(8)
 
 
 def _document_number_parts(invoice: dict) -> tuple[str, str]:
@@ -100,8 +104,12 @@ def _formatted_document_number(invoice: dict) -> str:
 
 
 def _fiscal_document_number_unpadded(value: object) -> str:
-    number = int(value or 0)
-    return str(number) if number else "sin-numero"
+    digits = _digits(value)
+    if not digits:
+        return "sin-numero"
+    # Evita ValueError cuando fiscal_number llega como texto:
+    # "FACTURA 0001-00000189" o "NOTA_CREDITO 0001-00000004".
+    return str(int(digits[-8:]))
 
 
 def invoice_pdf_filename(invoice: dict) -> str:
