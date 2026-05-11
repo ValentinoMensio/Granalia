@@ -73,6 +73,32 @@ def _fiscal_document_number(value: object) -> str:
     return str(number).zfill(8) if number else "-"
 
 
+def _document_number_parts(invoice: dict) -> tuple[str, str]:
+    """Devuelve punto de venta y número con el formato solicitado para mostrar en PDF."""
+    fiscal_number = str(invoice.get("fiscal_number") or "").strip()
+    if fiscal_number:
+        number_part = fiscal_number.split(" ", 1)[1] if " " in fiscal_number else fiscal_number
+        match = re.search(r"(\d{1,5})\s*[-–—]\s*(\d+)", number_part)
+        if match:
+            return match.group(1).zfill(4)[-4:], match.group(2).zfill(8)
+
+    point_of_sale = int(invoice.get("arca_point_of_sale") or _env("GRANALIA_ARCA_POINT_OF_SALE", "1") or 1)
+    raw_number = (
+        invoice.get("arca_invoice_number")
+        or invoice.get("internal_invoice_number")
+        or invoice.get("invoice_number")
+        or invoice.get("id")
+        or 0
+    )
+    number_digits = _digits(raw_number)
+    return f"{point_of_sale:04d}"[-4:], number_digits.zfill(8) if number_digits else "00000000"
+
+
+def _formatted_document_number(invoice: dict) -> str:
+    point_of_sale, number = _document_number_parts(invoice)
+    return f"N°. {point_of_sale} - {number}"
+
+
 def _fiscal_document_number_unpadded(value: object) -> str:
     number = int(value or 0)
     return str(number) if number else "sin-numero"
@@ -107,6 +133,30 @@ def _date(value: object) -> str:
         return str(value or "")
 
 
+def _footer_discount_effective_rate(invoice: dict) -> Decimal:
+    """Tasa efectiva aplicando descuentos de pie en forma acumulada/secuencial."""
+    multiplier = Decimal("1")
+    for item in invoice.get("footer_discounts") or []:
+        rate = Decimal(str(item.get("rate") or 0))
+        if rate > 0:
+            multiplier *= (Decimal("1") - rate)
+    return (Decimal("1") - multiplier).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+
+
+def _summary_discount_total(invoice: dict) -> Decimal:
+    gross_total = _decimal(invoice.get("gross_total") or 0)
+    effective_rate = _footer_discount_effective_rate(invoice)
+    if effective_rate > 0:
+        return (gross_total * effective_rate).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    return _decimal(invoice.get("discount_total") or 0)
+
+
+def _summary_final_total(invoice: dict) -> Decimal:
+    if _footer_discount_effective_rate(invoice) > 0 and not _has_line_discounts(invoice):
+        return (_decimal(invoice.get("gross_total") or 0) - _summary_discount_total(invoice)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    return _decimal(invoice.get("final_total") or 0)
+
+
 def _discount_summary(invoice: dict) -> str:
     line_discounts = invoice.get("line_discounts_by_format") or {}
 
@@ -120,10 +170,14 @@ def _discount_summary(invoice: dict) -> str:
         )
         return " + ".join(f"{rate:g}%" for rate in rates) or "Sin descuentos"
 
-    footer_discounts = invoice.get("footer_discounts") or []
-    rate = round(sum(float(item.get("rate") or 0) for item in footer_discounts if float(item.get("rate") or 0) > 0) * 100, 2)
+    rate = _footer_discount_effective_rate(invoice)
+    if rate <= 0:
+        return "Sin descuentos"
 
-    return f"{rate:g}%" if rate > 0 else "Sin descuentos"
+    percent = (rate * Decimal("100")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    if percent == percent.to_integral():
+        return f"{int(percent)}%"
+    return f"{percent.normalize()}%".replace(".", ",")
 
 
 def _item_discount_text(item: dict) -> str:
@@ -271,38 +325,30 @@ def _draw_header(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
     _draw_logo(pdf, margin=MARGIN, y=y + 18, logo_path=logo_path)
 
     _set_color(pdf, COLOR_TEXT)
-    pdf.setFont(FONT_BOLD, 17)
-    fiscal_number = str(invoice.get("fiscal_number") or "").strip()
     label = "Nota de Crédito" if _is_credit_note(invoice) else "Remito"
+    right_x = width - MARGIN
 
-    # `fiscal_number` viene con el tipo técnico como prefijo (ej: "FACTURA 0001-00000189",
-    # "NOTA_CREDITO 0001-00000004"). En el PDF lo mostramos con el nombre comercial.
-    if fiscal_number:
-        number_part = fiscal_number.split(" ", 1)[1] if " " in fiscal_number else fiscal_number
-        display_number = f"{label} {number_part}"
-    else:
-        # Fallback defensivo: nunca deberíamos caer acá, pero evita títulos "#id".
-        display_number = f"{label} {_digits(invoice.get('internal_invoice_number') or invoice.get('invoice_number') or invoice.get('id')) or invoice.get('id')}"
-    pdf.drawRightString(width - MARGIN, y - 8, display_number)
+    # Encabezado simple: logo a la izquierda, fecha en el lugar principal a la derecha.
+    pdf.setFont(FONT_BOLD, 14)
+    pdf.drawRightString(right_x, y - 6, f"Fecha de Emisión: {_date(invoice.get('order_date') or invoice.get('date'))}")
 
-    pdf.setFont(FONT_REGULAR, 12)
-    _set_color(pdf, COLOR_MUTED)
-    pdf.drawRightString(width - MARGIN, y - 25, f"Fecha de Emisión: {_date(invoice.get('order_date') or invoice.get('date'))}")
+    pdf.setFont(FONT_BOLD, 17)
+    pdf.drawRightString(right_x, y - 28, f"{label} {_formatted_document_number(invoice)}")
 
     _set_color(pdf, COLOR_TEXT)
-
-    return y - 130
+    return y - 95
 
 
 def _draw_invoice_info(pdf: canvas.Canvas, invoice: dict, y: float) -> float:
     _set_color(pdf, COLOR_TEXT)
 
-    pdf.setFont(FONT_BOLD, 17)
+    pdf.setFont(FONT_BOLD, 18)
     pdf.drawString(MARGIN, y, f"Cliente: {invoice['client_name']}")
-    y -= 23
+    y -= 24
 
     customer_fields = [
         ("CUIT", invoice.get("customer_cuit")),
+        ("Condición IVA", invoice.get("customer_iva_condition")),
         ("Dirección", invoice.get("customer_address")),
     ]
     if _is_credit_note(invoice):
@@ -311,36 +357,81 @@ def _draw_invoice_info(pdf: canvas.Canvas, invoice: dict, y: float) -> float:
             ("Motivo", invoice.get("credit_reason")),
         ])
 
-    pdf.setFont(FONT_REGULAR, 14)
+    pdf.setFont(FONT_REGULAR, 13)
     for label, value in customer_fields:
         text = str(value or "").strip()
         if not text:
             continue
         pdf.drawString(MARGIN, y, f"{label}: {text}")
-        y -= 18
+        y -= 17
 
     secondary_line = str(invoice.get("secondary_line") or "").strip()
     if secondary_line:
-        y -= 18
+        y -= 6
         _set_color(pdf, COLOR_MUTED)
+        pdf.setFont(FONT_REGULAR, 12)
         pdf.drawString(MARGIN, y, secondary_line)
         _set_color(pdf, COLOR_TEXT)
 
-    return y - 40
+    return y - 32
+
+def _table_columns(width: float) -> dict[str, float]:
+    """Posiciones uniformes para las columnas numéricas del remito."""
+    right = width - MARGIN - TABLE_INNER_PAD_X
+    product_x = MARGIN + TABLE_INNER_PAD_X
+    numeric_left = MARGIN + 240
+    numeric_width = right - numeric_left
+    step = numeric_width / 4
+    return {
+        "product_x": product_x,
+        "product_width": numeric_left - product_x - 14,
+        "cant_x": numeric_left + (step * 0.5),
+        "precio_x": numeric_left + (step * 1.5),
+        "dto_x": numeric_left + (step * 2.5),
+        "total_x": right,
+    }
+
+
+def _draw_issuer_footer(pdf: canvas.Canvas, width: float, y: float) -> float:
+    """Datos del emisor al pie del remito, sin quitar protagonismo al cliente."""
+    issuer_lines = [
+        "De: Mensio Oscar Leandro",
+        "CUIT: 20-22579034-6 - ING. BRUTOS: 280405086",
+        "Fecha inicio Actividades: Marzo 2011 - IVA RESPONSABLE INSCRIPTO",
+        "Celestina Agüero 609 - Altura Ruta 5 - Km. 29 - TEL.: (03547) 1557433",
+        "B°. Parque San Juan - (5186) Alta Gracia (Pcia. de Cba.)",
+    ]
+
+    top_y = max(52, min(y, 92))
+    _line(pdf, MARGIN, top_y + 14, width - MARGIN)
+    pdf.setFont(FONT_BOLD, 8)
+    _set_color(pdf, COLOR_MUTED)
+    pdf.drawString(MARGIN + TABLE_INNER_PAD_X, top_y, "DATOS DEL EMISOR")
+
+    line_y = top_y - 12
+    pdf.setFont(FONT_REGULAR, 7.5)
+    for line in issuer_lines:
+        pdf.drawString(MARGIN + TABLE_INNER_PAD_X, line_y, line)
+        line_y -= 10
+
+    _set_color(pdf, COLOR_TEXT)
+    return line_y - 6
 
 
 def _draw_items_header(pdf: canvas.Canvas, width: float, y: float) -> float:
+    columns = _table_columns(width)
+
     pdf.setFillColorRGB(*COLOR_HEADER_BG)
     pdf.rect(MARGIN - TABLE_PAD_X, y - 12, width - (MARGIN * 2) + (TABLE_PAD_X * 2), 30, stroke=0, fill=1)
 
-    pdf.setFont(FONT_BOLD, 16)
+    pdf.setFont(FONT_BOLD, 15)
     _set_color(pdf, COLOR_TEXT)
 
-    pdf.drawString(MARGIN + TABLE_INNER_PAD_X, y, "Producto")
-    pdf.drawRightString(MARGIN + 245, y, "Cant.")
-    pdf.drawRightString(MARGIN + 335, y, "Precio")
-    pdf.drawRightString(MARGIN + 390, y, "Dto.")
-    pdf.drawRightString(width - MARGIN - TABLE_INNER_PAD_X, y, "Total")
+    pdf.drawString(columns["product_x"], y, "Producto")
+    pdf.drawCentredString(columns["cant_x"], y, "Cant.")
+    pdf.drawCentredString(columns["precio_x"], y, "Precio")
+    pdf.drawCentredString(columns["dto_x"], y, "Dto.")
+    pdf.drawRightString(columns["total_x"], y, "Total")
 
     y -= 12
     _line(pdf, MARGIN, y, width - MARGIN)
@@ -349,6 +440,7 @@ def _draw_items_header(pdf: canvas.Canvas, width: float, y: float) -> float:
 
 
 def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: int) -> float:
+    columns = _table_columns(width)
     font_size = ITEM_FONT_SIZE
     row_height = ITEM_ROW_HEIGHT
 
@@ -359,14 +451,14 @@ def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: in
         str(item.get("label") or ""),
         FONT_BOLD,
         font_size,
-        max_width=220,
+        max_width=columns["product_width"],
     )
 
-    pdf.drawString(MARGIN + TABLE_INNER_PAD_X, y, label)
-    pdf.drawRightString(MARGIN + 245, y, format_quantity(item.get("quantity") or 0))
-    pdf.drawRightString(MARGIN + 335, y, _money(item.get("unit_price") or 0))
-    pdf.drawRightString(MARGIN + 390, y, _item_discount_text(item))
-    pdf.drawRightString(width - MARGIN - TABLE_INNER_PAD_X, y, _money(item.get("total") or 0))
+    pdf.drawString(columns["product_x"], y, label)
+    pdf.drawCentredString(columns["cant_x"], y, format_quantity(item.get("quantity") or 0))
+    pdf.drawCentredString(columns["precio_x"], y, _money(item.get("unit_price") or 0))
+    pdf.drawCentredString(columns["dto_x"], y, _item_discount_text(item))
+    pdf.drawRightString(columns["total_x"], y, _money(item.get("total") or 0))
 
     pdf.setStrokeColorRGB(0.45, 0.45, 0.45)
     pdf.setLineWidth(0.35)
@@ -375,9 +467,10 @@ def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: in
 
     return y - row_height
 
+
 def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> float:
     shipment_label_x = MARGIN + TABLE_INNER_PAD_X
-    shipment_value_x = MARGIN + 105
+    shipment_value_x = MARGIN + 120
     totals_label_x = width - 240
     totals_value_x = width - MARGIN - TABLE_INNER_PAD_X
     shipment_font_size = 12
@@ -392,11 +485,11 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
     discount_summary = _discount_summary(invoice)
     has_summary_discount = float(invoice.get("discount_total") or 0) > 0 and not _has_line_discounts(invoice)
 
+    # Bultos vuelve a mostrarse como en el diseño original: una fila propia,
+    # separada del bloque de datos del envío.
     y -= 14
-
     pdf.setFont(FONT_BOLD, SUMMARY_FONT_SIZE)
     _set_color(pdf, COLOR_TEXT)
-
     pdf.drawString(MARGIN + TABLE_INNER_PAD_X, y, "Bultos")
     pdf.drawRightString(MARGIN + 250, y, format_quantity(total_bultos))
 
@@ -410,7 +503,7 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
     _set_color(pdf, COLOR_MUTED)
     pdf.drawString(shipment_label_x, section_top_y, "DATOS DEL ENVÍO")
 
-    shipment_y = section_top_y - 18
+    shipment_y = section_top_y - 20
     shipment_lines = [("Peso neto:", _weight(total_weight))]
     if transport:
         shipment_lines.append(("Transporte:", transport))
@@ -423,9 +516,9 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
         _set_color(pdf, COLOR_TEXT)
         pdf.drawString(shipment_label_x, shipment_y, label)
 
-        if label == "Observaciones":
-            pdf.setFont(FONT_REGULAR, shipment_font_size)
-            _set_color(pdf, COLOR_MUTED)
+        pdf.setFont(FONT_REGULAR, shipment_font_size)
+        _set_color(pdf, COLOR_MUTED)
+        if label == "Observaciones:":
             value_lines = _wrap_text_with_first_width(
                 value,
                 FONT_REGULAR,
@@ -440,8 +533,6 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
             shipment_y -= max(17, len(value_lines) * 14)
             continue
 
-        pdf.setFont(FONT_REGULAR, shipment_font_size)
-        _set_color(pdf, COLOR_MUTED)
         value_lines = _wrap_text(value, FONT_REGULAR, shipment_font_size, shipment_max_width)
         for index, line in enumerate(value_lines):
             pdf.drawString(shipment_value_x, shipment_y - (index * 14), line)
@@ -454,17 +545,12 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
         pdf.drawRightString(totals_value_x, section_top_y, _money(invoice.get("gross_total") or 0))
 
         totals_y = section_top_y - 18
-
-        discount_label = (
-            f"Dto. ({discount_summary})"
-            if discount_summary != "Sin dto."
-            else "Dto."
-        )
+        discount_label = f"Dto. {discount_summary}" if discount_summary != "Sin descuentos" else "Dto."
 
         pdf.setFont(FONT_REGULAR, SUMMARY_FONT_SIZE)
         _set_color(pdf, COLOR_MUTED)
         pdf.drawString(totals_label_x, totals_y, _truncate(clean_cell_text(discount_label), FONT_REGULAR, SUMMARY_FONT_SIZE, 210))
-        pdf.drawRightString(totals_value_x, totals_y, _money(invoice.get("discount_total") or 0))
+        pdf.drawRightString(totals_value_x, totals_y, _money(_summary_discount_total(invoice)))
 
         totals_y -= 28
     else:
@@ -475,9 +561,10 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
     if _is_credit_note(invoice):
         totals_label_x -= 28
     pdf.drawString(totals_label_x, totals_y, "Importe acreditado" if _is_credit_note(invoice) else "Total")
-    pdf.drawRightString(totals_value_x, totals_y, _money(invoice.get("final_total") or 0))
+    pdf.drawRightString(totals_value_x, totals_y, _money(_summary_final_total(invoice)))
 
-    return min(shipment_y, totals_y) - 20
+    footer_y = min(shipment_y, totals_y) - 24
+    return _draw_issuer_footer(pdf, width, footer_y)
 
 def _new_page(pdf: canvas.Canvas, invoice: dict, width: float, height: float) -> float:
     pdf.showPage()
@@ -675,8 +762,11 @@ def _draw_fiscal_header(pdf: canvas.Canvas, invoice: dict, width: float, height:
     pdf.drawString(left_label_x, row3_y, "Condición frente al IVA:")
     pdf.drawString(left + 116, row3_y, _truncate(issuer["iva_condition"], FONT_BOLD, 9, left_inner_right - (left + 116) - 4))
 
+    fiscal_label = "NOTA DE CRÉDITO" if _is_credit_note(invoice) else "FACTURA"
     pdf.setFont(FONT_BOLD, 20)
-    pdf.drawString(right_inner_left, top_band_bottom - 26, "NOTA DE CRÉDITO" if _is_credit_note(invoice) else "FACTURA")
+    pdf.drawString(right_inner_left, top_band_bottom - 24, fiscal_label)
+    pdf.setFont(FONT_BOLD, 11)
+    pdf.drawString(right_inner_left, top_band_bottom - 39, _formatted_document_number(invoice))
 
     info_y1 = top_band_bottom - 50
     info_y2 = top_band_bottom - 70
@@ -690,7 +780,7 @@ def _draw_fiscal_header(pdf: canvas.Canvas, invoice: dict, width: float, height:
 
     pdf.setFont(FONT_BOLD, 9)
     pdf.drawString(pos_label_x, info_y1, "Punto de Venta:")
-    pdf.drawString(pos_value_x, info_y1, f"{point_of_sale:05d}")
+    pdf.drawString(pos_value_x, info_y1, f"{point_of_sale:04d}"[-4:])
     pdf.drawString(comp_label_x, info_y1, "Comp. Nro:")
     pdf.drawRightString(comp_value_right, info_y1, invoice_number)
 
