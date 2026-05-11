@@ -327,26 +327,16 @@ def _draw_header(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
     _set_color(pdf, COLOR_TEXT)
     label = "Nota de Crédito" if _is_credit_note(invoice) else "Remito"
     right_x = width - MARGIN
-    date_text = _date(invoice.get("order_date") or invoice.get("date"))
-    number_text = _formatted_document_number(invoice).replace("N°.", "N°")
 
-    # Encabezado simple: leyenda, comprobante y fecha apilados a la derecha.
-    if not _is_credit_note(invoice):
-        pdf.setFont(FONT_BOLD, 10)
-        pdf.drawRightString(right_x, y - 4, "DOCUMENTO NO VALIDO COMO FACTURA")
-        title_y = y - 25
-    else:
-        title_y = y - 8
+    # Encabezado simple: logo a la izquierda, fecha en el lugar principal a la derecha.
+    pdf.setFont(FONT_BOLD, 14)
+    pdf.drawRightString(right_x, y - 6, f"Fecha de Emisión: {_date(invoice.get('order_date') or invoice.get('date'))}")
 
     pdf.setFont(FONT_BOLD, 17)
-    pdf.drawRightString(right_x, title_y, f"{label} {number_text}")
-
-    pdf.setFont(FONT_REGULAR, 12)
-    _set_color(pdf, COLOR_MUTED)
-    pdf.drawRightString(right_x, title_y - 18, f"Fecha de Emisión: {date_text}")
+    pdf.drawRightString(right_x, y - 28, f"{label} {_formatted_document_number(invoice)}")
 
     _set_color(pdf, COLOR_TEXT)
-    return y - 130
+    return y - 95
 
 
 def _draw_invoice_info(pdf: canvas.Canvas, invoice: dict, y: float) -> float:
@@ -386,28 +376,19 @@ def _draw_invoice_info(pdf: canvas.Canvas, invoice: dict, y: float) -> float:
     return y - 32
 
 def _table_columns(width: float) -> dict[str, float]:
-    """Columnas del remito con espacio reservado para importes largos.
-
-    - Producto mantiene un ancho cómodo sin alejar demasiado Cant.
-    - Precio y Total se alinean a la derecha para que los importes crezcan
-      hacia la izquierda sin invadir Dto.
-    - Dto. queda centrado y con más aire respecto de Total.
-    """
+    """Posiciones uniformes para las columnas numéricas del remito."""
     right = width - MARGIN - TABLE_INNER_PAD_X
     product_x = MARGIN + TABLE_INNER_PAD_X
-
-    cant_x = MARGIN + 238
-    precio_x = MARGIN + 323
-    dto_x = MARGIN + 368
-    total_x = right
-
+    numeric_left = MARGIN + 240
+    numeric_width = right - numeric_left
+    step = numeric_width / 4
     return {
         "product_x": product_x,
-        "product_width": cant_x - product_x - 34,
-        "cant_x": cant_x,
-        "precio_x": precio_x,
-        "dto_x": dto_x,
-        "total_x": total_x,
+        "product_width": numeric_left - product_x - 14,
+        "cant_x": numeric_left + (step * 0.5),
+        "precio_x": numeric_left + (step * 1.5),
+        "dto_x": numeric_left + (step * 2.5),
+        "total_x": right,
     }
 
 
@@ -443,12 +424,12 @@ def _draw_items_header(pdf: canvas.Canvas, width: float, y: float) -> float:
     pdf.setFillColorRGB(*COLOR_HEADER_BG)
     pdf.rect(MARGIN - TABLE_PAD_X, y - 12, width - (MARGIN * 2) + (TABLE_PAD_X * 2), 30, stroke=0, fill=1)
 
-    pdf.setFont(FONT_BOLD, 16)
+    pdf.setFont(FONT_BOLD, 15)
     _set_color(pdf, COLOR_TEXT)
 
     pdf.drawString(columns["product_x"], y, "Producto")
     pdf.drawCentredString(columns["cant_x"], y, "Cant.")
-    pdf.drawRightString(columns["precio_x"], y, "Precio")
+    pdf.drawCentredString(columns["precio_x"], y, "Precio")
     pdf.drawCentredString(columns["dto_x"], y, "Dto.")
     pdf.drawRightString(columns["total_x"], y, "Total")
 
@@ -475,7 +456,7 @@ def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: in
 
     pdf.drawString(columns["product_x"], y, label)
     pdf.drawCentredString(columns["cant_x"], y, format_quantity(item.get("quantity") or 0))
-    pdf.drawRightString(columns["precio_x"], y, _money(item.get("unit_price") or 0))
+    pdf.drawCentredString(columns["precio_x"], y, _money(item.get("unit_price") or 0))
     pdf.drawCentredString(columns["dto_x"], y, _item_discount_text(item))
     pdf.drawRightString(columns["total_x"], y, _money(item.get("total") or 0))
 
