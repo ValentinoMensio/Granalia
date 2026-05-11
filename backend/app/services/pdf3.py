@@ -522,9 +522,8 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
     y -= 14
     pdf.setFont(FONT_BOLD, SUMMARY_FONT_SIZE)
     _set_color(pdf, COLOR_TEXT)
-    columns = _table_columns(width)
     pdf.drawString(MARGIN + TABLE_INNER_PAD_X, y, "Bultos")
-    pdf.drawCentredString(columns["cant_x"], y, format_quantity(total_bultos))
+    pdf.drawRightString(MARGIN + 250, y, format_quantity(total_bultos))
 
     y -= 16
     _line(pdf, MARGIN, y, width - MARGIN)
