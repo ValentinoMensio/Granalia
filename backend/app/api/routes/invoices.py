@@ -252,8 +252,8 @@ def profile_from_invoice(invoice: dict) -> dict:
     }
 
 
-def money_int(value: object) -> int:
-    return int(Decimal(str(value or 0)).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+def money_decimal(value: object) -> Decimal:
+    return Decimal(str(value or 0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
 def empty_credit_note_snapshot(order: dict, profile: dict) -> dict:
@@ -268,7 +268,7 @@ def empty_credit_note_snapshot(order: dict, profile: dict) -> dict:
 def append_manual_credit_note_item(snapshot: dict, manual_item: object, *, fiscal: bool) -> None:
     if manual_item is None:
         return
-    amount = money_int(manual_item.amount)
+    amount = money_decimal(manual_item.amount)
     if amount <= 0:
         raise ValueError("El importe manual debe ser mayor a cero")
     iva_rate = manual_item.iva_rate if fiscal else None
@@ -284,20 +284,21 @@ def append_manual_credit_note_item(snapshot: dict, manual_item: object, *, fisca
         "discount_rate": 0,
         "label": manual_item.description,
         "quantity": 1,
-        "unit_price": amount,
-        "gross": amount,
+        "unit_price": int(amount.quantize(Decimal("1"), rounding=ROUND_HALF_UP)),
+        "gross": int(amount.quantize(Decimal("1"), rounding=ROUND_HALF_UP)),
         "discount": 0,
-        "total": amount,
+        "total": int(amount.quantize(Decimal("1"), rounding=ROUND_HALF_UP)),
     }
     if fiscal:
         rate = Decimal(str(iva_rate))
         row["iva_rate"] = float(rate)
-        row["net_amount"] = float(amount)
+        row["net_amount"] = amount
         row["iva_amount"] = float((Decimal(amount) * rate).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
         row["fiscal_total"] = float((Decimal(amount) * (Decimal("1") + rate)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
     snapshot["rows"].append(row)
-    snapshot["summary"]["gross_total"] = int(snapshot["summary"].get("gross_total") or 0) + amount
-    snapshot["summary"]["final_total"] = int(snapshot["summary"].get("final_total") or 0) + amount
+    rounded_amount = int(amount.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    snapshot["summary"]["gross_total"] = int(snapshot["summary"].get("gross_total") or 0) + rounded_amount
+    snapshot["summary"]["final_total"] = int(snapshot["summary"].get("final_total") or 0) + rounded_amount
     snapshot["summary"]["total_bultos"] = float(snapshot["summary"].get("total_bultos") or 0) + 1
 
 

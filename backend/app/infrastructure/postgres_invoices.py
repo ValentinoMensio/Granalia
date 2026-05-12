@@ -58,6 +58,11 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                 continue
             effective_discount = int(item.get("discount") or 0) + allocation
             effective_total = int(item.get("gross") or 0) - effective_discount
+            explicit_fiscal_values = all(item.get(field) is not None for field in ("net_amount", "iva_amount", "fiscal_total"))
+            item["effective_discount"] = effective_discount
+            item["effective_total"] = effective_total
+            if explicit_fiscal_values and not allocation:
+                continue
             net_amount = self._round_money(Decimal(str(effective_total)))
             iva_amount = self._round_money(net_amount * Decimal(str(item["iva_rate"])))
             item["net_amount"] = net_amount

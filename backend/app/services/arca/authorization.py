@@ -39,12 +39,18 @@ def build_arca_invoice_items(invoice: dict) -> list[ArcaInvoiceItem]:
         quantity = Decimal(str(item.get("quantity") or 0))
         if quantity <= 0:
             continue
-        unit_price = money_decimal(item.get("unit_price"))
-        gross = money_decimal(item.get("gross"))
-        net_amount = money_decimal(item.get("effective_total") if item.get("effective_total") is not None else item.get("net_amount") if item.get("net_amount") is not None else item.get("total"))
+        is_manual_fiscal_item = item.get("product_id") is None and item.get("net_amount") is not None
+        if is_manual_fiscal_item:
+            net_amount = money_decimal(item.get("net_amount"))
+        else:
+            net_amount = money_decimal(item.get("effective_total") if item.get("effective_total") is not None else item.get("net_amount") if item.get("net_amount") is not None else item.get("total"))
         iva_amount = money_decimal(item.get("iva_amount") if item.get("iva_amount") is not None else net_amount * Decimal(str(iva_rate)))
         fiscal_total = money_decimal(item.get("fiscal_total") if item.get("fiscal_total") is not None else net_amount + iva_amount)
-        discount_amount = money_decimal(item.get("effective_discount") if item.get("effective_discount") is not None else max(Decimal("0"), gross - net_amount))
+        unit_price = money_decimal((net_amount / quantity) if is_manual_fiscal_item else item.get("unit_price"))
+        gross = money_decimal(net_amount if is_manual_fiscal_item else item.get("gross"))
+        discount_amount = Decimal("0.00") if is_manual_fiscal_item else money_decimal(
+            item.get("effective_discount") if item.get("effective_discount") is not None else max(Decimal("0"), gross - net_amount)
+        )
         description = " ".join(str(part or "").strip() for part in (item.get("product_name"), item.get("offering_label")) if str(part or "").strip())
         items.append(
             ArcaInvoiceItem(

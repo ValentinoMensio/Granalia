@@ -632,13 +632,26 @@ def _issuer_data(invoice: dict) -> dict[str, str]:
 def _fiscal_item_values(item: dict) -> tuple[Decimal, Decimal, Decimal, Decimal, Decimal]:
     quantity = Decimal(str(item.get("quantity") or 0))
     unit_price = _decimal(item.get("unit_price") or 0)
-    gross = _decimal(item.get("gross") if item.get("gross") is not None else unit_price * quantity)
-    discount = _decimal(item.get("effective_discount") if item.get("effective_discount") is not None else item.get("discount") or 0)
-    net = _decimal(item.get("net_amount") if item.get("net_amount") is not None else item.get("effective_total") if item.get("effective_total") is not None else gross - discount)
+    is_manual_fiscal_item = item.get("product_id") is None and item.get("net_amount") is not None
+    if is_manual_fiscal_item:
+        net = _decimal(item.get("net_amount"))
+        gross = net
+        discount = Decimal("0.00")
+    else:
+        gross = _decimal(item.get("gross") if item.get("gross") is not None else unit_price * quantity)
+        discount = _decimal(item.get("effective_discount") if item.get("effective_discount") is not None else item.get("discount") or 0)
+        net = _decimal(item.get("net_amount") if item.get("net_amount") is not None else item.get("effective_total") if item.get("effective_total") is not None else gross - discount)
     iva_rate = Decimal(str(item.get("iva_rate") or 0))
     iva = _decimal(item.get("iva_amount") if item.get("iva_amount") is not None else net * iva_rate)
     total = _decimal(item.get("fiscal_total") if item.get("fiscal_total") is not None else net + iva)
     return gross, discount, net, iva, total
+
+
+def _fiscal_unit_price(item: dict, net: Decimal) -> Decimal:
+    quantity = Decimal(str(item.get("quantity") or 0))
+    if item.get("product_id") is None and item.get("net_amount") is not None and quantity > 0:
+        return (net / quantity).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    return _decimal(item.get("unit_price") or 0)
 
 
 def _fiscal_tax_breakdown(invoice: dict) -> list[dict[str, Decimal]]:
@@ -926,6 +939,7 @@ def _draw_fiscal_items_header(pdf: canvas.Canvas, width: float, y: float) -> flo
 def _draw_fiscal_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: int) -> float:
     gross, discount, net, _iva, total = _fiscal_item_values(item)
     discount_rate = (discount / gross) if gross else Decimal("0")
+    unit_price = _fiscal_unit_price(item, net)
     iva_rate = Decimal(str(item.get("iva_rate") or 0))
     left = 15
     right = width - 15
@@ -935,7 +949,7 @@ def _draw_fiscal_item(pdf: canvas.Canvas, item: dict, width: float, y: float, in
     pdf.drawString(left + 43, y, _truncate(str(item.get("label") or ""), FONT_REGULAR, 8, 175))
     pdf.drawRightString(left + 266, y, _fiscal_amount(item.get("quantity") or 0))
     pdf.drawString(left + 286, y, _invoice_unit(item))
-    pdf.drawRightString(left + 376, y, _fiscal_amount(item.get("unit_price") or 0))
+    pdf.drawRightString(left + 376, y, _fiscal_amount(unit_price))
     pdf.drawRightString(left + 411, y, _fiscal_amount(discount_rate * Decimal("100")))
     pdf.drawRightString(left + 475, y, _fiscal_amount(net))
     pdf.drawRightString(left + 510, y, _fiscal_percent_display(iva_rate))
