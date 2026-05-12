@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 from datetime import date, timedelta
+from decimal import Decimal, ROUND_HALF_UP
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
@@ -155,6 +156,9 @@ def fiscalize_snapshot(snapshot: dict, catalog: list[dict]) -> dict:
     rows = []
     for row in snapshot.get("rows", []):
         next_row = dict(row)
+        if row.get("product_id") is None and row.get("iva_rate") is not None:
+            rows.append(next_row)
+            continue
         product = products_by_id.get(str(row.get("product_id") or ""))
         if not product:
             raise ValueError(f"Producto fiscal no encontrado para {row.get('product_name') or row.get('label')}")
@@ -248,6 +252,55 @@ def profile_from_invoice(invoice: dict) -> dict:
     }
 
 
+def money_int(value: object) -> int:
+    return int(Decimal(str(value or 0)).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+
+def empty_credit_note_snapshot(order: dict, profile: dict) -> dict:
+    return {
+        "rows": [],
+        "summary": {"gross_total": 0, "discount_total": 0, "final_total": 0, "total_bultos": 0},
+        "order": order,
+        "profile": profile,
+    }
+
+
+def append_manual_credit_note_item(snapshot: dict, manual_item: object, *, fiscal: bool) -> None:
+    if manual_item is None:
+        return
+    amount = money_int(manual_item.amount)
+    if amount <= 0:
+        raise ValueError("El importe manual debe ser mayor a cero")
+    iva_rate = manual_item.iva_rate if fiscal else None
+    if fiscal and iva_rate is None:
+        raise ValueError("Seleccioná la alícuota de IVA para el concepto manual")
+    row = {
+        "product_id": None,
+        "offering_id": None,
+        "product_name": "",
+        "offering_label": "",
+        "offering_net_weight_kg": 0,
+        "line_type": "sale",
+        "discount_rate": 0,
+        "label": manual_item.description,
+        "quantity": 1,
+        "unit_price": amount,
+        "gross": amount,
+        "discount": 0,
+        "total": amount,
+    }
+    if fiscal:
+        rate = Decimal(str(iva_rate))
+        row["iva_rate"] = float(rate)
+        row["net_amount"] = float(amount)
+        row["iva_amount"] = float((Decimal(amount) * rate).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+        row["fiscal_total"] = float((Decimal(amount) * (Decimal("1") + rate)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+    snapshot["rows"].append(row)
+    snapshot["summary"]["gross_total"] = int(snapshot["summary"].get("gross_total") or 0) + amount
+    snapshot["summary"]["final_total"] = int(snapshot["summary"].get("final_total") or 0) + amount
+    snapshot["summary"]["total_bultos"] = float(snapshot["summary"].get("total_bultos") or 0) + 1
+
+
 def build_credit_note_order(invoice: dict, payload: CreditNoteRequest, credited_quantities: dict[int, float]) -> tuple[dict, dict]:
     items_by_id = {int(item["id"]): item for item in invoice.get("items", [])}
     credit_items = []
@@ -272,7 +325,7 @@ def build_credit_note_order(invoice: dict, payload: CreditNoteRequest, credited_
         })
         if source_item.get("iva_rate") is not None:
             iva_by_key[(str(source_item.get("product_id") or ""), str(source_item.get("offering_id") or ""))] = float(source_item["iva_rate"])
-    if not credit_items:
+    if not credit_items and payload.manual_item is None:
         raise ValueError("Seleccioná al menos una línea para acreditar")
     order = {
         "client_name": invoice["client_name"],
@@ -523,9 +576,12 @@ def create_credit_note(invoice_id: int, payload: CreditNoteRequest, _: str = Dep
         profile = profile_from_invoice(invoice)
         catalog = repository.get_catalog_for_price_list(int(order["price_list_id"])) if order.get("price_list_id") else repository.get_active_catalog()
         catalog = catalog_with_invoice_history(catalog, invoice, order)
-        snapshot = generate_invoice_document(order, profile, catalog)
+        snapshot = generate_invoice_document(order, profile, catalog) if order.get("items") else empty_credit_note_snapshot(order, profile)
+        append_manual_credit_note_item(snapshot, payload.manual_item, fiscal=is_fiscal_invoice(invoice))
         if is_fiscal_invoice(invoice):
             for row in snapshot.get("rows", []):
+                if row.get("product_id") is None and row.get("iva_rate") is not None:
+                    continue
                 key = (str(row.get("product_id") or ""), str(row.get("offering_id") or ""))
                 iva_rate = iva_by_key.get(key)
                 if iva_rate is None:
@@ -542,7 +598,7 @@ def create_credit_note(invoice_id: int, payload: CreditNoteRequest, _: str = Dep
             related_invoice_id=invoice_id,
             credit_reason=payload.reason,
         )
-        if not is_fiscal_invoice(invoice):
+        if not is_fiscal_invoice(invoice) and payload.items:
             items_by_id = {int(source_item["id"]): source_item for source_item in invoice.get("items", [])}
             repository.save_credit_note_item_sources(
                 credit_note_id,

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 MAX_NAME_LENGTH = 255
@@ -182,12 +182,37 @@ class CreditNoteItemInput(BaseModel):
     quantity: float = Field(gt=0)
 
 
+class CreditNoteManualItemInput(BaseModel):
+    description: NonEmptyStr
+    amount: float = Field(gt=0)
+    iva_rate: float | None = None
+
+    _normalize_description = field_validator("description")(_strip_required)
+
+    @field_validator("iva_rate")
+    @classmethod
+    def validate_iva_rate(cls, value: float | None) -> float | None:
+        if value is None:
+            return None
+        numeric = round(float(value), 3)
+        if numeric not in (0.105, 0.21):
+            raise ValueError("iva_rate must be 0.105 or 0.21")
+        return numeric
+
+
 class CreditNoteRequest(BaseModel):
     date: str = Field(min_length=10, max_length=10)
     reason: NonEmptyStr
-    items: list[CreditNoteItemInput] = Field(min_length=1, max_length=MAX_INVOICE_ITEMS)
+    items: list[CreditNoteItemInput] = Field(default_factory=list, max_length=MAX_INVOICE_ITEMS)
+    manual_item: CreditNoteManualItemInput | None = None
 
     _normalize_reason = field_validator("reason")(_strip_required)
+
+    @model_validator(mode="after")
+    def validate_credit_note_content(self) -> "CreditNoteRequest":
+        if not self.items and self.manual_item is None:
+            raise ValueError("Seleccioná productos o cargá un concepto manual")
+        return self
 
 
 class TransportUpsert(BaseModel):

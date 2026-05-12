@@ -722,6 +722,8 @@ def _fiscal_amount(value: object, *, currency: bool = False) -> str:
 
 
 def _invoice_unit(item: dict) -> str:
+    if item.get("product_id") is None:
+        return "otras unidades"
     return str(item.get("unit") or item.get("uom") or item.get("unit_label") or "packs").lower()
 
 

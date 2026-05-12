@@ -124,6 +124,9 @@ export default function InvoiceHistory() {
   const [creditNoteTarget, setCreditNoteTarget] = useState(null)
   const [creditNoteQuantities, setCreditNoteQuantities] = useState({})
   const [creditNoteReason, setCreditNoteReason] = useState('Devolución de productos')
+  const [creditNoteManualDescription, setCreditNoteManualDescription] = useState('')
+  const [creditNoteManualAmount, setCreditNoteManualAmount] = useState('')
+  const [creditNoteManualIvaRate, setCreditNoteManualIvaRate] = useState('0.21')
   const [creditNoteDate, setCreditNoteDate] = useState(new Date().toLocaleDateString('en-CA'))
   const [creditNoteError, setCreditNoteError] = useState('')
   const [creatingCreditNote, setCreatingCreditNote] = useState(false)
@@ -241,6 +244,9 @@ export default function InvoiceHistory() {
       setCreditNoteTarget(detail)
       setCreditNoteQuantities({})
       setCreditNoteReason('Devolución de productos')
+      setCreditNoteManualDescription('')
+      setCreditNoteManualAmount('')
+      setCreditNoteManualIvaRate('0.21')
       setCreditNoteDate(todayKey)
     } finally {
       setLoadingDetail(false)
@@ -251,6 +257,9 @@ export default function InvoiceHistory() {
     if (creatingCreditNote) return
     setCreditNoteTarget(null)
     setCreditNoteQuantities({})
+    setCreditNoteManualDescription('')
+    setCreditNoteManualAmount('')
+    setCreditNoteManualIvaRate('0.21')
     setCreditNoteError('')
   }
 
@@ -266,18 +275,43 @@ export default function InvoiceHistory() {
   }
 
   function creditNoteEstimatedTotal() {
-    return creditNoteSelectedItems().reduce((sum, { item, quantity }) => {
+    const selectedTotal = creditNoteSelectedItems().reduce((sum, { item, quantity }) => {
       const ratio = Number(item.quantity || 0) > 0 ? quantity / Number(item.quantity || 0) : 0
       return sum + itemFiscalTotal(item) * ratio
     }, 0)
+    const manualAmount = Number(creditNoteManualAmount || 0)
+    if (manualAmount <= 0) return selectedTotal
+    if (isFiscalInvoice(creditNoteTarget)) return selectedTotal + manualAmount * (1 + Number(creditNoteManualIvaRate || 0))
+    return selectedTotal + manualAmount
+  }
+
+  function manualCreditNoteItemPayload() {
+    const description = creditNoteManualDescription.trim()
+    const amount = Number(creditNoteManualAmount || 0)
+    if (!description && amount <= 0) return null
+    if (!description || amount <= 0) {
+      throw new Error('Completá descripción e importe del concepto manual.')
+    }
+    return {
+      description,
+      amount,
+      iva_rate: isFiscalInvoice(creditNoteTarget) ? Number(creditNoteManualIvaRate || 0) : null,
+    }
   }
 
   async function handleCreateCreditNote(event) {
     event.preventDefault()
     if (!creditNoteTarget) return
     const selectedItems = creditNoteSelectedItems()
-    if (!selectedItems.length) {
-      setCreditNoteError('Ingresá al menos una cantidad a acreditar.')
+    let manualItem = null
+    try {
+      manualItem = manualCreditNoteItemPayload()
+    } catch (error) {
+      setCreditNoteError(error.message)
+      return
+    }
+    if (!selectedItems.length && !manualItem) {
+      setCreditNoteError('Ingresá al menos una cantidad o un concepto manual a acreditar.')
       return
     }
     setCreatingCreditNote(true)
@@ -287,6 +321,7 @@ export default function InvoiceHistory() {
         date: creditNoteDate,
         reason: creditNoteReason,
         items: selectedItems.map(({ item, quantity }) => ({ invoice_item_id: item.id, quantity })),
+        manual_item: manualItem,
       })
       closeCreditNoteModal()
     } catch (error) {
@@ -864,6 +899,44 @@ export default function InvoiceHistory() {
                 </div>
               ))}
             </div>
+
+            <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
+              <div className="text-sm font-bold text-brand-ink">Concepto manual</div>
+              <p className="mt-1 text-xs text-slate-500">
+                Usalo para acreditar un importe escrito como línea de la nota, por ejemplo un descuento extra o ajuste comercial.
+              </p>
+              <div className={`mt-3 grid gap-3 ${isFiscalInvoice(creditNoteTarget) ? 'sm:grid-cols-[1fr_150px_130px]' : 'sm:grid-cols-[1fr_150px]'}`}>
+                <input
+                  className="input"
+                  value={creditNoteManualDescription}
+                  onChange={(event) => setCreditNoteManualDescription(event.target.value)}
+                  placeholder="Descripción / producto-servicio"
+                />
+                <input
+                  className="input"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={creditNoteManualAmount}
+                  onChange={(event) => setCreditNoteManualAmount(event.target.value)}
+                  placeholder={isFiscalInvoice(creditNoteTarget) ? 'Neto sin IVA' : 'Importe'}
+                />
+                {isFiscalInvoice(creditNoteTarget) ? (
+                  <select className="input" value={creditNoteManualIvaRate} onChange={(event) => setCreditNoteManualIvaRate(event.target.value)}>
+                    <option value="0.21">IVA 21%</option>
+                    <option value="0.105">IVA 10,5%</option>
+                  </select>
+                ) : null}
+              </div>
+              {Number(creditNoteManualAmount || 0) > 0 ? (
+                <div className="mt-2 text-xs text-slate-600">
+                  {isFiscalInvoice(creditNoteTarget)
+                    ? `Total con IVA: $${fiscalMoney(Number(creditNoteManualAmount || 0) * (1 + Number(creditNoteManualIvaRate || 0)))}`
+                    : `Total a acreditar: $${money(Number(creditNoteManualAmount || 0))}`}
+                </div>
+              ) : null}
+            </div>
+
             <div className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-sm font-semibold text-brand-ink">
               Importe estimado a acreditar: ${isFiscalInvoice(creditNoteTarget) ? fiscalMoney(creditNoteEstimatedTotal()) : money(creditNoteEstimatedTotal())}
             </div>
