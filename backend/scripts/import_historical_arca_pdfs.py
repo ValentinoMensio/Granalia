@@ -502,6 +502,28 @@ def item_gross(item: HistoricalInvoiceItem) -> Decimal:
     return (item.quantity * item.unit_price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
+def item_net_weight_kg(label: str) -> Decimal:
+    text = label.lower().replace(",", ".")
+    match = re.search(r"\b(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)\s*(kg|kgs|kilo|kilos|gr|g)\b", text)
+    if match:
+        units = Decimal(match.group(1))
+        amount = Decimal(match.group(2))
+        unit = match.group(3)
+        if unit in {"gr", "g"}:
+            amount = amount / Decimal("1000")
+        return (units * amount).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
+
+    match = re.search(r"\bx\s*(\d+(?:\.\d+)?)\s*(kg|kgs|kilo|kilos|gr|g)\b", text)
+    if match:
+        amount = Decimal(match.group(1))
+        unit = match.group(2)
+        if unit in {"gr", "g"}:
+            amount = amount / Decimal("1000")
+        return amount.quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
+
+    return Decimal("0.000")
+
+
 def invoice_gross_total(invoice: HistoricalInvoice) -> int:
     if not invoice.items:
         return money_int(net_total(invoice))
@@ -729,7 +751,7 @@ def insert_historical_invoice(repo: PostgresRepository, connection, invoice: His
                     offering_id=None,
                     product_name=item.label,
                     offering_label="",
-                    offering_net_weight_kg=0,
+                    offering_net_weight_kg=item_net_weight_kg(item.label),
                     line_type="sale",
                     discount_rate=item.discount_rate,
                     label=item.label,
