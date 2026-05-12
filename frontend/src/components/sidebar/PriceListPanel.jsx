@@ -8,17 +8,8 @@ function formatDate(value) {
   return text || '-'
 }
 
-function PriceListPanel({ bootstrap, priceListUploadName, priceListUploadTargetId, preview, uploading, onActivate, onDelete, onRename, onFileChange, onUpload, onManual, onUploadNameChange, onUploadTargetChange, onPreviewPriceChange, onCancelPreview, onCommitPreview }) {
+function PriceListPanel({ bootstrap, priceListUploadName, priceListUploadTargetId, uploading, onActivate, onDelete, onRename, onFileChange, onUpload, onManual, onUploadNameChange, onUploadTargetChange }) {
   const versions = bootstrap?.price_list_versions || []
-  const warnings = preview?.warnings || []
-
-  function warningFor(product, offering) {
-    return warnings.find((warning) => (
-      String(warning.product_id) === String(product.id) &&
-      (offering ? (!warning.offering_label || warning.offering_label === offering.label) : !warning.offering_label)
-    ))
-  }
-
   return (
     <Panel title="Lista de precios">
       <input className="input text-xs file:mr-3 file:rounded-lg file:border-0 file:bg-brand-red file:px-3 file:py-2 file:text-sm file:font-medium file:text-white file:cursor-pointer sm:text-sm" type="file" accept="application/pdf" onChange={(event) => onFileChange(event.target.files?.[0] || null)} />
@@ -46,64 +37,9 @@ function PriceListPanel({ bootstrap, priceListUploadName, priceListUploadTargetI
       <Button variant="secondary" className="mt-2 w-full justify-center" onClick={onManual} disabled={uploading}>
         Cargar precios manualmente
       </Button>
-      {preview ? (
-        <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-3">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <div className="text-sm font-bold text-amber-900">Preview editable</div>
-              <div className="text-xs text-amber-800">Los productos o presentaciones ausentes del PDF se conservan y quedan resaltados.</div>
-            </div>
-            <div className="flex gap-2">
-              <Button variant="ghost" onClick={onCancelPreview} disabled={uploading}>Cancelar</Button>
-              <Button variant="primary" onClick={onCommitPreview} disabled={uploading}>Guardar lista</Button>
-            </div>
-          </div>
-          {warnings.length > 0 ? (
-            <div className="mt-3 max-h-28 space-y-1 overflow-y-auto text-xs text-amber-800">
-              {warnings.map((warning, index) => (
-                <div key={`${warning.kind}-${warning.product_id}-${warning.offering_label || 'product'}-${index}`}>
-                  <span className="font-semibold">{warning.product_name}</span>{warning.offering_label ? ` / ${warning.offering_label}` : ''}: {warning.message}
-                </div>
-              ))}
-            </div>
-          ) : null}
-          <div className="mt-4 max-h-[34rem] overflow-auto rounded-xl border border-amber-200 bg-white">
-            <table className="min-w-full text-xs">
-              <thead className="sticky top-0 bg-slate-100 text-left uppercase tracking-[0.08em] text-slate-500">
-                <tr>
-                  <th className="px-3 py-2">Producto</th>
-                  <th className="px-3 py-2">Presentación</th>
-                  <th className="px-3 py-2">Precio</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(preview.catalog || []).flatMap((product, productIndex) => {
-                  const productWarning = warningFor(product)
-                  return (product.offerings || []).map((offering, offeringIndex) => {
-                    const offeringWarning = warningFor(product, offering)
-                    const highlighted = productWarning || offeringWarning
-                    return (
-                      <tr key={`${product.id}-${offering.id || offering.label}-${offeringIndex}`} className={highlighted ? 'bg-amber-50' : ''} title={offeringWarning?.message || productWarning?.message || ''}>
-                        <td className="border-t border-slate-100 px-3 py-2 font-medium text-slate-700">{product.name}</td>
-                        <td className="border-t border-slate-100 px-3 py-2 text-slate-600">{offering.label}</td>
-                        <td className="border-t border-slate-100 px-3 py-2">
-                          <input
-                            className="input h-9 w-28 text-right"
-                            type="number"
-                            min="0"
-                            value={offering.price}
-                            onChange={(event) => onPreviewPriceChange(productIndex, offeringIndex, event.target.value)}
-                          />
-                        </td>
-                      </tr>
-                    )
-                  })
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ) : null}
+      <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+        La previsualización se abre en una pestaña nueva con formato de tabla para revisar, editar e imprimir antes de guardar.
+      </div>
       <div className="mt-3 text-xs text-slate-500">
         Activa: <span className="font-medium text-slate-700">{bootstrap?.price_list?.name || bootstrap?.price_list?.filename || 'Sin lista cargada'}</span>
       </div>

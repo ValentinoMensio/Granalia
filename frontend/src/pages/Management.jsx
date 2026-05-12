@@ -14,7 +14,7 @@ function ivaRateLabel(value) {
 }
 
 export default function Management() {
-  const { setStatus, customers, bootstrap, catalog, priceListUploadName, priceListUploadTargetId, priceListPreview, uploading, setPdfFile, setPriceListUploadName, setPriceListUploadTargetId, uploadPriceList, startManualPriceList, updatePriceListPreviewPrice, clearPriceListPreview, commitPriceListPreview, deletePriceList, renamePriceList, activatePriceList, refreshAll } = useGranalia()
+  const { setStatus, customers, bootstrap, catalog, priceListUploadName, priceListUploadTargetId, uploading, setPdfFile, setPriceListUploadName, setPriceListUploadTargetId, uploadPriceList, startManualPriceList, deletePriceList, renamePriceList, activatePriceList, refreshAll } = useGranalia()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const requestedTab = searchParams.get('tab')
@@ -409,7 +409,6 @@ export default function Management() {
               priceListUploadName={priceListUploadName}
               priceListUploadTargetId={priceListUploadTargetId}
               uploading={uploading}
-              preview={priceListPreview}
               onDelete={handleDeletePriceList}
               onRename={handleRenamePriceList}
               onActivate={handleActivatePriceList}
@@ -418,9 +417,6 @@ export default function Management() {
               onUploadTargetChange={setPriceListUploadTargetId}
               onUpload={uploadPriceList}
               onManual={startManualPriceList}
-              onPreviewPriceChange={updatePriceListPreviewPrice}
-              onCancelPreview={clearPriceListPreview}
-              onCommitPreview={commitPriceListPreview}
             />
           </div>
         )}

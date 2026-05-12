@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { API_BASE, request } from '../../lib/api'
 import { emptyItem } from '../../lib/format'
+import { openPriceListPreviewTab, savePriceListPreview } from '../../lib/priceListPreview'
 import { createInitialForm } from './form'
 import {
   applyCustomerToForm,
@@ -54,7 +55,6 @@ function useGranaliaData() {
   const [pdfFile, setPdfFile] = useState(null)
   const [priceListUploadName, setPriceListUploadName] = useState('')
   const [priceListUploadTargetId, setPriceListUploadTargetId] = useState('')
-  const [priceListPreview, setPriceListPreview] = useState(null)
   const [form, setForm] = useState(createInitialForm)
 
   const productsById = useMemo(() => buildProductsById(catalog), [catalog])
@@ -75,6 +75,16 @@ function useGranaliaData() {
 
   useEffect(() => {
     loadAll().catch((error) => setStatus(error.message))
+  }, [])
+
+  useEffect(() => {
+    function handleStorage(event) {
+      if (event.key === 'granalia:price-list-saved-at') {
+        loadAll().catch((error) => setStatus(error.message))
+      }
+    }
+    window.addEventListener('storage', handleStorage)
+    return () => window.removeEventListener('storage', handleStorage)
   }, [])
 
   function applyBootstrap(nextBootstrap) {
@@ -537,6 +547,11 @@ function useGranaliaData() {
     }
 
     setUploading(true)
+    const previewWindow = window.open('', '_blank')
+    if (previewWindow) {
+      previewWindow.document.title = 'Generando preview...'
+      previewWindow.document.body.innerHTML = '<p style="font-family: sans-serif; padding: 24px;">Generando previsualización de lista de precios...</p>'
+    }
     try {
       const formData = new FormData()
       formData.append('file', pdfFile)
@@ -549,13 +564,19 @@ function useGranaliaData() {
         formData.append('price_list_id', priceListUploadTargetId)
       }
       const data = await request('/api/price-lists/preview', { method: 'POST', body: formData })
-      setPriceListPreview({
+      savePriceListPreview({
         ...data,
         filename: pdfFile.name,
+        name: uploadName,
         source: 'upload',
         targetId: priceListUploadTargetId,
       })
-      setStatus('Preview generado. Revisá y confirmá la lista antes de guardar.')
+      const opened = openPriceListPreviewTab(previewWindow)
+      setStatus(opened ? 'Preview generado en una pestaña nueva.' : 'Preview generado. Permití ventanas emergentes para verlo en una pestaña nueva.')
+    } catch (error) {
+      if (previewWindow && !previewWindow.closed) previewWindow.close()
+      setStatus(`Error al generar preview: ${error.message}`)
+      throw error
     } finally {
       setUploading(false)
     }
@@ -563,71 +584,29 @@ function useGranaliaData() {
 
   async function startManualPriceList() {
     setUploading(true)
+    const previewWindow = window.open('', '_blank')
+    if (previewWindow) {
+      previewWindow.document.title = 'Generando preview...'
+      previewWindow.document.body.innerHTML = '<p style="font-family: sans-serif; padding: 24px;">Preparando carga manual...</p>'
+    }
     try {
       const targetCatalog = priceListUploadTargetId
         ? await request(`/api/price-lists/${priceListUploadTargetId}/catalog`)
         : catalog
-      setPriceListPreview({
+      savePriceListPreview({
         catalog: ensureX1KgOfferings(targetCatalog),
         warnings: [],
         filename: 'lista-manual.pdf',
+        name: priceListUploadName.trim(),
         source: 'manual',
         targetId: priceListUploadTargetId,
       })
-      setStatus('Carga manual iniciada. Editá los precios y confirmá para guardar.')
-    } finally {
-      setUploading(false)
-    }
-  }
-
-  function updatePriceListPreviewPrice(productIndex, offeringIndex, value) {
-    const price = Math.max(0, Number(value || 0))
-    setPriceListPreview((current) => {
-      if (!current) return current
-      const nextCatalog = current.catalog.map((product, pIndex) => {
-        if (pIndex !== productIndex) return product
-        return {
-          ...product,
-          offerings: (product.offerings || []).map((offering, oIndex) => (
-            oIndex === offeringIndex ? { ...offering, price } : offering
-          )),
-        }
-      })
-      return { ...current, catalog: nextCatalog }
-    })
-  }
-
-  function clearPriceListPreview() {
-    setPriceListPreview(null)
-  }
-
-  async function commitPriceListPreview() {
-    if (!priceListPreview?.catalog?.length) {
-      setStatus('No hay preview para guardar.')
-      return
-    }
-    setUploading(true)
-    try {
-      const uploadName = priceListUploadName.trim()
-      const data = await request('/api/price-lists/commit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: uploadName || '',
-          filename: priceListPreview.filename || 'lista-manual.pdf',
-          price_list_id: priceListPreview.targetId || null,
-          activate: true,
-          source: priceListPreview.source || 'manual',
-          catalog: priceListPreview.catalog,
-        }),
-      })
-      applyBootstrap(data.bootstrap)
-      setForm((current) => ({ ...current, priceListId: data.bootstrap?.price_list?.id ? String(data.bootstrap.price_list.id) : current.priceListId }))
-      setStatus('Lista de precios actualizada en la base.')
-      setPdfFile(null)
-      setPriceListUploadName('')
-      setPriceListUploadTargetId('')
-      setPriceListPreview(null)
+      const opened = openPriceListPreviewTab(previewWindow)
+      setStatus(opened ? 'Carga manual abierta en una pestaña nueva.' : 'Carga manual preparada. Permití ventanas emergentes para verla en una pestaña nueva.')
+    } catch (error) {
+      if (previewWindow && !previewWindow.closed) previewWindow.close()
+      setStatus(`Error al preparar carga manual: ${error.message}`)
+      throw error
     } finally {
       setUploading(false)
     }
@@ -749,7 +728,6 @@ function useGranaliaData() {
     pdfFile,
     priceListUploadName,
     priceListUploadTargetId,
-    priceListPreview,
     form,
     productsById,
     totals,
@@ -784,9 +762,6 @@ function useGranaliaData() {
     updateCustomer,
     uploadPriceList,
     startManualPriceList,
-    updatePriceListPreviewPrice,
-    clearPriceListPreview,
-    commitPriceListPreview,
     deletePriceList,
     renamePriceList,
     activatePriceList,

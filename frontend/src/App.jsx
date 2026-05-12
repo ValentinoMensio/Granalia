@@ -12,6 +12,7 @@ import Management from './pages/Management'
 import CustomerEditor from './pages/CustomerEditor'
 import ProductEditor from './pages/ProductEditor'
 import TransportEditor from './pages/TransportEditor'
+import PriceListPreview from './pages/PriceListPreview'
 
 class AppErrorBoundary extends Component {
   state = { error: null }
@@ -49,6 +50,7 @@ function AppLayout() {
         <Route path="/history" element={<InvoiceHistory />} />
         <Route path="/history/stats" element={isAdmin ? <InvoiceStats /> : <Navigate to="/history" replace />} />
         <Route path="/management" element={isAdmin ? <Management /> : <Navigate to="/history" replace />} />
+        <Route path="/price-list-preview" element={isAdmin ? <PriceListPreview /> : <Navigate to="/history" replace />} />
         <Route path="/customers/new" element={isAdmin ? <CustomerEditor /> : <Navigate to="/history" replace />} />
         <Route path="/customers/:id" element={isAdmin ? <CustomerEditor /> : <Navigate to="/history" replace />} />
         <Route path="/products/new" element={isAdmin ? <ProductEditor /> : <Navigate to="/history" replace />} />

@@ -49,6 +49,17 @@
   }
 }
 
+@media print {
+  @page {
+    size: landscape;
+    margin: 8mm;
+  }
+
+  body {
+    background: white !important;
+  }
+}
+
 @layer components {
   .app-shell {
     @apply mx-auto w-full max-w-[1540px] px-3 py-3 sm:px-4 sm:py-4 lg:px-6;
