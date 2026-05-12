@@ -18,14 +18,4 @@ function clearPriceListPreview() {
   window.localStorage.removeItem(PRICE_LIST_PREVIEW_STORAGE_KEY)
 }
 
-function openPriceListPreviewTab(previewWindow = null) {
-  const url = `${window.location.origin}/price-list-preview`
-  if (previewWindow && !previewWindow.closed) {
-    previewWindow.location.href = url
-    previewWindow.focus()
-    return true
-  }
-  return Boolean(window.open(url, '_blank'))
-}
-
-export { clearPriceListPreview, loadPriceListPreview, openPriceListPreviewTab, savePriceListPreview }
+export { clearPriceListPreview, loadPriceListPreview, savePriceListPreview }

@@ -10,15 +10,26 @@ function formatDate(value) {
 
 function PriceListPanel({ bootstrap, priceListUploadName, priceListUploadTargetId, uploading, onActivate, onDelete, onRename, onFileChange, onUpload, onManual, onUploadNameChange, onUploadTargetChange }) {
   const versions = bootstrap?.price_list_versions || []
+  const priceLists = bootstrap?.price_lists || []
+
+  function handleTargetChange(value) {
+    onUploadTargetChange(value)
+    const selected = priceLists.find((priceList) => String(priceList.id) === String(value))
+    onUploadNameChange(selected?.name || '')
+  }
+
   return (
     <Panel title="Lista de precios">
-      <input className="input text-xs file:mr-3 file:rounded-lg file:border-0 file:bg-brand-red file:px-3 file:py-2 file:text-sm file:font-medium file:text-white file:cursor-pointer sm:text-sm" type="file" accept="application/pdf" onChange={(event) => onFileChange(event.target.files?.[0] || null)} />
+      <Button variant="secondary" className="w-full justify-center" onClick={onManual} disabled={uploading}>
+        Cargar precios manualmente
+      </Button>
+
       <label className="mt-3 block text-xs font-bold uppercase tracking-[0.12em] text-slate-400">
         Reemplazar lista
       </label>
-      <select className="input mt-1" value={priceListUploadTargetId} onChange={(event) => onUploadTargetChange(event.target.value)}>
+      <select className="input mt-1" value={priceListUploadTargetId} onChange={(event) => handleTargetChange(event.target.value)}>
         <option value="">Crear nueva lista</option>
-        {(bootstrap?.price_lists || []).map((priceList) => (
+        {priceLists.map((priceList) => (
           <option key={priceList.id} value={priceList.id}>Reemplazar: {priceList.name}</option>
         ))}
       </select>
@@ -31,21 +42,23 @@ function PriceListPanel({ bootstrap, priceListUploadName, priceListUploadTargetI
         onChange={(event) => onUploadNameChange(event.target.value)}
         placeholder={priceListUploadTargetId ? 'Mantener nombre actual' : 'Ej: Mayorista Abril'}
       />
+
+      <div className="my-4 border-t border-slate-200 pt-4">
+        <div className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-400">Carga desde archivo</div>
+        <input className="input text-xs file:mr-3 file:rounded-lg file:border-0 file:bg-brand-red file:px-3 file:py-2 file:text-sm file:font-medium file:text-white file:cursor-pointer sm:text-sm" type="file" accept="application/pdf" onChange={(event) => onFileChange(event.target.files?.[0] || null)} />
+      </div>
       <Button variant="primary" className="mt-3 w-full justify-center" onClick={onUpload} disabled={uploading}>
         {uploading ? 'Procesando...' : 'Previsualizar PDF'}
       </Button>
-      <Button variant="secondary" className="mt-2 w-full justify-center" onClick={onManual} disabled={uploading}>
-        Cargar precios manualmente
-      </Button>
       <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
-        La previsualización se abre en una pestaña nueva con formato de tabla para revisar, editar e imprimir antes de guardar.
+        La previsualización se abre en esta misma pestaña con formato de tabla para revisar, editar e imprimir antes de guardar.
       </div>
       <div className="mt-3 text-xs text-slate-500">
         Activa: <span className="font-medium text-slate-700">{bootstrap?.price_list?.name || bootstrap?.price_list?.filename || 'Sin lista cargada'}</span>
       </div>
       <div className="mt-3 space-y-1 text-xs text-slate-500">
         <div className="font-bold uppercase tracking-[0.12em] text-slate-400">Listas</div>
-        {(bootstrap?.price_lists || []).map((priceList) => (
+        {priceLists.map((priceList) => (
           <div key={priceList.id} className="flex items-center gap-10">
             <span className="min-w-0 truncate text-slate-700">{priceList.name}</span>
             <div className="flex shrink-0 items-center gap-4">

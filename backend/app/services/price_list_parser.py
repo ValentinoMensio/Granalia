@@ -170,6 +170,35 @@ def _build_offerings(formats: list[str], numbers: list[int]) -> list[CatalogOffe
     return offerings
 
 
+def _spec_id_for_product(product: CatalogProduct) -> str | None:
+    normalized_product_names = {
+        normalize_text(product.name),
+        *(normalize_text(alias) for alias in product.aliases),
+    }
+    canonical_name = PRODUCT_NAME_ALIASES.get(product.name, product.name)
+    for product_name, data in PRODUCT_SPECS.items():
+        if (
+            normalize_text(product_name) in normalized_product_names
+            or normalize_text(canonical_name) == normalize_text(product_name)
+            or data["id"] == str(product.id)
+        ):
+            return data["id"]
+    return None
+
+
+def _sort_catalog_by_import_order(catalog: list[CatalogProduct], detected_order: list[str]) -> list[CatalogProduct]:
+    default_order = [spec["id"] for spec in PRODUCT_SPECS.values()]
+    ordered_ids = [*detected_order, *(spec_id for spec_id in default_order if spec_id not in detected_order)]
+    order_index = {spec_id: index for index, spec_id in enumerate(ordered_ids)}
+    return [
+        product
+        for _index, product in sorted(
+            enumerate(catalog),
+            key=lambda item: (order_index.get(_spec_id_for_product(item[1]) or "", len(order_index)), item[0]),
+        )
+    ]
+
+
 def _x1kg_price_from_offerings(offerings: list[CatalogOffering]) -> int | None:
     existing_x1kg = next((offering.price for offering in offerings if normalize_text(offering.label) in {"x 1 kg", "x1 kg", "x1kg"} and offering.price > 0), None)
     if existing_x1kg is not None:
@@ -220,6 +249,7 @@ def build_catalog_preview_from_pdf(pdf_bytes: bytes, current_catalog: list[Catal
     text = _extract_text(pdf_bytes)
     lines = [re.sub(r"\s+", " ", line).strip() for line in text.splitlines() if line.strip()]
     line_map: dict[str, list[int]] = {}
+    detected_order: list[str] = []
     warnings: list[PriceListImportWarning] = []
 
     ordered_names: list[str] = sorted(PRODUCT_SPECS, key=len, reverse=True)
@@ -228,7 +258,10 @@ def build_catalog_preview_from_pdf(pdf_bytes: bytes, current_catalog: list[Catal
             if not line.startswith(product_name):
                 continue
             remainder = line[len(product_name):]
-            line_map[PRODUCT_SPECS[product_name]["id"]] = _extract_numbers(remainder)
+            spec_id = PRODUCT_SPECS[product_name]["id"]
+            line_map[spec_id] = _extract_numbers(remainder)
+            if spec_id not in detected_order:
+                detected_order.append(spec_id)
             break
 
     catalog: list[CatalogProduct] = []
@@ -309,7 +342,7 @@ def build_catalog_preview_from_pdf(pdf_bytes: bytes, current_catalog: list[Catal
             if product_display != product.name:
                 catalog[idx] = CatalogProduct(id=product.id, name=product_display, aliases=product.aliases, offerings=product.offerings, iva_rate=product.iva_rate)
 
-    return {"catalog": catalog, "warnings": warnings}
+    return {"catalog": _sort_catalog_by_import_order(catalog, detected_order), "warnings": warnings}
 
 
 def build_catalog_from_pdf(pdf_bytes: bytes, current_catalog: list[CatalogProduct]) -> list[CatalogProduct]:

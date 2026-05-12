@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { API_BASE, request } from '../../lib/api'
 import { emptyItem } from '../../lib/format'
-import { openPriceListPreviewTab, savePriceListPreview } from '../../lib/priceListPreview'
+import { savePriceListPreview } from '../../lib/priceListPreview'
 import { createInitialForm } from './form'
 import {
   applyCustomerToForm,
@@ -14,6 +15,57 @@ import {
   buildTotals,
   removeAutomaticBonusFromItems,
 } from './helpers'
+
+const DEFAULT_PRICE_LIST_PRODUCT_ORDER = [
+  'Arvejas Partidas',
+  'Avena Arrollada',
+  'Avena Instantánea',
+  'Garbanzos',
+  'Harina de Maíz Cocción Rápida',
+  'Harina de Maíz',
+  'Harina de Maíz Blanca',
+  'Lentejas',
+  'Maíz Pisingallo',
+  'Maíz Partido Blanco',
+  'Porotos Alubia',
+  'Maíz Partido Colorado',
+  'Porotos Negros',
+  'Porotos Colorados',
+  'Porotos Soja',
+  'Sémola de Trigo',
+  'Trigo Burgol',
+  'Trigo Pelado',
+  'Mijo',
+  'Alpiste',
+  'Mezcla para Pájaros',
+  'Arvejas Enteras',
+  'Arroz Parbolizado',
+  'Arroz 5/0 Largo Fino',
+  'Arroz Integral Largo Fino',
+  'Arroz Yamaní',
+  'Harina de Maíz Abatí',
+  'Harina de Garbanzos',
+]
+
+function normalizeOrderName(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+}
+
+function sortCatalogByDefaultPriceListOrder(sourceCatalog) {
+  const orderIndex = new Map(DEFAULT_PRICE_LIST_PRODUCT_ORDER.map((name, index) => [normalizeOrderName(name), index]))
+  return [...sourceCatalog].sort((a, b) => {
+    const namesA = [a.name, ...(a.aliases || [])].map(normalizeOrderName)
+    const namesB = [b.name, ...(b.aliases || [])].map(normalizeOrderName)
+    const indexA = Math.min(...namesA.map((name) => orderIndex.get(name) ?? Number.MAX_SAFE_INTEGER))
+    const indexB = Math.min(...namesB.map((name) => orderIndex.get(name) ?? Number.MAX_SAFE_INTEGER))
+    if (indexA !== indexB) return indexA - indexB
+    return 0
+  })
+}
 
 function isX1KgLabel(label) {
   return ['x 1 kg', 'x1 kg', 'x1kg'].includes(String(label || '').trim().toLowerCase())
@@ -41,6 +93,7 @@ function ensureX1KgOfferings(sourceCatalog) {
 }
 
 function useGranaliaData() {
+  const navigate = useNavigate()
   const [bootstrap, setBootstrap] = useState(null)
   const [customers, setCustomers] = useState([])
   const [catalog, setCatalog] = useState([])
@@ -547,11 +600,6 @@ function useGranaliaData() {
     }
 
     setUploading(true)
-    const previewWindow = window.open('', '_blank')
-    if (previewWindow) {
-      previewWindow.document.title = 'Generando preview...'
-      previewWindow.document.body.innerHTML = '<p style="font-family: sans-serif; padding: 24px;">Generando previsualización de lista de precios...</p>'
-    }
     try {
       const formData = new FormData()
       formData.append('file', pdfFile)
@@ -571,10 +619,9 @@ function useGranaliaData() {
         source: 'upload',
         targetId: priceListUploadTargetId,
       })
-      const opened = openPriceListPreviewTab(previewWindow)
-      setStatus(opened ? 'Preview generado en una pestaña nueva.' : 'Preview generado. Permití ventanas emergentes para verlo en una pestaña nueva.')
+      setStatus('Preview generado.')
+      navigate('/price-list-preview')
     } catch (error) {
-      if (previewWindow && !previewWindow.closed) previewWindow.close()
       setStatus(`Error al generar preview: ${error.message}`)
       throw error
     } finally {
@@ -584,27 +631,21 @@ function useGranaliaData() {
 
   async function startManualPriceList() {
     setUploading(true)
-    const previewWindow = window.open('', '_blank')
-    if (previewWindow) {
-      previewWindow.document.title = 'Generando preview...'
-      previewWindow.document.body.innerHTML = '<p style="font-family: sans-serif; padding: 24px;">Preparando carga manual...</p>'
-    }
     try {
       const targetCatalog = priceListUploadTargetId
         ? await request(`/api/price-lists/${priceListUploadTargetId}/catalog`)
         : catalog
       savePriceListPreview({
-        catalog: ensureX1KgOfferings(targetCatalog),
+        catalog: ensureX1KgOfferings(sortCatalogByDefaultPriceListOrder(targetCatalog)),
         warnings: [],
         filename: 'lista-manual.pdf',
         name: priceListUploadName.trim(),
         source: 'manual',
         targetId: priceListUploadTargetId,
       })
-      const opened = openPriceListPreviewTab(previewWindow)
-      setStatus(opened ? 'Carga manual abierta en una pestaña nueva.' : 'Carga manual preparada. Permití ventanas emergentes para verla en una pestaña nueva.')
+      setStatus('Carga manual preparada.')
+      navigate('/price-list-preview')
     } catch (error) {
-      if (previewWindow && !previewWindow.closed) previewWindow.close()
       setStatus(`Error al preparar carga manual: ${error.message}`)
       throw error
     } finally {
