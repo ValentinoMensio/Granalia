@@ -30,7 +30,7 @@ class HistoricalInvoiceItem:
     unit_price: Decimal
     discount_rate: Decimal
     subtotal: Decimal
-    iva_rate: Decimal
+    iva_rate: Decimal | None
     fiscal_total: Decimal
 
 
@@ -133,6 +133,61 @@ def clean_label_value(value: str) -> str:
     return text[:255]
 
 
+def first_header_lines(text: str) -> list[str]:
+    first_copy = first_invoice_copy_text(text)
+    return [line.strip() for line in first_copy.splitlines() if line.strip()]
+
+
+def parse_customer_header(text: str) -> dict[str, str]:
+    lines = first_header_lines(text)
+    date_index = next((index for index, line in enumerate(lines) if DATE_RE.fullmatch(line)), None)
+    if date_index is None:
+        return {}
+    end_index = next((index for index in range(date_index + 1, len(lines)) if re.search(r"Cuenta\s+Corriente|Contado", lines[index], re.IGNORECASE)), len(lines))
+    values = lines[date_index + 1:end_index]
+    if values and re.fullmatch(r"\d{11}", values[0].replace("-", "")):
+        values = values[1:]
+    if not values:
+        return {}
+
+    cuit = ""
+    name_parts: list[str] = []
+    address = ""
+    first_value = values[0]
+    match = re.match(r"(\d{2}-?\d{8}-?\d|\d{11})\s+(.+)", first_value)
+    if match:
+        cuit = match.group(1).replace("-", "")
+        name_parts.append(match.group(2).strip())
+        remaining = values[1:]
+    else:
+        name_parts.append(first_value)
+        remaining = values[1:]
+
+    for line in remaining:
+        if not address and re.search(r"\d|\s-\s|,\s*[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]", line):
+            address = line
+            continue
+        if not address:
+            name_parts.append(line)
+        else:
+            address = f"{address} {line}".strip()
+
+    if not cuit:
+        cuit_matches = re.findall(r"CUIT\s*:?\s*(\d{2}-?\d{8}-?\d|\d{11})", first_copy_text(text), re.IGNORECASE)
+        issuer_cuit = values[0].replace("-", "") if values else ""
+        cuit = next((item.replace("-", "") for item in cuit_matches if item.replace("-", "") != issuer_cuit), "")
+
+    return {
+        "name": clean_label_value(" ".join(name_parts)),
+        "cuit": cuit[:32],
+        "address": clean_label_value(address)[:500],
+    }
+
+
+def first_copy_text(text: str) -> str:
+    return first_invoice_copy_text(text)
+
+
 def is_bad_customer_candidate(value: str) -> bool:
     text = clean_label_value(value).upper()
     if not text:
@@ -182,9 +237,16 @@ def first_invoice_copy_text(raw_text: str) -> str:
 def parse_invoice_items(raw_text: str) -> list[HistoricalInvoiceItem]:
     first_copy = first_invoice_copy_text(raw_text)
     match = re.search(r"IVA\s+Subtotal\s+c/IVA\s*(.*?)(?:\n\s*CAE\s+N|\n\s*Fecha\s+de\s+Vto\.\s+de\s+CAE)", first_copy, re.IGNORECASE | re.DOTALL)
-    if not match:
-        return []
+    if match:
+        return parse_taxed_invoice_items(match.group(1))
 
+    match = re.search(r"Imp\.\s+Bonif\.\s+Subtotal\s*(.*?)(?:\n\s*Subtotal\s*:\s*\$|\n\s*CAE\s+N)", first_copy, re.IGNORECASE | re.DOTALL)
+    if match:
+        return parse_untaxed_invoice_items(match.group(1))
+    return []
+
+
+def parse_taxed_invoice_items(detail_text: str) -> list[HistoricalInvoiceItem]:
     item_pattern = re.compile(
         r"^\s*(?P<label>.+?)\s+"
         r"(?P<quantity>\d+(?:\.\d{3})*,\d{2})\s+"
@@ -198,7 +260,7 @@ def parse_invoice_items(raw_text: str) -> list[HistoricalInvoiceItem]:
     )
     items: list[HistoricalInvoiceItem] = []
     pending_label_parts: list[str] = []
-    for raw_line in match.group(1).splitlines():
+    for raw_line in detail_text.splitlines():
         line = re.sub(r"\s+", " ", raw_line).strip()
         if not line:
             continue
@@ -222,6 +284,45 @@ def parse_invoice_items(raw_text: str) -> list[HistoricalInvoiceItem]:
     return items
 
 
+def parse_untaxed_invoice_items(detail_text: str) -> list[HistoricalInvoiceItem]:
+    item_pattern = re.compile(
+        r"^\s*(?P<label>.+?)\s+"
+        r"(?P<quantity>\d+(?:\.\d{3})*,\d{2})\s+"
+        r"(?P<unit>[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?:\s+[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+)*)\s+"
+        r"(?P<unit_price>\d+(?:\.\d{3})*,\d{2})\s+"
+        r"(?P<rest>.+?)\s*$",
+        re.IGNORECASE,
+    )
+    items: list[HistoricalInvoiceItem] = []
+    pending_label_parts: list[str] = []
+    for raw_line in detail_text.splitlines():
+        line = re.sub(r"\s+", " ", raw_line).strip()
+        if not line:
+            continue
+        candidate = " ".join([*pending_label_parts, line]).strip()
+        item_match = item_pattern.match(candidate)
+        if not item_match:
+            pending_label_parts.append(line)
+            continue
+        quantity = parse_decimal(item_match.group("quantity"))
+        unit_price = parse_decimal(item_match.group("unit_price"))
+        gross = (quantity * unit_price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        amounts = [parse_decimal(value) for value in MONEY_RE.findall(item_match.group("rest"))]
+        subtotal = next((amount for amount in amounts if amount == gross), gross)
+        items.append(HistoricalInvoiceItem(
+            label=item_match.group("label").strip()[:255],
+            quantity=quantity,
+            unit=item_match.group("unit")[:120],
+            unit_price=unit_price,
+            discount_rate=Decimal("0"),
+            subtotal=subtotal,
+            iva_rate=None,
+            fiscal_total=subtotal,
+        ))
+        pending_label_parts = []
+    return items
+
+
 def parse_number_pair(text: str) -> tuple[int, int] | None:
     patterns = [
         r"Punto\s+de\s+Venta\s*:?\s*(\d{1,5}).{0,80}?Comp\.?\s*Nro\s*:?\s*(\d+)",
@@ -238,6 +339,9 @@ def parse_number_pair(text: str) -> tuple[int, int] | None:
 
 
 def parse_customer_name(text: str) -> str:
+    header_name = parse_customer_header(text).get("name", "")
+    if not is_bad_customer_candidate(header_name):
+        return header_name[:255]
     from_lines = parse_label_from_lines(text, r"Apellido\s+y\s+Nombre\s*/\s*Raz[oó]n\s+Social\s*:?|Raz[oó]n\s+Social\s*:?|Cliente\s*:?")
     if not is_bad_customer_candidate(from_lines):
         return from_lines[:255]
@@ -257,6 +361,9 @@ def parse_customer_name(text: str) -> str:
 
 
 def parse_customer_address(text: str) -> str:
+    header_address = parse_customer_header(text).get("address", "")
+    if header_address and not DATE_RE.fullmatch(header_address):
+        return header_address[:500]
     return parse_label_from_lines(text, r"Domicilio\s+Comercial\s*:?")[:500]
 
 
@@ -265,6 +372,9 @@ def parse_customer_iva_condition(text: str) -> str:
 
 
 def parse_customer_cuit(text: str) -> str:
+    header_cuit = parse_customer_header(text).get("cuit", "")
+    if header_cuit:
+        return header_cuit[:32]
     cuits = re.findall(r"CUIT\s*:?\s*(\d{2}-?\d{8}-?\d|\d{11})", text, re.IGNORECASE)
     if not cuits:
         return ""
@@ -277,8 +387,9 @@ def parse_pdf(path: Path, forced_point_of_sale: int | None = None, raw_text: str
     text = compact_text(raw_text)
     upper = text.upper()
     is_credit_note = is_credit_note_filename(path) or is_credit_note_text(text) or ("NOTA" in upper and "CR" in upper)
+    is_invoice_b = bool(re.search(r"FACTURA\s*B|FACTURABCOD\.?\s*006|COD\.?\s*006", text, re.IGNORECASE))
     document_type = "NOTA_CREDITO" if is_credit_note else "FACTURA"
-    cbte_tipo = 3 if is_credit_note else 1
+    cbte_tipo = 8 if is_credit_note and is_invoice_b else 3 if is_credit_note else 6 if is_invoice_b else 1
 
     number_pair = parse_number_pair(text)
     if number_pair:
@@ -321,19 +432,24 @@ def parse_pdf(path: Path, forced_point_of_sale: int | None = None, raw_text: str
         # Si el PDF no expone el desglose por alícuota, se conserva como 21% por defecto.
         net_by_rate[Decimal("0.210")] = net_total
         iva_by_rate[Decimal("0.210")] = (net_total * Decimal("0.210")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    items = parse_invoice_items(raw_text)
+    if total is None and items:
+        total = sum((item.fiscal_total for item in items), Decimal("0.00")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     if total is None:
         total = sum((net_by_rate[rate] + iva_by_rate[rate] for rate in net_by_rate), Decimal("0.00"))
-    if not net_by_rate or total <= 0:
+    if (not net_by_rate and not items) or total <= 0:
         raise ValueError("No se pudo leer importes fiscales")
-    items = parse_invoice_items(raw_text)
     if items:
         item_net_by_rate: dict[Decimal, Decimal] = {}
         item_iva_by_rate: dict[Decimal, Decimal] = {}
         for item in items:
+            if item.iva_rate is None:
+                continue
             item_net_by_rate[item.iva_rate] = item_net_by_rate.get(item.iva_rate, Decimal("0.00")) + item.subtotal
             item_iva_by_rate[item.iva_rate] = item_iva_by_rate.get(item.iva_rate, Decimal("0.00")) + (item.fiscal_total - item.subtotal)
-        net_by_rate = {rate: amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) for rate, amount in item_net_by_rate.items()}
-        iva_by_rate = {rate: amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) for rate, amount in item_iva_by_rate.items()}
+        if item_net_by_rate:
+            net_by_rate = {rate: amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) for rate, amount in item_net_by_rate.items()}
+            iva_by_rate = {rate: amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) for rate, amount in item_iva_by_rate.items()}
 
     return HistoricalInvoice(
         source_pdf=path,
@@ -373,6 +489,8 @@ def normalized_name(value: str) -> str:
 
 
 def net_total(invoice: HistoricalInvoice) -> Decimal:
+    if not invoice.net_by_rate and invoice.items:
+        return sum((item.subtotal for item in invoice.items), Decimal("0.00")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     return sum(invoice.net_by_rate.values(), Decimal("0.00")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 

@@ -7,13 +7,11 @@ import DateRangePicker from '../components/ui/DateRangePicker'
 import Metric from '../components/ui/Metric'
 import PageSectionHeader from '../components/ui/PageSectionHeader'
 
-const EMPTY_FILTERS = { customerIds: [''], dateFrom: '', dateTo: '', transport: '', priceListId: '', declared: '' }
+const EMPTY_FILTERS = { customerIds: [''], dateFrom: '', dateTo: '', transport: '', priceListId: '', declared: '', ivaMode: 'without_iva' }
 const EMPTY_PRODUCT_FILTERS = { lines: [{ productId: '', offeringId: '' }] }
 const MONTH_LABELS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 const MONTHLY_METRICS = [
-  { key: 'total', label: 'Total sin IVA', format: (value) => `$${money(value)}` },
-  { key: 'iva', label: 'IVA', format: (value) => `$${money(value)}` },
-  { key: 'totalWithIva', label: 'Total con IVA', format: (value) => `$${money(value)}` },
+  { key: 'total', label: 'Total', format: (value) => `$${money(value)}` },
   { key: 'discount', label: 'Descuento', format: (value) => `$${money(value)}` },
   { key: 'bultos', label: 'Bultos', format: (value) => money(value) },
   { key: 'weight', label: 'Peso', format: (value) => `${weight(value)} kg` },
@@ -201,7 +199,16 @@ function buildCustomerProductRanking(items) {
     .sort((a, b) => b.total - a.total)
 }
 
-function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false, onRowClick, selectedLabel = '', embedded = false, defaultSort = { key: 'total', direction: 'desc' } }) {
+function totalLabel(ivaMode) {
+  return ivaMode === 'with_iva' ? 'Total c/IVA' : 'Total s/IVA'
+}
+
+function displayTotalRows(rows, ivaMode) {
+  if (ivaMode !== 'with_iva') return rows
+  return rows.map((row) => ({ ...row, total: Number(row.totalWithIva ?? row.total ?? 0) }))
+}
+
+function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false, onRowClick, selectedLabel = '', embedded = false, defaultSort = { key: 'total', direction: 'desc' }, totalColumnLabel = 'Total' }) {
   const [sort, setSort] = useState(defaultSort)
   const [showAllMobile, setShowAllMobile] = useState(false)
   const columns = [
@@ -210,9 +217,7 @@ function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false
     { key: 'bultos', label: 'Bultos', align: 'right' },
     ...(showWeight ? [{ key: 'weight', label: 'Peso', align: 'right' }] : []),
     { key: 'discount', label: 'Descuento', align: 'right' },
-    { key: 'total', label: 'Total s/IVA', align: 'right' },
-    { key: 'iva', label: 'IVA', align: 'right' },
-    { key: 'totalWithIva', label: 'Total c/IVA', align: 'right' },
+    { key: 'total', label: totalColumnLabel, align: 'right' },
   ]
   const sortedRows = useMemo(() => {
     return [...rows].sort((a, b) => {
@@ -302,14 +307,12 @@ function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false
       <div className="stats-table-scroll table-shell hidden max-h-[30rem] overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable] sm:block">
         <table className="table-base !min-w-0 table-fixed text-xs sm:text-sm">
           <colgroup>
-            <col className={showWeight ? 'w-[30%]' : 'w-[34%]'} />
-            <col className={showWeight ? 'w-[12%]' : 'w-[13%]'} />
+            <col className={showWeight ? 'w-[34%]' : 'w-[38%]'} />
             <col className={showWeight ? 'w-[13%]' : 'w-[15%]'} />
+            <col className={showWeight ? 'w-[14%]' : 'w-[16%]'} />
             {showWeight ? <col className="w-[15%]" /> : null}
-            <col className={showWeight ? 'w-[11%]' : 'w-[14%]'} />
+            <col className={showWeight ? 'w-[12%]' : 'w-[15%]'} />
             <col className={showWeight ? 'w-[12%]' : 'w-[16%]'} />
-            <col className={showWeight ? 'w-[10%]' : 'w-[12%]'} />
-            <col className={showWeight ? 'w-[13%]' : 'w-[15%]'} />
           </colgroup>
           <thead className="table-head">
             <tr>
@@ -343,13 +346,11 @@ function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false
                 {showWeight ? <td className="table-cell whitespace-nowrap !px-2 text-right">{weight(row.weight)} kg</td> : null}
                 <td className="table-cell whitespace-nowrap !px-2 text-right">${money(row.discount)}</td>
                 <td className="table-cell whitespace-nowrap !pl-2 !pr-2 text-right font-semibold text-brand-red">${money(row.total)}</td>
-                <td className="table-cell whitespace-nowrap !px-2 text-right">${money(row.iva)}</td>
-                <td className="table-cell whitespace-nowrap !pl-2 !pr-5 text-right font-semibold text-brand-red">${money(row.totalWithIva ?? row.total)}</td>
               </tr>
             ))}
             {sortedRows.length === 0 && (
               <tr>
-                <td colSpan={showWeight ? 8 : 7} className="table-cell py-8 text-center text-slate-400">No hay datos para estos filtros.</td>
+                <td colSpan={showWeight ? 6 : 5} className="table-cell py-8 text-center text-slate-400">No hay datos para estos filtros.</td>
               </tr>
             )}
           </tbody>
@@ -549,14 +550,17 @@ export default function InvoiceStats() {
   )
   const monthlyChartRows = useMemo(() => buildYearMonthlyRows(byMonth, chartYear), [byMonth, chartYear])
   const monthlyMetric = MONTHLY_METRICS.find((metric) => metric.key === monthlyMetricKey) || MONTHLY_METRICS[0]
-  const byCustomer = useMemo(() => buildCustomerProductRanking(filteredItems), [filteredItems])
-  const byProduct = useMemo(() => buildProductRanking(filteredItems), [filteredItems])
-  const byProductTotal = useMemo(() => buildProductTotalRanking(filteredItems), [filteredItems])
+  const selectedTotalLabel = totalLabel(filters.ivaMode)
+  const selectedSummaryTotal = filters.ivaMode === 'with_iva' ? Number(summary.totalWithIva || 0) : Number(summary.total || 0)
+  const selectedAverage = invoiceCount ? Math.round(selectedSummaryTotal / invoiceCount) : 0
+  const selectedAverageKg = totalWeight ? selectedSummaryTotal / totalWeight : 0
+  const byCustomer = useMemo(() => displayTotalRows(buildCustomerProductRanking(filteredItems), filters.ivaMode), [filteredItems, filters.ivaMode])
+  const byProductTotal = useMemo(() => displayTotalRows(buildProductTotalRanking(filteredItems), filters.ivaMode), [filteredItems, filters.ivaMode])
   const selectedProductFormats = useMemo(
     () => selectedProductLabel
-      ? buildProductRanking(filteredItems.filter((item) => itemProductLabel(item) === selectedProductLabel))
+      ? displayTotalRows(buildProductRanking(filteredItems.filter((item) => itemProductLabel(item) === selectedProductLabel)), filters.ivaMode)
       : [],
-    [filteredItems, selectedProductLabel]
+    [filteredItems, filters.ivaMode, selectedProductLabel]
   )
 
   function updateFilter(field, value) {
@@ -625,7 +629,7 @@ export default function InvoiceStats() {
         <div className="mb-4 border-b border-stone-200 pb-3">
           <h2 className="subsection-title text-xl">Filtros generales</h2>
         </div>
-        <div className="grid gap-3 md:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-5">
           <DateRangePicker dateFrom={filters.dateFrom} dateTo={filters.dateTo} onChange={updateDateRange} />
           <select className="input" value={filters.transport} onChange={(event) => updateFilter('transport', event.target.value)}>
             <option value="">Todos los transportes</option>
@@ -643,6 +647,10 @@ export default function InvoiceStats() {
             <option value="">Declaradas e internas</option>
             <option value="true">Declaradas</option>
             <option value="false">Internas</option>
+          </select>
+          <select className="input" value={filters.ivaMode} onChange={(event) => updateFilter('ivaMode', event.target.value)}>
+            <option value="without_iva">Ver sin IVA</option>
+            <option value="with_iva">Ver con IVA</option>
           </select>
         </div>
 
@@ -711,26 +719,24 @@ export default function InvoiceStats() {
           <div className="h-px flex-1 bg-stone-200" />
         </div>
 
-        <section className="grid gap-3 md:grid-cols-8">
+        <section className="grid gap-3 md:grid-cols-6">
           <Metric label="Facturas" value={money(invoiceCount)} />
           <Metric label="Bultos" value={money(summary.bultos)} />
           <Metric label="Kilos" value={`${weight(totalWeight)} kg`} />
           <Metric label="Bruto" value={`$${money(summary.gross)}`} />
           <Metric label="Descuentos" value={`$${money(summary.discount)}`} />
-          <Metric label="Total s/IVA" value={`$${money(summary.total)}`} />
-          <Metric label="IVA" value={`$${money(summary.iva)}`} />
-          <Metric label="Total c/IVA" value={`$${money(summary.totalWithIva ?? summary.total)}`} />
+          <Metric label={selectedTotalLabel} value={`$${money(selectedSummaryTotal)}`} />
         </section>
       </div>
 
       <section className="grid gap-3 md:grid-cols-3">
-        <Metric label="Promedio por factura" value={`$${money(summary.average)}`} />
-        <Metric label="Precio promedio por kg" value={`$${money(summary.averageKg)}`} />
+        <Metric label="Promedio por factura" value={`$${money(selectedAverage)}`} />
+        <Metric label="Precio promedio por kg" value={`$${money(selectedAverageKg)}`} />
         <Metric label="Clientes con facturas" value={money(new Set((hasProductFilter ? filteredItems : filteredInvoices).map((row) => row.customer_id || row.client_name)).size)} />
       </section>
 
       <div className="space-y-6">
-        <RankingTable title={loadingItems ? 'Ranking por cliente (cargando...)' : 'Ranking por cliente'} rows={byCustomer} showWeight />
+        <RankingTable title={loadingItems ? 'Ranking por cliente (cargando...)' : 'Ranking por cliente'} rows={byCustomer} showWeight totalColumnLabel={selectedTotalLabel} />
 
         <section className="surface p-4 pr-5 sm:p-6 sm:pr-8">
           <div className="grid gap-6 xl:grid-cols-2">
@@ -741,6 +747,7 @@ export default function InvoiceStats() {
               showWeight
               selectedLabel={selectedProductLabel}
               embedded
+              totalColumnLabel={selectedTotalLabel}
               onRowClick={(row) => setSelectedProductLabel((current) => current === row.label ? '' : row.label)}
             />
             <RankingTable
@@ -749,15 +756,16 @@ export default function InvoiceStats() {
               countLabel="Líneas"
               showWeight
               embedded
+              totalColumnLabel={selectedTotalLabel}
             />
           </div>
         </section>
 
         <section className="surface p-4 pr-5 sm:p-6 sm:pr-8">
-          <RankingTable title={loadingItems ? 'Totales por mes (cargando...)' : 'Totales por mes'} rows={byMonth} showWeight embedded defaultSort={{ key: 'monthKey', direction: 'asc' }} />
+          <RankingTable title={loadingItems ? 'Totales por mes (cargando...)' : 'Totales por mes'} rows={displayTotalRows(byMonth, filters.ivaMode)} showWeight embedded defaultSort={{ key: 'monthKey', direction: 'asc' }} totalColumnLabel={selectedTotalLabel} />
           <div className="mt-6 border-t border-stone-200 pt-6">
             <MonthlyBarChart
-              rows={monthlyChartRows}
+              rows={displayTotalRows(monthlyChartRows, filters.ivaMode)}
               year={chartYear}
               metricKey={monthlyMetric.key}
               metricLabel={monthlyMetric.label}
