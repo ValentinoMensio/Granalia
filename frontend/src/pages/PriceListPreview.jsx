@@ -24,10 +24,11 @@ function warningKey(productId, offeringLabel = '') {
 
 function PriceListPreview() {
   const navigate = useNavigate()
-  const { setStatus, refreshAll } = useGranalia()
+  const { bootstrap, setStatus, refreshAll } = useGranalia()
   const [preview, setPreview] = useState(() => loadPriceListPreview())
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
+  const priceLists = bootstrap?.price_lists || []
 
   const columns = useMemo(() => {
     const labels = new Set()
@@ -78,6 +79,28 @@ function PriceListPreview() {
     }))
   }
 
+  async function updateTarget(value) {
+    const selected = priceLists.find((priceList) => String(priceList.id) === String(value))
+    setPreview((current) => ({
+      ...current,
+      targetId: value,
+      name: selected?.name || '',
+    }))
+
+    if (preview?.source !== 'manual' || !value) return
+
+    try {
+      const catalog = await request(`/api/price-lists/${value}/catalog`)
+      setPreview((current) => ({ ...current, catalog }))
+    } catch (error) {
+      setMessage(`Error al cargar lista seleccionada: ${error.message}`)
+    }
+  }
+
+  function updateName(value) {
+    setPreview((current) => ({ ...current, name: value }))
+  }
+
   async function savePreview() {
     setSaving(true)
     setMessage('')
@@ -120,10 +143,28 @@ function PriceListPreview() {
           <h1 className="text-xl font-black text-slate-900">Previsualización de lista de precios</h1>
           <p className="text-sm text-slate-500">Editá los precios y confirmá. Los campos resaltados fueron conservados o calculados automáticamente.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="ghost" onClick={() => window.print()}>Imprimir</Button>
-          <Button variant="secondary" onClick={closePreview} disabled={saving}>Cancelar</Button>
-          <Button variant="primary" onClick={savePreview} disabled={saving}>{saving ? 'Guardando...' : 'Guardar lista'}</Button>
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm print:hidden">
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <label className="field-label">Guardar como</label>
+            <select className="input" value={preview.targetId || ''} onChange={(event) => updateTarget(event.target.value)}>
+              <option value="">Crear nueva lista</option>
+              {priceLists.map((priceList) => (
+                <option key={priceList.id} value={priceList.id}>Reemplazar: {priceList.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="field-label">Nombre de lista</label>
+            <input
+              className="input"
+              value={preview.name || ''}
+              onChange={(event) => updateName(event.target.value)}
+              placeholder={preview.targetId ? 'Mantener nombre actual' : 'Ej: Mayorista Abril'}
+            />
+          </div>
         </div>
       </div>
 
@@ -186,6 +227,12 @@ function PriceListPreview() {
             })}
           </tbody>
         </table>
+      </div>
+
+      <div className="flex flex-wrap justify-end gap-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm print:hidden">
+        <Button variant="ghost" onClick={() => window.print()}>Imprimir</Button>
+        <Button variant="secondary" onClick={closePreview} disabled={saving}>Cancelar</Button>
+        <Button variant="primary" onClick={savePreview} disabled={saving}>{saving ? 'Guardando...' : 'Guardar lista'}</Button>
       </div>
     </div>
   )
