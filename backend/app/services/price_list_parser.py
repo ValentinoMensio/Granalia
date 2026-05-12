@@ -15,10 +15,23 @@ class ProductSpec(TypedDict):
     formats: list[str]
 
 
+class PriceListImportWarning(TypedDict):
+    product_id: int | str
+    product_name: str
+    offering_label: str | None
+    kind: str
+    message: str
+
+
+class PriceListParseResult(TypedDict):
+    catalog: list[CatalogProduct]
+    warnings: list[PriceListImportWarning]
+
+
 PRODUCT_SPECS: dict[str, ProductSpec] = {
     "Arvejas Partidas": {"id": "arvejas_partidas", "formats": ["12x400", "10x500", "x5kg", "bulk"]},
     "Avena Arrollada x 300 gr": {"id": "avena_arrollada", "formats": ["16x300", "x4kg", "bulk"]},
-    "Avena Instantánea x 350 gr": {"id": "avena_instantanea", "formats": ["12x350", "x4kg", "bulk"]},
+    "Avena Instantánea x 350 gr": {"id": "avena_instantanea", "formats": ["16x300", "x4kg", "bulk"]},
     "Garbanzos": {"id": "garbanzos", "formats": ["12x400", "10x500", "x5kg", "bulk"]},
     "Harina de Maíz Cocción Rápida": {"id": "harina_maiz_coccion_rapida", "formats": ["10x500", "x5kg", "bulk"]},
     "Harina de Maíz": {"id": "harina_maiz", "formats": ["10x500", "10x1000", "x5kg", "bulk"]},
@@ -157,10 +170,57 @@ def _build_offerings(formats: list[str], numbers: list[int]) -> list[CatalogOffe
     return offerings
 
 
-def build_catalog_from_pdf(pdf_bytes: bytes, current_catalog: list[CatalogProduct]) -> list[CatalogProduct]:
+def _x1kg_price_from_offerings(offerings: list[CatalogOffering]) -> int | None:
+    existing_x1kg = next((offering.price for offering in offerings if normalize_text(offering.label) in {"x 1 kg", "x1 kg", "x1kg"} and offering.price > 0), None)
+    if existing_x1kg is not None:
+        return existing_x1kg
+
+    for offering in offerings:
+        if offering.price > 0 and offering.net_weight_kg > 0:
+            return round(offering.price / offering.net_weight_kg)
+    return None
+
+
+def _ensure_x1kg_offering(product: CatalogProduct, warnings: list[PriceListImportWarning]) -> CatalogProduct:
+    if any(normalize_text(offering.label) in {"x 1 kg", "x1 kg", "x1kg"} for offering in product.offerings):
+        return product
+
+    price = _x1kg_price_from_offerings(product.offerings)
+    if price is None:
+        warnings.append(
+            {
+                "product_id": product.id,
+                "product_name": product.name,
+                "offering_label": "x 1 kg",
+                "kind": "missing_x1kg",
+                "message": "No se pudo calcular el precio x 1 kg porque no hay presentaciones con peso neto.",
+            }
+        )
+        return product
+
+    warnings.append(
+        {
+            "product_id": product.id,
+            "product_name": product.name,
+            "offering_label": "x 1 kg",
+            "kind": "generated_x1kg",
+            "message": "Se agregó x 1 kg calculado desde otra presentación; revisar antes de guardar.",
+        }
+    )
+    return CatalogProduct(
+        id=product.id,
+        name=product.name,
+        aliases=list(product.aliases),
+        offerings=[*product.offerings, CatalogOffering(id="x1kg", label="x 1 kg", price=price, net_weight_kg=1)],
+        iva_rate=product.iva_rate,
+    )
+
+
+def build_catalog_preview_from_pdf(pdf_bytes: bytes, current_catalog: list[CatalogProduct]) -> PriceListParseResult:
     text = _extract_text(pdf_bytes)
     lines = [re.sub(r"\s+", " ", line).strip() for line in text.splitlines() if line.strip()]
     line_map: dict[str, list[int]] = {}
+    warnings: list[PriceListImportWarning] = []
 
     ordered_names: list[str] = sorted(PRODUCT_SPECS, key=len, reverse=True)
     for line in lines:
@@ -189,11 +249,20 @@ def build_catalog_from_pdf(pdf_bytes: bytes, current_catalog: list[CatalogProduc
                 spec = data
                 break
         if not spec:
-            catalog.append(product)
+            catalog.append(_ensure_x1kg_offering(product, warnings))
             continue
         numbers = line_map.get(spec["id"])
         if not numbers:
-            catalog.append(product)
+            warnings.append(
+                {
+                    "product_id": product.id,
+                    "product_name": product.name,
+                    "offering_label": None,
+                    "kind": "product_missing_in_pdf",
+                    "message": "Producto no detectado en el PDF; se conserva con sus precios anteriores.",
+                }
+            )
+            catalog.append(_ensure_x1kg_offering(product, warnings))
             continue
         used_spec_ids.add(spec["id"])
         existing_by_label = {offering.label: offering for offering in product.offerings}
@@ -212,8 +281,17 @@ def build_catalog_from_pdf(pdf_bytes: bytes, current_catalog: list[CatalogProduc
             )
         for previous in product.offerings:
             if previous.label not in updated_labels:
+                warnings.append(
+                    {
+                        "product_id": product.id,
+                        "product_name": product.name,
+                        "offering_label": previous.label,
+                        "kind": "offering_missing_in_pdf",
+                        "message": "Presentación no detectada en el PDF; se conserva con el precio anterior.",
+                    }
+                )
                 next_offerings.append(previous)
-        catalog.append(CatalogProduct(id=product.id, name=product.name, aliases=list(product.aliases), offerings=next_offerings, iva_rate=product.iva_rate))
+        catalog.append(_ensure_x1kg_offering(CatalogProduct(id=product.id, name=product.name, aliases=list(product.aliases), offerings=next_offerings, iva_rate=product.iva_rate), warnings))
 
     for product_name, spec in PRODUCT_SPECS.items():
         if spec["id"] in used_spec_ids or spec["id"] not in line_map:
@@ -223,7 +301,7 @@ def build_catalog_from_pdf(pdf_bytes: bytes, current_catalog: list[CatalogProduc
             continue
         display_name = PRODUCT_DISPLAY_NAMES.get(product_name, product_name)
         aliases = [] if display_name == product_name else [product_name]
-        catalog.append(CatalogProduct(id=spec["id"], name=display_name, aliases=aliases, offerings=offerings))
+        catalog.append(_ensure_x1kg_offering(CatalogProduct(id=spec["id"], name=display_name, aliases=aliases, offerings=offerings), warnings))
 
     for idx, product in enumerate(catalog):
         if product.id in used_spec_ids:
@@ -231,4 +309,8 @@ def build_catalog_from_pdf(pdf_bytes: bytes, current_catalog: list[CatalogProduc
             if product_display != product.name:
                 catalog[idx] = CatalogProduct(id=product.id, name=product_display, aliases=product.aliases, offerings=product.offerings, iva_rate=product.iva_rate)
 
-    return catalog
+    return {"catalog": catalog, "warnings": warnings}
+
+
+def build_catalog_from_pdf(pdf_bytes: bytes, current_catalog: list[CatalogProduct]) -> list[CatalogProduct]:
+    return build_catalog_preview_from_pdf(pdf_bytes, current_catalog)["catalog"]

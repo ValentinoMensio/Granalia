@@ -231,7 +231,7 @@ class ProductUpsert(BaseModel):
 
 
 class ProductOfferingUpsert(BaseModel):
-    id: int | None = None
+    id: int | str | None = None
     label: OfferingLabelStr
     price: NonNegativeInt
     net_weight_kg: NonNegativeNumber = 0
@@ -242,6 +242,51 @@ class ProductOfferingUpsert(BaseModel):
 class PriceListProductUpdate(BaseModel):
     product: ProductUpsert
     offerings: list[ProductOfferingUpsert] = Field(default_factory=list, max_length=MAX_PRODUCT_OFFERINGS)
+
+
+class PriceListCatalogProductInput(BaseModel):
+    id: int | str | None = None
+    name: NonEmptyStr
+    aliases: list[str] = Field(default_factory=list, max_length=MAX_ALIASES)
+    iva_rate: float | None = None
+    offerings: list[ProductOfferingUpsert] = Field(default_factory=list, max_length=MAX_PRODUCT_OFFERINGS)
+
+    _normalize_name = field_validator("name")(_strip_required)
+
+    @field_validator("aliases")
+    @classmethod
+    def normalize_aliases(cls, value: list[str]) -> list[str]:
+        return ProductUpsert.normalize_aliases(value)
+
+    @field_validator("iva_rate")
+    @classmethod
+    def validate_iva_rate(cls, value: float | None) -> float | None:
+        return ProductUpsert.validate_iva_rate(value)
+
+
+class PriceListImportWarningOut(BaseModel):
+    product_id: int | str
+    product_name: str
+    offering_label: str | None = None
+    kind: str
+    message: str
+
+
+class PriceListPreviewOut(BaseModel):
+    catalog: list[PriceListCatalogProductInput]
+    warnings: list[PriceListImportWarningOut] = Field(default_factory=list)
+
+
+class PriceListCommit(BaseModel):
+    name: str = Field(default="", max_length=MAX_NAME_LENGTH)
+    filename: str = Field(default="lista-manual.pdf", max_length=MAX_NAME_LENGTH)
+    activate: bool = True
+    price_list_id: int | None = None
+    source: str = Field(default="manual", max_length=50)
+    catalog: list[PriceListCatalogProductInput] = Field(default_factory=list, max_length=1000)
+
+    _normalize_name = field_validator("name")(_strip_optional)
+    _normalize_filename = field_validator("filename")(_strip_optional)
 
 
 class StatusResponse(BaseModel):

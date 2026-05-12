@@ -14,6 +14,31 @@ import {
   removeAutomaticBonusFromItems,
 } from './helpers'
 
+function isX1KgLabel(label) {
+  return ['x 1 kg', 'x1 kg', 'x1kg'].includes(String(label || '').trim().toLowerCase())
+}
+
+function ensureX1KgOfferings(sourceCatalog) {
+  return sourceCatalog.map((product) => {
+    const offerings = [...(product.offerings || [])]
+    if (offerings.some((offering) => isX1KgLabel(offering.label))) return { ...product, offerings }
+    const sourceOffering = offerings.find((offering) => Number(offering.price || 0) > 0 && Number(offering.net_weight_kg || 0) > 0)
+    if (!sourceOffering) return { ...product, offerings }
+    return {
+      ...product,
+      offerings: [
+        ...offerings,
+        {
+          id: 'x1kg',
+          label: 'x 1 kg',
+          price: Math.round(Number(sourceOffering.price || 0) / Number(sourceOffering.net_weight_kg || 1)),
+          net_weight_kg: 1,
+        },
+      ],
+    }
+  })
+}
+
 function useGranaliaData() {
   const [bootstrap, setBootstrap] = useState(null)
   const [customers, setCustomers] = useState([])
@@ -29,6 +54,7 @@ function useGranaliaData() {
   const [pdfFile, setPdfFile] = useState(null)
   const [priceListUploadName, setPriceListUploadName] = useState('')
   const [priceListUploadTargetId, setPriceListUploadTargetId] = useState('')
+  const [priceListPreview, setPriceListPreview] = useState(null)
   const [form, setForm] = useState(createInitialForm)
 
   const productsById = useMemo(() => buildProductsById(catalog), [catalog])
@@ -522,13 +548,86 @@ function useGranaliaData() {
       if (priceListUploadTargetId) {
         formData.append('price_list_id', priceListUploadTargetId)
       }
-      const data = await request('/api/price-lists/upload', { method: 'POST', body: formData })
+      const data = await request('/api/price-lists/preview', { method: 'POST', body: formData })
+      setPriceListPreview({
+        ...data,
+        filename: pdfFile.name,
+        source: 'upload',
+        targetId: priceListUploadTargetId,
+      })
+      setStatus('Preview generado. Revisá y confirmá la lista antes de guardar.')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  async function startManualPriceList() {
+    setUploading(true)
+    try {
+      const targetCatalog = priceListUploadTargetId
+        ? await request(`/api/price-lists/${priceListUploadTargetId}/catalog`)
+        : catalog
+      setPriceListPreview({
+        catalog: ensureX1KgOfferings(targetCatalog),
+        warnings: [],
+        filename: 'lista-manual.pdf',
+        source: 'manual',
+        targetId: priceListUploadTargetId,
+      })
+      setStatus('Carga manual iniciada. Editá los precios y confirmá para guardar.')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  function updatePriceListPreviewPrice(productIndex, offeringIndex, value) {
+    const price = Math.max(0, Number(value || 0))
+    setPriceListPreview((current) => {
+      if (!current) return current
+      const nextCatalog = current.catalog.map((product, pIndex) => {
+        if (pIndex !== productIndex) return product
+        return {
+          ...product,
+          offerings: (product.offerings || []).map((offering, oIndex) => (
+            oIndex === offeringIndex ? { ...offering, price } : offering
+          )),
+        }
+      })
+      return { ...current, catalog: nextCatalog }
+    })
+  }
+
+  function clearPriceListPreview() {
+    setPriceListPreview(null)
+  }
+
+  async function commitPriceListPreview() {
+    if (!priceListPreview?.catalog?.length) {
+      setStatus('No hay preview para guardar.')
+      return
+    }
+    setUploading(true)
+    try {
+      const uploadName = priceListUploadName.trim()
+      const data = await request('/api/price-lists/commit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: uploadName || '',
+          filename: priceListPreview.filename || 'lista-manual.pdf',
+          price_list_id: priceListPreview.targetId || null,
+          activate: true,
+          source: priceListPreview.source || 'manual',
+          catalog: priceListPreview.catalog,
+        }),
+      })
       applyBootstrap(data.bootstrap)
       setForm((current) => ({ ...current, priceListId: data.bootstrap?.price_list?.id ? String(data.bootstrap.price_list.id) : current.priceListId }))
       setStatus('Lista de precios actualizada en la base.')
       setPdfFile(null)
       setPriceListUploadName('')
       setPriceListUploadTargetId('')
+      setPriceListPreview(null)
     } finally {
       setUploading(false)
     }
@@ -650,6 +749,7 @@ function useGranaliaData() {
     pdfFile,
     priceListUploadName,
     priceListUploadTargetId,
+    priceListPreview,
     form,
     productsById,
     totals,
@@ -683,6 +783,10 @@ function useGranaliaData() {
     saveCustomer,
     updateCustomer,
     uploadPriceList,
+    startManualPriceList,
+    updatePriceListPreviewPrice,
+    clearPriceListPreview,
+    commitPriceListPreview,
     deletePriceList,
     renamePriceList,
     activatePriceList,

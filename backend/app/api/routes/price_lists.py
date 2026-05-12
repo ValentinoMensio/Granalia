@@ -3,26 +3,43 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
 from ...dependencies import get_repository, require_admin
-from ...schemas import MAX_NAME_LENGTH, PriceListMetaOut, PriceListProductUpdate, PriceListRename, PriceListUploadOut, PriceListVersionOut, ProductCatalogOut, StatusResponse
-from ...services.catalog import build_catalog_snapshot_from_pdf
+from ...schemas import MAX_NAME_LENGTH, PriceListCommit, PriceListMetaOut, PriceListPreviewOut, PriceListProductUpdate, PriceListRename, PriceListUploadOut, PriceListVersionOut, ProductCatalogOut, StatusResponse
+from ...services.catalog import build_catalog_preview_snapshot_from_pdf, build_catalog_snapshot_from_pdf, ensure_catalog_snapshot_x1kg
 
 
 router = APIRouter(prefix="/api/price-lists", tags=["price-lists"])
 MAX_PRICE_LIST_PDF_BYTES = 20 * 1024 * 1024
 
 
-@router.post("/upload")
-async def upload_price_list(file: UploadFile = File(...), name: str = Form(default=""), activate: bool = Form(default=True), price_list_id: int | None = Form(default=None), _: str = Depends(require_admin)) -> PriceListUploadOut:
+def _validate_pdf_upload(file: UploadFile, pdf_bytes: bytes) -> None:
     if file.content_type not in {"application/pdf", "application/octet-stream"}:
         raise HTTPException(status_code=400, detail="El archivo debe ser PDF")
-    filename = file.filename or "lista.pdf"
-    if len(filename) > MAX_NAME_LENGTH:
-        raise HTTPException(status_code=400, detail=f"El nombre del archivo no puede superar {MAX_NAME_LENGTH} caracteres")
-    pdf_bytes = await file.read()
     if not pdf_bytes:
         raise HTTPException(status_code=400, detail="El PDF está vacío")
     if len(pdf_bytes) > MAX_PRICE_LIST_PDF_BYTES:
         raise HTTPException(status_code=413, detail="El PDF no puede superar 20 MB")
+
+
+def _catalog_payload(catalog: list[object]) -> list[dict[str, object]]:
+    return [
+        {
+            "id": product.id,
+            "name": product.name,
+            "aliases": list(product.aliases),
+            "iva_rate": product.iva_rate,
+            "offerings": [offering.model_dump() for offering in product.offerings],
+        }
+        for product in catalog
+    ]
+
+
+@router.post("/upload")
+async def upload_price_list(file: UploadFile = File(...), name: str = Form(default=""), activate: bool = Form(default=True), price_list_id: int | None = Form(default=None), _: str = Depends(require_admin)) -> PriceListUploadOut:
+    filename = file.filename or "lista.pdf"
+    if len(filename) > MAX_NAME_LENGTH:
+        raise HTTPException(status_code=400, detail=f"El nombre del archivo no puede superar {MAX_NAME_LENGTH} caracteres")
+    pdf_bytes = await file.read()
+    _validate_pdf_upload(file, pdf_bytes)
     repository = get_repository()
     list_name = name.strip() or (None if price_list_id is not None else filename)
     try:
@@ -36,6 +53,44 @@ async def upload_price_list(file: UploadFile = File(...), name: str = Form(defau
             source="upload",
             name=list_name,
             price_list_id=price_list_id,
+        )
+    except (RuntimeError, ValueError) as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    return PriceListUploadOut.model_validate({"bootstrap": repository.bootstrap_payload()})
+
+
+@router.post("/preview", response_model=PriceListPreviewOut)
+async def preview_price_list(file: UploadFile = File(...), price_list_id: int | None = Form(default=None), _: str = Depends(require_admin)) -> PriceListPreviewOut:
+    filename = file.filename or "lista.pdf"
+    if len(filename) > MAX_NAME_LENGTH:
+        raise HTTPException(status_code=400, detail=f"El nombre del archivo no puede superar {MAX_NAME_LENGTH} caracteres")
+    pdf_bytes = await file.read()
+    _validate_pdf_upload(file, pdf_bytes)
+    repository = get_repository()
+    try:
+        base_catalog = repository.get_catalog_for_price_list(price_list_id) if price_list_id is not None else repository.get_active_catalog()
+        preview = build_catalog_preview_snapshot_from_pdf(pdf_bytes, base_catalog)
+    except (RuntimeError, ValueError) as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    return PriceListPreviewOut.model_validate(preview)
+
+
+@router.post("/commit", response_model=PriceListUploadOut)
+def commit_price_list(payload: PriceListCommit, _: str = Depends(require_admin)) -> PriceListUploadOut:
+    if not payload.catalog:
+        raise HTTPException(status_code=400, detail="La lista debe incluir al menos un producto")
+    repository = get_repository()
+    list_name = payload.name.strip() or (None if payload.price_list_id is not None else "Lista manual")
+    filename = payload.filename.strip() or "lista-manual.pdf"
+    try:
+        repository.save_price_list_with_catalog(
+            filename=filename,
+            pdf_bytes=b"",
+            catalog=ensure_catalog_snapshot_x1kg(_catalog_payload(payload.catalog)),
+            activate=payload.activate,
+            source=payload.source or "manual",
+            name=list_name,
+            price_list_id=payload.price_list_id,
         )
     except (RuntimeError, ValueError) as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
