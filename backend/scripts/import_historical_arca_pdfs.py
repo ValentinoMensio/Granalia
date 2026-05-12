@@ -19,6 +19,7 @@ if str(BACKEND_DIR) not in sys.path:
 
 MONEY_RE = re.compile(r"\$?\s*([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2}|[0-9]+,[0-9]{2}|[0-9]+(?:\.[0-9]{2})?)")
 DATE_RE = re.compile(r"(\d{2})[/-](\d{2})[/-](\d{4})")
+CREDIT_NOTE_RE = re.compile(r"NOTA\s+(?:DE\s+)?CR[EÉ]DITO|N\.?\s*CREDITO|NOTA.{0,80}?CR[EÉ]DITO", re.IGNORECASE | re.DOTALL)
 
 
 @dataclass
@@ -59,6 +60,33 @@ def parse_date(value: str) -> date | None:
     return date(int(year), int(month), int(day))
 
 
+def first_date(text: str) -> date | None:
+    for match in DATE_RE.finditer(text):
+        parsed = parse_date(match.group(0))
+        if parsed and 2000 <= parsed.year <= 2100:
+            return parsed
+    return None
+
+
+def invoice_number_from_filename(path: Path) -> int | None:
+    match = re.match(r"(\d+)", path.stem)
+    return int(match.group(1)) if match else None
+
+
+def is_credit_note_filename(path: Path) -> bool:
+    return bool(re.match(r"\d+n\b", path.stem.lower()))
+
+
+def is_credit_note_text(text: str) -> bool:
+    return bool(CREDIT_NOTE_RE.search(text))
+
+
+def should_process_credit_note(path: Path) -> tuple[bool, str]:
+    raw_text = extract_text(path)
+    text = compact_text(raw_text)
+    return is_credit_note_filename(path) or is_credit_note_text(text), raw_text
+
+
 def parse_money(value: str | None) -> Decimal | None:
     if not value:
         return None
@@ -91,7 +119,9 @@ def parse_amount_after_label(text: str, labels: list[str]) -> Decimal | None:
 def parse_number_pair(text: str) -> tuple[int, int] | None:
     patterns = [
         r"Punto\s+de\s+Venta\s*:?\s*(\d{1,5}).{0,80}?Comp\.?\s*Nro\s*:?\s*(\d+)",
+        r"Punto\s+de\s+Venta\s*:?\s*(\d{1,5}).{0,120}?Comp\.?\s*(?:Nro|N[°º])\s*:?\s*(\d+)",
         r"Pto\.?\s*Vta\.?\s*:?\s*(\d{1,5}).{0,80}?Nro\.?\s*:?\s*(\d+)",
+        r"Pto\.?\s*Vta\.?\s*:?\s*(\d{1,5}).{0,120}?Comp\.?\s*(?:Nro|N[°º])\s*:?\s*(\d+)",
         r"(\d{4,5})\s*[-–—]\s*(\d{1,8})",
     ]
     for pattern in patterns:
@@ -125,25 +155,29 @@ def parse_customer_cuit(text: str) -> str:
     return cuits[-1].replace("-", "")[:32]
 
 
-def parse_pdf(path: Path, forced_point_of_sale: int | None = None) -> HistoricalInvoice:
-    raw_text = extract_text(path)
+def parse_pdf(path: Path, forced_point_of_sale: int | None = None, raw_text: str | None = None) -> HistoricalInvoice:
+    raw_text = raw_text if raw_text is not None else extract_text(path)
     text = compact_text(raw_text)
     upper = text.upper()
-    is_credit_note = "NOTA" in upper and "CR" in upper
+    is_credit_note = is_credit_note_filename(path) or is_credit_note_text(text) or ("NOTA" in upper and "CR" in upper)
     document_type = "NOTA_CREDITO" if is_credit_note else "FACTURA"
     cbte_tipo = 3 if is_credit_note else 1
 
     number_pair = parse_number_pair(text)
-    if not number_pair:
+    if number_pair:
+        parsed_point_of_sale, invoice_number = number_pair
+    elif forced_point_of_sale and invoice_number_from_filename(path):
+        parsed_point_of_sale = forced_point_of_sale
+        invoice_number = invoice_number_from_filename(path) or 0
+    else:
         raise ValueError("No se pudo leer punto de venta y número de comprobante")
-    parsed_point_of_sale, invoice_number = number_pair
     point_of_sale = forced_point_of_sale or parsed_point_of_sale
 
     issue_date_text = find_first([
         r"Fecha\s+de\s+Emisi[oó]n\s*:?\s*(\d{2}[/-]\d{2}[/-]\d{4})",
         r"Fecha\s*:?\s*(\d{2}[/-]\d{2}[/-]\d{4})",
     ], text)
-    issue_date = parse_date(issue_date_text or "")
+    issue_date = parse_date(issue_date_text or "") or first_date(text)
     if issue_date is None:
         raise ValueError("No se pudo leer fecha de emisión")
 
@@ -407,6 +441,17 @@ def iter_pdf_files(pdf_dir: Path) -> list[Path]:
     )
 
 
+def print_debug_pdf(path: Path, limit: int) -> None:
+    raw_text = extract_text(path)
+    text = compact_text(raw_text)
+    print(f"Archivo: {path}")
+    print(f"Caracteres extraídos: raw={len(raw_text)} compact={len(text)}")
+    print("--- RAW ---")
+    print(raw_text[:limit])
+    print("--- COMPACT ---")
+    print(text[:limit])
+
+
 def main() -> None:
     global PostgresRepository, insert, select, update, utc_now
 
@@ -415,8 +460,14 @@ def main() -> None:
     parser.add_argument("--point-of-sale", type=int, default=4, help="Punto de venta ARCA histórico")
     parser.add_argument("--environment", choices=["produccion", "homologacion"], default="produccion")
     parser.add_argument("--only-credit-notes", action="store_true", help="Importa solo notas de crédito")
+    parser.add_argument("--debug-pdf", type=Path, help="Imprime el texto extraído de un PDF y sale")
+    parser.add_argument("--debug-limit", type=int, default=6000, help="Cantidad de caracteres a imprimir con --debug-pdf")
     parser.add_argument("--apply", action="store_true", help="Escribe cambios. Sin este flag solo muestra dry-run.")
     args = parser.parse_args()
+
+    if args.debug_pdf:
+        print_debug_pdf(args.debug_pdf, args.debug_limit)
+        return
 
     from sqlalchemy import insert, select, update
 
@@ -427,10 +478,13 @@ def main() -> None:
     dry_run = not args.apply
     failures = 0
     for path in iter_pdf_files(args.pdf_dir):
+        raw_text = None
         try:
-            invoice = parse_pdf(path, forced_point_of_sale=args.point_of_sale)
-            if args.only_credit_notes and invoice.document_type != "NOTA_CREDITO":
-                continue
+            if args.only_credit_notes:
+                is_credit_note, raw_text = should_process_credit_note(path)
+                if not is_credit_note:
+                    continue
+            invoice = parse_pdf(path, forced_point_of_sale=args.point_of_sale, raw_text=raw_text)
             action, detail = import_invoice(repo, invoice, environment=args.environment, dry_run=dry_run)
             print(
                 f"{path.name}: {action} {detail} | {invoice.document_type} "
