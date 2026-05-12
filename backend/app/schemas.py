@@ -464,6 +464,8 @@ class InvoiceListItemOut(BaseModel):
     gross_total: int
     discount_total: int
     final_total: int
+    fiscal_net_total: float | None = None
+    fiscal_iva_total: float | None = None
     fiscal_total: float | None = None
     created_at: str
 

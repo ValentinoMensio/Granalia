@@ -11,7 +11,9 @@ const EMPTY_FILTERS = { customerIds: [''], dateFrom: '', dateTo: '', transport: 
 const EMPTY_PRODUCT_FILTERS = { lines: [{ productId: '', offeringId: '' }] }
 const MONTH_LABELS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 const MONTHLY_METRICS = [
-  { key: 'total', label: 'Total', format: (value) => `$${money(value)}` },
+  { key: 'total', label: 'Total sin IVA', format: (value) => `$${money(value)}` },
+  { key: 'iva', label: 'IVA', format: (value) => `$${money(value)}` },
+  { key: 'totalWithIva', label: 'Total con IVA', format: (value) => `$${money(value)}` },
   { key: 'discount', label: 'Descuento', format: (value) => `$${money(value)}` },
   { key: 'bultos', label: 'Bultos', format: (value) => money(value) },
   { key: 'weight', label: 'Peso', format: (value) => `${weight(value)} kg` },
@@ -32,6 +34,29 @@ function invoiceStatsTotal(invoice) {
   return Number(invoice?.final_total ?? (invoiceStatsGross(invoice) - invoiceStatsDiscount(invoice)) ?? 0)
 }
 
+function isCreditNote(row) {
+  return String(row?.document_type || '').toUpperCase() === 'NOTA_CREDITO'
+}
+
+function rowSign(row) {
+  return isCreditNote(row) ? -1 : 1
+}
+
+function invoiceStatsNet(invoice) {
+  const value = invoice?.declared && invoice?.fiscal_net_total != null ? Number(invoice.fiscal_net_total) : invoiceStatsTotal(invoice)
+  return value * rowSign(invoice)
+}
+
+function invoiceStatsIva(invoice) {
+  const value = invoice?.declared && invoice?.fiscal_iva_total != null ? Number(invoice.fiscal_iva_total) : 0
+  return value * rowSign(invoice)
+}
+
+function invoiceStatsTotalWithIva(invoice) {
+  const value = invoice?.declared && invoice?.fiscal_total != null ? Number(invoice.fiscal_total) : invoiceStatsTotal(invoice)
+  return value * rowSign(invoice)
+}
+
 function monthLabel(value) {
   if (!value) return 'Sin fecha'
   const [year, month] = String(value).split('-')
@@ -42,12 +67,14 @@ function buildRanking(invoices, keyFn) {
   const grouped = new Map()
   for (const invoice of invoices) {
     const key = keyFn(invoice)
-    const current = grouped.get(key) || { label: key, count: 0, bultos: 0, weight: 0, gross: 0, discount: 0, total: 0 }
+    const current = grouped.get(key) || { label: key, count: 0, bultos: 0, weight: 0, gross: 0, discount: 0, total: 0, iva: 0, totalWithIva: 0 }
     current.count += 1
     current.bultos += Number(invoice.total_bultos || 0)
     current.gross += invoiceStatsGross(invoice)
     current.discount += invoiceStatsDiscount(invoice)
-    current.total += invoiceStatsTotal(invoice)
+    current.total += invoiceStatsNet(invoice)
+    current.iva += invoiceStatsIva(invoice)
+    current.totalWithIva += invoiceStatsTotalWithIva(invoice)
     grouped.set(key, current)
   }
   return Array.from(grouped.values()).sort((a, b) => b.total - a.total)
@@ -58,7 +85,7 @@ function buildMonthlyItemRanking(items) {
   const invoiceIdsByMonth = new Map()
   for (const item of items) {
     const key = String(item.order_date || '').slice(0, 7) || 'Sin fecha'
-    const current = grouped.get(key) || { label: monthLabel(key), monthKey: key, count: 0, bultos: 0, weight: 0, gross: 0, discount: 0, total: 0 }
+    const current = grouped.get(key) || { label: monthLabel(key), monthKey: key, count: 0, bultos: 0, weight: 0, gross: 0, discount: 0, total: 0, iva: 0, totalWithIva: 0 }
     const invoiceIds = invoiceIdsByMonth.get(key) || new Set()
     invoiceIds.add(String(item.invoice_id || ''))
     current.count = invoiceIds.size
@@ -67,6 +94,8 @@ function buildMonthlyItemRanking(items) {
     current.gross += Number(item.gross || 0)
     current.discount += Number(item.discount || 0)
     current.total += Number(item.total || 0)
+    current.iva += Number(item.iva_amount || 0)
+    current.totalWithIva += Number(item.fiscal_total ?? item.total ?? 0)
     grouped.set(key, current)
     invoiceIdsByMonth.set(key, invoiceIds)
   }
@@ -96,6 +125,8 @@ function buildYearMonthlyRows(rows, year) {
       gross: 0,
       discount: 0,
       total: 0,
+      iva: 0,
+      totalWithIva: 0,
     }
   })
 }
@@ -118,12 +149,14 @@ function buildProductRanking(items) {
     const product = itemProductLabel(item)
     const offering = itemOfferingLabel(item)
     const key = `${product} / ${offering}`
-    const current = grouped.get(key) || { label: key, count: 0, bultos: 0, weight: 0, gross: 0, discount: 0, total: 0 }
+    const current = grouped.get(key) || { label: key, count: 0, bultos: 0, weight: 0, gross: 0, discount: 0, total: 0, iva: 0, totalWithIva: 0 }
     current.count += 1
     current.bultos += Number(item.quantity || 0)
     current.gross += Number(item.gross || 0)
     current.discount += Number(item.discount || 0)
     current.total += Number(item.total || 0)
+    current.iva += Number(item.iva_amount || 0)
+    current.totalWithIva += Number(item.fiscal_total ?? item.total ?? 0)
     current.weight += itemWeight(item)
     grouped.set(key, current)
   }
@@ -134,13 +167,15 @@ function buildProductTotalRanking(items) {
   const grouped = new Map()
   for (const item of items) {
     const key = itemProductLabel(item)
-    const current = grouped.get(key) || { label: key, count: 0, bultos: 0, weight: 0, gross: 0, discount: 0, total: 0 }
+    const current = grouped.get(key) || { label: key, count: 0, bultos: 0, weight: 0, gross: 0, discount: 0, total: 0, iva: 0, totalWithIva: 0 }
     current.count += 1
     current.bultos += Number(item.quantity || 0)
     current.weight += itemWeight(item)
     current.gross += Number(item.gross || 0)
     current.discount += Number(item.discount || 0)
     current.total += Number(item.total || 0)
+    current.iva += Number(item.iva_amount || 0)
+    current.totalWithIva += Number(item.fiscal_total ?? item.total ?? 0)
     grouped.set(key, current)
   }
   return Array.from(grouped.values()).sort((a, b) => b.total - a.total)
@@ -150,13 +185,15 @@ function buildCustomerProductRanking(items) {
   const grouped = new Map()
   for (const item of items) {
     const key = item.client_name || 'Sin cliente'
-    const current = grouped.get(key) || { label: key, invoiceIds: new Set(), count: 0, bultos: 0, weight: 0, gross: 0, discount: 0, total: 0 }
+    const current = grouped.get(key) || { label: key, invoiceIds: new Set(), count: 0, bultos: 0, weight: 0, gross: 0, discount: 0, total: 0, iva: 0, totalWithIva: 0 }
     current.invoiceIds.add(String(item.invoice_id))
     current.bultos += Number(item.quantity || 0)
     current.weight += itemWeight(item)
     current.gross += Number(item.gross || 0)
     current.discount += Number(item.discount || 0)
     current.total += Number(item.total || 0)
+    current.iva += Number(item.iva_amount || 0)
+    current.totalWithIva += Number(item.fiscal_total ?? item.total ?? 0)
     grouped.set(key, current)
   }
   return Array.from(grouped.values())
@@ -173,7 +210,9 @@ function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false
     { key: 'bultos', label: 'Bultos', align: 'right' },
     ...(showWeight ? [{ key: 'weight', label: 'Peso', align: 'right' }] : []),
     { key: 'discount', label: 'Descuento', align: 'right' },
-    { key: 'total', label: 'Total', align: 'right' },
+    { key: 'total', label: 'Total s/IVA', align: 'right' },
+    { key: 'iva', label: 'IVA', align: 'right' },
+    { key: 'totalWithIva', label: 'Total c/IVA', align: 'right' },
   ]
   const sortedRows = useMemo(() => {
     return [...rows].sort((a, b) => {
@@ -267,8 +306,10 @@ function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false
             <col className={showWeight ? 'w-[12%]' : 'w-[13%]'} />
             <col className={showWeight ? 'w-[13%]' : 'w-[15%]'} />
             {showWeight ? <col className="w-[15%]" /> : null}
-            <col className={showWeight ? 'w-[14%]' : 'w-[18%]'} />
-            <col className={showWeight ? 'w-[16%]' : 'w-[20%]'} />
+            <col className={showWeight ? 'w-[11%]' : 'w-[14%]'} />
+            <col className={showWeight ? 'w-[12%]' : 'w-[16%]'} />
+            <col className={showWeight ? 'w-[10%]' : 'w-[12%]'} />
+            <col className={showWeight ? 'w-[13%]' : 'w-[15%]'} />
           </colgroup>
           <thead className="table-head">
             <tr>
@@ -301,12 +342,14 @@ function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false
                 <td className="table-cell whitespace-nowrap !px-2 text-right">{money(row.bultos)}</td>
                 {showWeight ? <td className="table-cell whitespace-nowrap !px-2 text-right">{weight(row.weight)} kg</td> : null}
                 <td className="table-cell whitespace-nowrap !px-2 text-right">${money(row.discount)}</td>
-                <td className="table-cell whitespace-nowrap !pl-2 !pr-5 text-right font-semibold text-brand-red">${money(row.total)}</td>
+                <td className="table-cell whitespace-nowrap !pl-2 !pr-2 text-right font-semibold text-brand-red">${money(row.total)}</td>
+                <td className="table-cell whitespace-nowrap !px-2 text-right">${money(row.iva)}</td>
+                <td className="table-cell whitespace-nowrap !pl-2 !pr-5 text-right font-semibold text-brand-red">${money(row.totalWithIva ?? row.total)}</td>
               </tr>
             ))}
             {sortedRows.length === 0 && (
               <tr>
-                <td colSpan={showWeight ? 6 : 5} className="table-cell py-8 text-center text-slate-400">No hay datos para estos filtros.</td>
+                <td colSpan={showWeight ? 8 : 7} className="table-cell py-8 text-center text-slate-400">No hay datos para estos filtros.</td>
               </tr>
             )}
           </tbody>
@@ -404,6 +447,8 @@ export default function InvoiceStats() {
           ...item,
           discount: Number(item.effective_discount ?? item.discount ?? 0),
           total: Number(item.effective_total ?? item.total ?? 0),
+          iva_amount: Number(item.iva_amount || 0),
+          fiscal_total: Number(item.fiscal_total ?? item.effective_total ?? item.total ?? 0),
         })))
       })
       .finally(() => setLoadingItems(false))
@@ -479,19 +524,23 @@ export default function InvoiceStats() {
       const gross = filteredItems.reduce((sum, item) => sum + Number(item.gross || 0), 0)
       const discount = filteredItems.reduce((sum, item) => sum + Number(item.discount || 0), 0)
       const total = filteredItems.reduce((sum, item) => sum + Number(item.total || 0), 0)
+      const iva = filteredItems.reduce((sum, item) => sum + Number(item.iva_amount || 0), 0)
+      const totalWithIva = filteredItems.reduce((sum, item) => sum + Number(item.fiscal_total ?? item.total ?? 0), 0)
       const bultos = filteredItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0)
       const average = invoiceCount ? Math.round(total / invoiceCount) : 0
       const averageKg = totalWeight ? total / totalWeight : 0
-      return { gross, discount, total, bultos, average, averageKg }
+      return { gross, discount, total, iva, totalWithIva, bultos, average, averageKg }
     }
 
-    const gross = filteredInvoices.reduce((sum, invoice) => sum + invoiceStatsGross(invoice), 0)
-    const discount = filteredInvoices.reduce((sum, invoice) => sum + invoiceStatsDiscount(invoice), 0)
-    const total = filteredInvoices.reduce((sum, invoice) => sum + invoiceStatsTotal(invoice), 0)
-    const bultos = filteredInvoices.reduce((sum, invoice) => sum + Number(invoice.total_bultos || 0), 0)
+    const gross = filteredInvoices.reduce((sum, invoice) => sum + (invoiceStatsGross(invoice) * rowSign(invoice)), 0)
+    const discount = filteredInvoices.reduce((sum, invoice) => sum + (invoiceStatsDiscount(invoice) * rowSign(invoice)), 0)
+    const total = filteredInvoices.reduce((sum, invoice) => sum + invoiceStatsNet(invoice), 0)
+    const iva = filteredInvoices.reduce((sum, invoice) => sum + invoiceStatsIva(invoice), 0)
+    const totalWithIva = filteredInvoices.reduce((sum, invoice) => sum + invoiceStatsTotalWithIva(invoice), 0)
+    const bultos = filteredInvoices.reduce((sum, invoice) => sum + (Number(invoice.total_bultos || 0) * rowSign(invoice)), 0)
     const average = filteredInvoices.length ? Math.round(total / filteredInvoices.length) : 0
     const averageKg = totalWeight ? total / totalWeight : 0
-    return { gross, discount, total, bultos, average, averageKg }
+    return { gross, discount, total, iva, totalWithIva, bultos, average, averageKg }
   }, [filteredInvoices, filteredItems, hasProductFilter, invoiceCount, totalWeight])
   const byMonth = useMemo(() => buildMonthlyItemRanking(filteredItems), [filteredItems])
   const chartYear = useMemo(
@@ -662,13 +711,15 @@ export default function InvoiceStats() {
           <div className="h-px flex-1 bg-stone-200" />
         </div>
 
-        <section className="grid gap-3 md:grid-cols-6">
+        <section className="grid gap-3 md:grid-cols-8">
           <Metric label="Facturas" value={money(invoiceCount)} />
           <Metric label="Bultos" value={money(summary.bultos)} />
           <Metric label="Kilos" value={`${weight(totalWeight)} kg`} />
           <Metric label="Bruto" value={`$${money(summary.gross)}`} />
           <Metric label="Descuentos" value={`$${money(summary.discount)}`} />
-          <Metric label="Total" value={`$${money(summary.total)}`} />
+          <Metric label="Total s/IVA" value={`$${money(summary.total)}`} />
+          <Metric label="IVA" value={`$${money(summary.iva)}`} />
+          <Metric label="Total c/IVA" value={`$${money(summary.totalWithIva ?? summary.total)}`} />
         </section>
       </div>
 

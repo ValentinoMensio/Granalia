@@ -211,9 +211,15 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     ).where(self.invoice_items.c.invoice_id.in_(invoice_ids))
                 ).mappings().all()
             fiscal_totals_by_invoice: dict[int, Decimal] = {}
+            fiscal_net_totals_by_invoice: dict[int, Decimal] = {}
+            fiscal_iva_totals_by_invoice: dict[int, Decimal] = {}
             for row in tax_rows:
                 invoice_id = int(row["invoice_id"])
-                fiscal_totals_by_invoice[invoice_id] = fiscal_totals_by_invoice.get(invoice_id, Decimal("0")) + Decimal(str(row["base_amount"] or 0)) + Decimal(str(row["iva_amount"] or 0))
+                base_amount = Decimal(str(row["base_amount"] or 0))
+                iva_amount = Decimal(str(row["iva_amount"] or 0))
+                fiscal_net_totals_by_invoice[invoice_id] = fiscal_net_totals_by_invoice.get(invoice_id, Decimal("0")) + base_amount
+                fiscal_iva_totals_by_invoice[invoice_id] = fiscal_iva_totals_by_invoice.get(invoice_id, Decimal("0")) + iva_amount
+                fiscal_totals_by_invoice[invoice_id] = fiscal_totals_by_invoice.get(invoice_id, Decimal("0")) + base_amount + iva_amount
             items_by_invoice: dict[int, list[dict[str, object]]] = {}
             for row in item_rows:
                 items_by_invoice.setdefault(int(row["invoice_id"]), []).append({key: serialize_value(value) for key, value in row.items()})
@@ -225,15 +231,29 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                 delta = discounts_by_invoice.get(invoice_id, current_discount) - current_discount
                 allocations = self._allocate_integer_amount(delta, [int(item.get("gross") or 0) for item in invoice_items])
                 fiscal_total = Decimal("0")
+                fiscal_net_total = Decimal("0")
+                fiscal_iva_total = Decimal("0")
                 for invoice_item, allocation in zip(invoice_items, allocations):
                     if invoice_item.get("iva_rate") is None:
                         continue
                     net_amount = Decimal(str(int(invoice_item.get("total") or 0) - allocation))
-                    fiscal_total += self._round_money(net_amount * (Decimal("1") + Decimal(str(invoice_item["iva_rate"]))))
+                    iva_amount = self._round_money(net_amount * Decimal(str(invoice_item["iva_rate"])))
+                    fiscal_net_total += net_amount
+                    fiscal_iva_total += iva_amount
+                    fiscal_total += self._round_money(net_amount + iva_amount)
                 if fiscal_total:
+                    fiscal_net_totals_by_invoice[invoice_id] = fiscal_net_total
+                    fiscal_iva_totals_by_invoice[invoice_id] = fiscal_iva_total
                     fiscal_totals_by_invoice[invoice_id] = fiscal_total
             for item in payload:
-                fiscal_total = fiscal_totals_by_invoice.get(int(item["invoice_id"]))
+                invoice_id = int(item["invoice_id"])
+                fiscal_net_total = fiscal_net_totals_by_invoice.get(invoice_id)
+                fiscal_iva_total = fiscal_iva_totals_by_invoice.get(invoice_id)
+                fiscal_total = fiscal_totals_by_invoice.get(invoice_id)
+                if fiscal_net_total is not None:
+                    item["fiscal_net_total"] = float(fiscal_net_total)
+                if fiscal_iva_total is not None:
+                    item["fiscal_iva_total"] = float(fiscal_iva_total)
                 if fiscal_total is not None:
                     item["fiscal_total"] = float(fiscal_total)
         return payload
@@ -271,6 +291,9 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     self.invoice_items.c.gross,
                     self.invoice_items.c.discount,
                     self.invoice_items.c.total,
+                    self.invoice_items.c.net_amount,
+                    self.invoice_items.c.iva_amount,
+                    self.invoice_items.c.fiscal_total,
                 )
                 .select_from(
                     self.invoice_items
@@ -296,9 +319,9 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
         for item in items:
             if str(item.get("document_type") or "") != "NOTA_CREDITO":
                 continue
-            for field in ("quantity", "invoice_gross_total", "invoice_discount_total", "invoice_final_total", "gross", "discount", "total", "effective_discount", "effective_total"):
+            for field in ("quantity", "invoice_gross_total", "invoice_discount_total", "invoice_final_total", "gross", "discount", "total", "effective_discount", "effective_total", "net_amount", "iva_amount", "fiscal_total"):
                 if item.get(field) is not None:
-                    item[field] = -float(item[field]) if field == "quantity" else -int(item[field])
+                    item[field] = -float(item[field]) if field in {"quantity", "net_amount", "iva_amount", "fiscal_total"} else -int(item[field])
 
         return items
 

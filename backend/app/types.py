@@ -158,6 +158,8 @@ class InvoiceListItemData(TypedDict):
     gross_total: int
     discount_total: int
     final_total: int
+    fiscal_net_total: NotRequired[float | None]
+    fiscal_iva_total: NotRequired[float | None]
     fiscal_total: NotRequired[float | None]
     created_at: str | datetime
 

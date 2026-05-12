@@ -32,6 +32,8 @@ class HistoricalInvoice:
     issue_date: date
     customer_name: str
     customer_cuit: str
+    customer_address: str
+    customer_iva_condition: str
     cae: str | None
     cae_expires_at: date | None
     net_by_rate: dict[Decimal, Decimal]
@@ -107,6 +109,41 @@ def find_first(patterns: list[str], text: str, flags: int = re.IGNORECASE) -> st
     return None
 
 
+def clean_label_value(value: str) -> str:
+    text = re.sub(r"\s+", " ", value or "").strip(" :-")
+    text = re.split(
+        r"\b(?:CUIT|Domicilio\s+Comercial|Condici[oó]n\s+frente\s+al\s+IVA|Condici[oó]n\s+de\s+venta|Apellido\s+y\s+Nombre|Raz[oó]n\s+Social|Fecha)\b\s*: ?",
+        text,
+        maxsplit=1,
+        flags=re.IGNORECASE,
+    )[0].strip(" :-")
+    return text[:255]
+
+
+def is_bad_customer_candidate(value: str) -> bool:
+    text = clean_label_value(value).upper()
+    if not text:
+        return True
+    bad_fragments = ["DOMICILIO COMERCIAL", "CONDICION", "CONDICIÓN", "CUIT", "FECHA", "MENSIO", "GRANALIA"]
+    return any(fragment in text for fragment in bad_fragments)
+
+
+def parse_label_from_lines(text: str, label_pattern: str, *, max_length: int = 255) -> str:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    for index, line in enumerate(lines):
+        match = re.search(label_pattern, line, re.IGNORECASE)
+        if not match:
+            continue
+        candidate = clean_label_value(line[match.end():])
+        if candidate:
+            return candidate[:max_length]
+        for next_line in lines[index + 1:index + 4]:
+            candidate = clean_label_value(next_line)
+            if candidate:
+                return candidate[:max_length]
+    return ""
+
+
 def parse_amount_after_label(text: str, labels: list[str]) -> Decimal | None:
     for label in labels:
         pattern = rf"{label}\s*:?\s*\$?\s*([0-9.]+,[0-9]{{2}}|[0-9]+(?:\.[0-9]{{2}})?)"
@@ -132,6 +169,9 @@ def parse_number_pair(text: str) -> tuple[int, int] | None:
 
 
 def parse_customer_name(text: str) -> str:
+    from_lines = parse_label_from_lines(text, r"Apellido\s+y\s+Nombre\s*/\s*Raz[oó]n\s+Social\s*:?|Raz[oó]n\s+Social\s*:?|Cliente\s*:?")
+    if not is_bad_customer_candidate(from_lines):
+        return from_lines[:255]
     patterns = [
         r"Apellido\s+y\s+Nombre\s*/\s*Raz[oó]n\s+Social\s*:?\s*([^\n]+)",
         r"Raz[oó]n\s+Social\s*:?\s*([^\n]+)",
@@ -141,10 +181,18 @@ def parse_customer_name(text: str) -> str:
     for pattern in patterns:
         matches.extend(item.strip() for item in re.findall(pattern, text, re.IGNORECASE) if item.strip())
     for item in matches:
-        normalized = item.upper()
-        if "MENSIO" not in normalized and "GRANALIA" not in normalized:
-            return item[:255]
-    return (matches[-1] if matches else "Cliente histórico")[:255]
+        candidate = clean_label_value(item)
+        if not is_bad_customer_candidate(candidate):
+            return candidate[:255]
+    return "Cliente histórico"
+
+
+def parse_customer_address(text: str) -> str:
+    return parse_label_from_lines(text, r"Domicilio\s+Comercial\s*:?")[:500]
+
+
+def parse_customer_iva_condition(text: str) -> str:
+    return parse_label_from_lines(text, r"Condici[oó]n\s+frente\s+al\s+IVA\s*:?")[:120]
 
 
 def parse_customer_cuit(text: str) -> str:
@@ -218,6 +266,8 @@ def parse_pdf(path: Path, forced_point_of_sale: int | None = None, raw_text: str
         issue_date=issue_date,
         customer_name=parse_customer_name(text),
         customer_cuit=parse_customer_cuit(text),
+        customer_address=parse_customer_address(text),
+        customer_iva_condition=parse_customer_iva_condition(text) or "IVA Responsable Inscripto",
         cae=cae,
         cae_expires_at=parse_date(cae_exp_text or ""),
         net_by_rate=net_by_rate,
@@ -237,6 +287,67 @@ def arca_iva_id(rate: Decimal) -> int:
 def historical_invoice_id(invoice: HistoricalInvoice) -> int:
     # IDs negativos para no consumir ni mezclar la secuencia positiva de comprobantes reales futuros.
     return -int((invoice.cbte_tipo * 10**12) + (invoice.point_of_sale * 10**8) + invoice.invoice_number)
+
+
+def normalized_name(value: str) -> str:
+    return re.sub(r"\s+", " ", (value or "").strip()).lower()
+
+
+def net_total(invoice: HistoricalInvoice) -> Decimal:
+    return sum(invoice.net_by_rate.values(), Decimal("0.00")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def iva_total(invoice: HistoricalInvoice) -> Decimal:
+    return sum(invoice.iva_by_rate.values(), Decimal("0.00")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def resolve_customer_id(repo: PostgresRepository, connection, invoice: HistoricalInvoice, now) -> int | None:
+    name = invoice.customer_name if not is_bad_customer_candidate(invoice.customer_name) else "Cliente histórico"
+    row = None
+    if invoice.customer_cuit:
+        row = connection.execute(select(repo.customers).where(repo.customers.c.cuit == invoice.customer_cuit).limit(1)).mappings().first()
+    if row is None and name != "Cliente histórico":
+        rows = connection.execute(select(repo.customers.c.id, repo.customers.c.name)).mappings().all()
+        for candidate in rows:
+            if normalized_name(str(candidate["name"] or "")) == normalized_name(name):
+                row = candidate
+                break
+    if row is not None:
+        customer_id = int(row["id"])
+        values = {}
+        if invoice.customer_cuit:
+            values["cuit"] = invoice.customer_cuit
+        if invoice.customer_address:
+            values["address"] = invoice.customer_address
+        if invoice.customer_iva_condition:
+            values["business_name"] = name
+        if values:
+            values["updated_at"] = now
+            connection.execute(update(repo.customers).where(repo.customers.c.id == customer_id).values(**values))
+        return customer_id
+    if name == "Cliente histórico" and not invoice.customer_cuit:
+        return None
+    return int(connection.execute(
+        insert(repo.customers)
+        .values(
+            name=name,
+            cuit=invoice.customer_cuit,
+            address=invoice.customer_address,
+            business_name=name,
+            email="",
+            secondary_line="",
+            notes=["Creado por importación histórica ARCA"],
+            footer_discounts=[],
+            line_discounts_by_format={},
+            automatic_bonus_rules=[],
+            automatic_bonus_disables_line_discount=False,
+            source_count=0,
+            transport_id=None,
+            created_at=now,
+            updated_at=now,
+        )
+        .returning(repo.customers.c.id)
+    ).scalar_one())
 
 
 def find_invoice_to_update(repo: PostgresRepository, connection, invoice: HistoricalInvoice, environment: str):
@@ -262,7 +373,7 @@ def find_invoice_to_update(repo: PostgresRepository, connection, invoice: Histor
             repo.invoices.c.order_date == invoice.issue_date,
             repo.invoices.c.declared.is_(True),
             repo.invoices.c.arca_invoice_number.is_(None),
-            repo.invoices.c.final_total == money_int(invoice.total),
+            repo.invoices.c.final_total == money_int(net_total(invoice)),
         )
     ).mappings().all()
     if len(candidates) == 1:
@@ -334,16 +445,18 @@ def mark_authorized(repo: PostgresRepository, connection, invoice_id: int, invoi
 
 
 def insert_historical_invoice(repo: PostgresRepository, connection, invoice: HistoricalInvoice, environment: str, now) -> int:
-    rounded_total = money_int(invoice.total)
+    rounded_net_total = money_int(net_total(invoice))
     invoice_id = historical_invoice_id(invoice)
     existing_id = connection.execute(select(repo.invoices.c.id).where(repo.invoices.c.id == invoice_id)).scalar_one_or_none()
     if existing_id is not None:
         raise ValueError(f"Ya existe un comprobante histórico con id {invoice_id}")
+    customer_id = resolve_customer_id(repo, connection, invoice, now)
+    customer_name = invoice.customer_name if not is_bad_customer_candidate(invoice.customer_name) else "Cliente histórico"
     invoice_id = int(connection.execute(
         insert(repo.invoices)
         .values(
             id=invoice_id,
-            customer_id=None,
+            customer_id=customer_id,
             transport_id=None,
             price_list_id=None,
             batch_id=None,
@@ -354,7 +467,7 @@ def insert_historical_invoice(repo: PostgresRepository, connection, invoice: His
             point_of_sale=invoice.point_of_sale,
             invoice_number=invoice.invoice_number,
             internal_invoice_number=None,
-            client_name=invoice.customer_name,
+            client_name=customer_name,
             declared=True,
             split_kind="fiscal",
             split_percentage=None,
@@ -364,9 +477,9 @@ def insert_historical_invoice(repo: PostgresRepository, connection, invoice: His
             price_list_name="Histórico ARCA",
             price_list_effective_date=None,
             customer_cuit=invoice.customer_cuit,
-            customer_address="",
-            customer_business_name=invoice.customer_name,
-            customer_iva_condition="IVA Responsable Inscripto",
+            customer_address=invoice.customer_address,
+            customer_business_name=customer_name,
+            customer_iva_condition=invoice.customer_iva_condition,
             customer_email="",
             order_date=invoice.issue_date,
             secondary_line="",
@@ -375,9 +488,9 @@ def insert_historical_invoice(repo: PostgresRepository, connection, invoice: His
             footer_discounts=[],
             line_discounts_by_format={},
             total_bultos=float(len(invoice.net_by_rate)),
-            gross_total=rounded_total,
+            gross_total=rounded_net_total,
             discount_total=0,
-            final_total=rounded_total,
+            final_total=rounded_net_total,
             created_at=now,
         )
         .returning(repo.invoices.c.id)
@@ -444,6 +557,18 @@ def import_invoice(repo: PostgresRepository, invoice: HistoricalInvoice, *, envi
         return "inserted", str(inserted_id)
 
 
+def delete_historical(repo: PostgresRepository, *, dry_run: bool) -> int:
+    with repo.engine.begin() as connection:
+        ids = connection.execute(
+            select(repo.invoices.c.id).where(
+                (repo.invoices.c.id < 0) | (repo.invoices.c.legacy_key.like("historical-arca:%"))
+            )
+        ).scalars().all()
+        if not dry_run and ids:
+            connection.execute(repo.invoices.delete().where(repo.invoices.c.id.in_(ids)))
+        return len(ids)
+
+
 def iter_pdf_files(pdf_dir: Path) -> list[Path]:
     return sorted(
         (path for path in pdf_dir.iterdir() if path.suffix.lower() == ".pdf"),
@@ -470,6 +595,8 @@ def main() -> None:
     parser.add_argument("--point-of-sale", type=int, default=4, help="Punto de venta ARCA histórico")
     parser.add_argument("--environment", choices=["produccion", "homologacion"], default="produccion")
     parser.add_argument("--only-credit-notes", action="store_true", help="Importa solo notas de crédito")
+    parser.add_argument("--delete-historical", action="store_true", help="Borra solo comprobantes históricos importados por este script")
+    parser.add_argument("--replace-historical", action="store_true", help="Borra históricos importados y vuelve a cargar desde los PDFs")
     parser.add_argument("--debug-pdf", type=Path, help="Imprime el texto extraído de un PDF y sale")
     parser.add_argument("--debug-limit", type=int, default=6000, help="Cantidad de caracteres a imprimir con --debug-pdf")
     parser.add_argument("--apply", action="store_true", help="Escribe cambios. Sin este flag solo muestra dry-run.")
@@ -486,6 +613,13 @@ def main() -> None:
 
     repo = PostgresRepository(BACKEND_DIR)
     dry_run = not args.apply
+    if args.delete_historical or args.replace_historical:
+        count = delete_historical(repo, dry_run=dry_run)
+        print(f"Históricos {'a borrar' if dry_run else 'borrados'}: {count}")
+        if args.delete_historical and not args.replace_historical:
+            if dry_run:
+                print("Dry-run finalizado. Ejecutá nuevamente con --apply para escribir cambios.")
+            return
     failures = 0
     for path in iter_pdf_files(args.pdf_dir):
         raw_text = None
