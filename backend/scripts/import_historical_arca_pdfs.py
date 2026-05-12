@@ -234,6 +234,11 @@ def arca_iva_id(rate: Decimal) -> int:
     return 4 if rate.quantize(Decimal("0.001")) == Decimal("0.105") else 5
 
 
+def historical_invoice_id(invoice: HistoricalInvoice) -> int:
+    # IDs negativos para no consumir ni mezclar la secuencia positiva de comprobantes reales futuros.
+    return -int((invoice.cbte_tipo * 10**12) + (invoice.point_of_sale * 10**8) + invoice.invoice_number)
+
+
 def find_invoice_to_update(repo: PostgresRepository, connection, invoice: HistoricalInvoice, environment: str):
     exact = connection.execute(
         select(repo.invoices.c.id, repo.invoices.c.fiscal_status, repo.invoices.c.arca_cae)
@@ -330,9 +335,14 @@ def mark_authorized(repo: PostgresRepository, connection, invoice_id: int, invoi
 
 def insert_historical_invoice(repo: PostgresRepository, connection, invoice: HistoricalInvoice, environment: str, now) -> int:
     rounded_total = money_int(invoice.total)
+    invoice_id = historical_invoice_id(invoice)
+    existing_id = connection.execute(select(repo.invoices.c.id).where(repo.invoices.c.id == invoice_id)).scalar_one_or_none()
+    if existing_id is not None:
+        raise ValueError(f"Ya existe un comprobante histórico con id {invoice_id}")
     invoice_id = int(connection.execute(
         insert(repo.invoices)
         .values(
+            id=invoice_id,
             customer_id=None,
             transport_id=None,
             price_list_id=None,
