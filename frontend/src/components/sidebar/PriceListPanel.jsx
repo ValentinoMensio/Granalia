@@ -18,6 +18,32 @@ function PriceListPanel({ bootstrap, priceListUploadName, priceListUploadTargetI
     onUploadNameChange(selected?.name || '')
   }
 
+  function renderTargetSelector(idPrefix) {
+    return (
+      <>
+        <label className="mt-3 block text-xs font-bold uppercase tracking-[0.12em] text-slate-400">
+          Reemplazar lista
+        </label>
+        <select id={`${idPrefix}-target`} className="input mt-1" value={priceListUploadTargetId} onChange={(event) => handleTargetChange(event.target.value)}>
+          <option value="">Crear nueva lista</option>
+          {priceLists.map((priceList) => (
+            <option key={priceList.id} value={priceList.id}>Reemplazar: {priceList.name}</option>
+          ))}
+        </select>
+        <label className="mt-3 block text-xs font-bold uppercase tracking-[0.12em] text-slate-400">
+          Nombre de lista
+        </label>
+        <input
+          id={`${idPrefix}-name`}
+          className="input mt-1"
+          value={priceListUploadName}
+          onChange={(event) => onUploadNameChange(event.target.value)}
+          placeholder={priceListUploadTargetId ? 'Mantener nombre actual' : 'Ej: Mayorista Abril'}
+        />
+      </>
+    )
+  }
+
   return (
     <Panel title="Lista de precios">
       <div className="mb-3 flex items-center gap-3 text-xs font-bold uppercase tracking-[0.12em] text-blue-700">
@@ -25,7 +51,8 @@ function PriceListPanel({ bootstrap, priceListUploadName, priceListUploadTargetI
         Carga manual
         <span className="h-px flex-1 bg-blue-200" />
       </div>
-      <Button variant="secondary" className="w-full justify-center border-blue-300 bg-blue-600 text-white shadow-sm hover:bg-blue-700" onClick={onManual} disabled={uploading}>
+      {renderTargetSelector('manual-price-list')}
+      <Button variant="primary" className="mt-3 w-full justify-center" onClick={onManual} disabled={uploading}>
         Cargar precios manualmente
       </Button>
 
@@ -39,25 +66,7 @@ function PriceListPanel({ bootstrap, priceListUploadName, priceListUploadTargetI
         Carga desde archivo
       </label>
       <input className="input mt-1 text-xs file:mr-3 file:rounded-lg file:border-0 file:bg-brand-red file:px-3 file:py-2 file:text-sm file:font-medium file:text-white file:cursor-pointer sm:text-sm" type="file" accept="application/pdf" onChange={(event) => onFileChange(event.target.files?.[0] || null)} />
-
-      <label className="mt-3 block text-xs font-bold uppercase tracking-[0.12em] text-slate-400">
-        Reemplazar lista
-      </label>
-      <select className="input mt-1" value={priceListUploadTargetId} onChange={(event) => handleTargetChange(event.target.value)}>
-        <option value="">Crear nueva lista</option>
-        {priceLists.map((priceList) => (
-          <option key={priceList.id} value={priceList.id}>Reemplazar: {priceList.name}</option>
-        ))}
-      </select>
-      <label className="mt-3 block text-xs font-bold uppercase tracking-[0.12em] text-slate-400">
-        Nombre de lista
-      </label>
-      <input
-        className="input mt-1"
-        value={priceListUploadName}
-        onChange={(event) => onUploadNameChange(event.target.value)}
-        placeholder={priceListUploadTargetId ? 'Mantener nombre actual' : 'Ej: Mayorista Abril'}
-      />
+      {renderTargetSelector('pdf-price-list')}
 
       <Button variant="primary" className="mt-3 w-full justify-center" onClick={onUpload} disabled={uploading}>
         {uploading ? 'Procesando...' : 'Previsualizar PDF'}
