@@ -26,29 +26,9 @@
         }
     }
 
-    handle /docs* {
-        reverse_proxy {$GRANALIA_API_UPSTREAM:host.docker.internal:8000} {
-            header_up X-Forwarded-Proto https
-            header_up X-Forwarded-Host {host}
-            header_up X-Forwarded-For {remote_host}
-        }
-    }
-
-    handle /redoc* {
-        reverse_proxy {$GRANALIA_API_UPSTREAM:host.docker.internal:8000} {
-            header_up X-Forwarded-Proto https
-            header_up X-Forwarded-Host {host}
-            header_up X-Forwarded-For {remote_host}
-        }
-    }
-
-    handle /openapi.json {
-        reverse_proxy {$GRANALIA_API_UPSTREAM:host.docker.internal:8000} {
-            header_up X-Forwarded-Proto https
-            header_up X-Forwarded-Host {host}
-            header_up X-Forwarded-For {remote_host}
-        }
-    }
+    respond /docs* 404
+    respond /redoc* 404
+    respond /openapi.json 404
 
     handle {
         root * /srv/granalia/frontend/dist

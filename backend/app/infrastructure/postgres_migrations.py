@@ -75,20 +75,22 @@ class PostgresMigrationMixin(PostgresRepositoryProtocol):
             ).scalar()
         )
 
+    def _add_column_if_missing(self, connection, table_name: str, column_name: str, statement: str) -> None:
+        if not self._column_exists(connection, table_name, column_name):
+            connection.execute(text(statement))
+
     def _ensure_customer_billing_fields(self, *, connection) -> None:
         if not self._table_exists(connection, "customers"):
             return
 
         fields = [
-            ("cuit", "VARCHAR(32) NOT NULL DEFAULT ''"),
-            ("address", "TEXT NOT NULL DEFAULT ''"),
-            ("business_name", "VARCHAR(255) NOT NULL DEFAULT ''"),
-            ("email", "VARCHAR(255) NOT NULL DEFAULT ''"),
+            ("cuit", "ALTER TABLE customers ADD COLUMN cuit VARCHAR(32) NOT NULL DEFAULT ''"),
+            ("address", "ALTER TABLE customers ADD COLUMN address TEXT NOT NULL DEFAULT ''"),
+            ("business_name", "ALTER TABLE customers ADD COLUMN business_name VARCHAR(255) NOT NULL DEFAULT ''"),
+            ("email", "ALTER TABLE customers ADD COLUMN email VARCHAR(255) NOT NULL DEFAULT ''"),
         ]
-        for column_name, definition in fields:
-            if self._column_exists(connection, "customers", column_name):
-                continue
-            connection.execute(text(f"ALTER TABLE customers ADD COLUMN {column_name} {definition}"))
+        for column_name, statement in fields:
+            self._add_column_if_missing(connection, "customers", column_name, statement)
 
     def _migrate_catalog_snapshots(self, *, connection) -> None:
         rows = connection.execute(
@@ -575,16 +577,15 @@ class PostgresMigrationMixin(PostgresRepositoryProtocol):
     def _ensure_invoice_historical_snapshot_fields(self, *, connection) -> None:
         if self._table_exists(connection, "invoices"):
             invoice_fields = [
-                ("price_list_effective_date", "TIMESTAMP WITH TIME ZONE"),
-                ("customer_cuit", "VARCHAR(32)"),
-                ("customer_address", "TEXT"),
-                ("customer_business_name", "VARCHAR(255)"),
-                ("customer_iva_condition", "VARCHAR(120) NOT NULL DEFAULT ''"),
-                ("customer_email", "VARCHAR(255)"),
+                ("price_list_effective_date", "ALTER TABLE invoices ADD COLUMN price_list_effective_date TIMESTAMP WITH TIME ZONE"),
+                ("customer_cuit", "ALTER TABLE invoices ADD COLUMN customer_cuit VARCHAR(32)"),
+                ("customer_address", "ALTER TABLE invoices ADD COLUMN customer_address TEXT"),
+                ("customer_business_name", "ALTER TABLE invoices ADD COLUMN customer_business_name VARCHAR(255)"),
+                ("customer_iva_condition", "ALTER TABLE invoices ADD COLUMN customer_iva_condition VARCHAR(120) NOT NULL DEFAULT ''"),
+                ("customer_email", "ALTER TABLE invoices ADD COLUMN customer_email VARCHAR(255)"),
             ]
-            for column_name, definition in invoice_fields:
-                if not self._column_exists(connection, "invoices", column_name):
-                    connection.execute(text(f"ALTER TABLE invoices ADD COLUMN {column_name} {definition}"))
+            for column_name, statement in invoice_fields:
+                self._add_column_if_missing(connection, "invoices", column_name, statement)
             connection.execute(
                 text(
                     """
@@ -612,15 +613,14 @@ class PostgresMigrationMixin(PostgresRepositoryProtocol):
 
         if self._table_exists(connection, "invoice_items"):
             item_fields = [
-                ("product_name", "VARCHAR(255)"),
-                ("offering_label", "VARCHAR(120)"),
-                ("offering_net_weight_kg", "NUMERIC(12, 3)"),
-                ("line_type", "VARCHAR(20)"),
-                ("discount_rate", "NUMERIC(8, 6)"),
+                ("product_name", "ALTER TABLE invoice_items ADD COLUMN product_name VARCHAR(255)"),
+                ("offering_label", "ALTER TABLE invoice_items ADD COLUMN offering_label VARCHAR(120)"),
+                ("offering_net_weight_kg", "ALTER TABLE invoice_items ADD COLUMN offering_net_weight_kg NUMERIC(12, 3)"),
+                ("line_type", "ALTER TABLE invoice_items ADD COLUMN line_type VARCHAR(20)"),
+                ("discount_rate", "ALTER TABLE invoice_items ADD COLUMN discount_rate NUMERIC(8, 6)"),
             ]
-            for column_name, definition in item_fields:
-                if not self._column_exists(connection, "invoice_items", column_name):
-                    connection.execute(text(f"ALTER TABLE invoice_items ADD COLUMN {column_name} {definition}"))
+            for column_name, statement in item_fields:
+                self._add_column_if_missing(connection, "invoice_items", column_name, statement)
 
             connection.execute(
                 text(
@@ -706,34 +706,33 @@ class PostgresMigrationMixin(PostgresRepositoryProtocol):
 
         if self._table_exists(connection, "invoices"):
             invoice_fields = [
-                ("batch_id", "BIGINT REFERENCES invoice_batches(id) ON DELETE SET NULL"),
-                ("related_invoice_id", "BIGINT REFERENCES invoices(id) ON DELETE SET NULL"),
-                ("credit_reason", "TEXT NOT NULL DEFAULT ''"),
-                ("split_kind", "VARCHAR(20)"),
-                ("split_percentage", "NUMERIC(5, 2)"),
-                ("fiscal_status", "VARCHAR(20) NOT NULL DEFAULT 'internal'"),
-                ("fiscal_locked_at", "TIMESTAMPTZ"),
-                ("fiscal_authorized_at", "TIMESTAMPTZ"),
-                ("internal_invoice_number", "BIGINT"),
-                ("arca_environment", "VARCHAR(20)"),
-                ("arca_cuit_emisor", "VARCHAR(32)"),
-                ("arca_cbte_tipo", "INTEGER"),
-                ("arca_concepto", "INTEGER"),
-                ("arca_doc_tipo", "INTEGER"),
-                ("arca_doc_nro", "VARCHAR(32)"),
-                ("arca_point_of_sale", "INTEGER"),
-                ("arca_invoice_number", "BIGINT"),
-                ("arca_cae", "VARCHAR(32)"),
-                ("arca_cae_expires_at", "DATE"),
-                ("arca_result", "VARCHAR(20)"),
-                ("arca_observations", "JSONB"),
-                ("arca_error_code", "VARCHAR(50)"),
-                ("arca_error_message", "TEXT"),
-                ("arca_request_id", "VARCHAR(120)"),
+                ("batch_id", "ALTER TABLE invoices ADD COLUMN batch_id BIGINT REFERENCES invoice_batches(id) ON DELETE SET NULL"),
+                ("related_invoice_id", "ALTER TABLE invoices ADD COLUMN related_invoice_id BIGINT REFERENCES invoices(id) ON DELETE SET NULL"),
+                ("credit_reason", "ALTER TABLE invoices ADD COLUMN credit_reason TEXT NOT NULL DEFAULT ''"),
+                ("split_kind", "ALTER TABLE invoices ADD COLUMN split_kind VARCHAR(20)"),
+                ("split_percentage", "ALTER TABLE invoices ADD COLUMN split_percentage NUMERIC(5, 2)"),
+                ("fiscal_status", "ALTER TABLE invoices ADD COLUMN fiscal_status VARCHAR(20) NOT NULL DEFAULT 'internal'"),
+                ("fiscal_locked_at", "ALTER TABLE invoices ADD COLUMN fiscal_locked_at TIMESTAMPTZ"),
+                ("fiscal_authorized_at", "ALTER TABLE invoices ADD COLUMN fiscal_authorized_at TIMESTAMPTZ"),
+                ("internal_invoice_number", "ALTER TABLE invoices ADD COLUMN internal_invoice_number BIGINT"),
+                ("arca_environment", "ALTER TABLE invoices ADD COLUMN arca_environment VARCHAR(20)"),
+                ("arca_cuit_emisor", "ALTER TABLE invoices ADD COLUMN arca_cuit_emisor VARCHAR(32)"),
+                ("arca_cbte_tipo", "ALTER TABLE invoices ADD COLUMN arca_cbte_tipo INTEGER"),
+                ("arca_concepto", "ALTER TABLE invoices ADD COLUMN arca_concepto INTEGER"),
+                ("arca_doc_tipo", "ALTER TABLE invoices ADD COLUMN arca_doc_tipo INTEGER"),
+                ("arca_doc_nro", "ALTER TABLE invoices ADD COLUMN arca_doc_nro VARCHAR(32)"),
+                ("arca_point_of_sale", "ALTER TABLE invoices ADD COLUMN arca_point_of_sale INTEGER"),
+                ("arca_invoice_number", "ALTER TABLE invoices ADD COLUMN arca_invoice_number BIGINT"),
+                ("arca_cae", "ALTER TABLE invoices ADD COLUMN arca_cae VARCHAR(32)"),
+                ("arca_cae_expires_at", "ALTER TABLE invoices ADD COLUMN arca_cae_expires_at DATE"),
+                ("arca_result", "ALTER TABLE invoices ADD COLUMN arca_result VARCHAR(20)"),
+                ("arca_observations", "ALTER TABLE invoices ADD COLUMN arca_observations JSONB"),
+                ("arca_error_code", "ALTER TABLE invoices ADD COLUMN arca_error_code VARCHAR(50)"),
+                ("arca_error_message", "ALTER TABLE invoices ADD COLUMN arca_error_message TEXT"),
+                ("arca_request_id", "ALTER TABLE invoices ADD COLUMN arca_request_id VARCHAR(120)"),
             ]
-            for column_name, definition in invoice_fields:
-                if not self._column_exists(connection, "invoices", column_name):
-                    connection.execute(text(f"ALTER TABLE invoices ADD COLUMN {column_name} {definition}"))
+            for column_name, statement in invoice_fields:
+                self._add_column_if_missing(connection, "invoices", column_name, statement)
             connection.execute(
                 text(
                     """
@@ -802,14 +801,13 @@ class PostgresMigrationMixin(PostgresRepositoryProtocol):
             )
         if self._table_exists(connection, "invoice_items"):
             item_fields = [
-                ("iva_rate", "NUMERIC(5, 3)"),
-                ("net_amount", "NUMERIC(12, 2)"),
-                ("iva_amount", "NUMERIC(12, 2)"),
-                ("fiscal_total", "NUMERIC(12, 2)"),
+                ("iva_rate", "ALTER TABLE invoice_items ADD COLUMN iva_rate NUMERIC(5, 3)"),
+                ("net_amount", "ALTER TABLE invoice_items ADD COLUMN net_amount NUMERIC(12, 2)"),
+                ("iva_amount", "ALTER TABLE invoice_items ADD COLUMN iva_amount NUMERIC(12, 2)"),
+                ("fiscal_total", "ALTER TABLE invoice_items ADD COLUMN fiscal_total NUMERIC(12, 2)"),
             ]
-            for column_name, definition in item_fields:
-                if not self._column_exists(connection, "invoice_items", column_name):
-                    connection.execute(text(f"ALTER TABLE invoice_items ADD COLUMN {column_name} {definition}"))
+            for column_name, statement in item_fields:
+                self._add_column_if_missing(connection, "invoice_items", column_name, statement)
 
         if not self._table_exists(connection, "invoice_tax_breakdown"):
             connection.execute(

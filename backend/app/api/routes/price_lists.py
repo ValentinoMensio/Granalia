@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from io import BytesIO
+
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from pypdf import PdfReader
 
 from ...dependencies import get_repository, require_admin
 from ...schemas import MAX_NAME_LENGTH, PriceListCommit, PriceListMetaOut, PriceListPreviewOut, PriceListProductUpdate, PriceListRename, PriceListUploadOut, PriceListVersionOut, ProductCatalogOut, StatusResponse
@@ -9,15 +12,31 @@ from ...services.catalog import build_catalog_preview_snapshot_from_pdf, build_c
 
 router = APIRouter(prefix="/api/price-lists", tags=["price-lists"])
 MAX_PRICE_LIST_PDF_BYTES = 20 * 1024 * 1024
+MAX_PRICE_LIST_PDF_PAGES = 20
 
 
 def _validate_pdf_upload(file: UploadFile, pdf_bytes: bytes) -> None:
+    filename = file.filename or "lista.pdf"
+    if not filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="El archivo debe tener extensión .pdf")
     if file.content_type not in {"application/pdf", "application/octet-stream"}:
         raise HTTPException(status_code=400, detail="El archivo debe ser PDF")
     if not pdf_bytes:
         raise HTTPException(status_code=400, detail="El PDF está vacío")
     if len(pdf_bytes) > MAX_PRICE_LIST_PDF_BYTES:
         raise HTTPException(status_code=413, detail="El PDF no puede superar 20 MB")
+    if not pdf_bytes.startswith(b"%PDF-"):
+        raise HTTPException(status_code=400, detail="El contenido no parece ser un PDF válido")
+    try:
+        reader = PdfReader(BytesIO(pdf_bytes))
+        if reader.is_encrypted:
+            raise HTTPException(status_code=400, detail="El PDF no puede estar cifrado")
+        if len(reader.pages) > MAX_PRICE_LIST_PDF_PAGES:
+            raise HTTPException(status_code=413, detail=f"El PDF no puede superar {MAX_PRICE_LIST_PDF_PAGES} páginas")
+    except HTTPException:
+        raise
+    except Exception as error:
+        raise HTTPException(status_code=400, detail="No se pudo leer el PDF") from error
 
 
 def _catalog_payload(catalog: list[object]) -> list[dict[str, object]]:

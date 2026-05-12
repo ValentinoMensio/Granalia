@@ -394,7 +394,7 @@ def normalize_existing_schema(inspector: sa.Inspector) -> None:
         ("invoices", "mode"),
     ]:
         if column_exists(inspector, table_name, column_name):
-            op.execute(f'ALTER TABLE {table_name} DROP COLUMN IF EXISTS {column_name}')
+            op.drop_column(table_name, column_name)
 
     if table_exists(inspector, "invoices") and not column_exists(inspector, "invoices", "transport_id"):
         op.execute("ALTER TABLE invoices ADD COLUMN transport_id BIGINT")

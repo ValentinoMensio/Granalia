@@ -18,6 +18,8 @@ backups/
 2026/
 2026.zip
 Granalia06-04-2026.pdf
+certs/*.key
+*.key
 
 .env
 .env.*

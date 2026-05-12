@@ -4,6 +4,7 @@ import base64
 import hashlib
 import hmac
 import json
+import logging
 import os
 import secrets
 import time
@@ -13,6 +14,9 @@ from pathlib import Path
 from typing import Any, TypedDict
 
 from sqlalchemy import create_engine, text
+
+
+logger = logging.getLogger("granalia.auth")
 
 
 def _b64url_encode(value: bytes) -> str:
@@ -173,11 +177,10 @@ class AuthManager:
         self.upsert_user(username, password_hash=password_hash, role=env_role, is_active=True)
 
         if generated_password:
-            print(
-                "[granalia-auth] Credenciales iniciales generadas en PostgreSQL. "
-                f"Usuario: {username} | Password: {generated_password}",
-                flush=True,
-            )
+            credentials_path = self.data_dir / "initial_admin_password.txt"
+            credentials_path.write_text(f"Usuario: {username}\nPassword: {generated_password}\n", encoding="utf-8")
+            credentials_path.chmod(0o600)
+            logger.warning("Credenciales iniciales generadas en %s. Rotarlas luego del primer inicio.", credentials_path)
 
     def upsert_user(
         self,

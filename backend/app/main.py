@@ -45,7 +45,14 @@ async def lifespan(app: FastAPI):
     logger.info("stopping granalia api")
 
 
-app = FastAPI(title="Granalia API", version="2.0.0", lifespan=lifespan)
+app = FastAPI(
+    title="Granalia API",
+    version="2.0.0",
+    lifespan=lifespan,
+    docs_url=None if config.is_production else "/docs",
+    redoc_url=None if config.is_production else "/redoc",
+    openapi_url=None if config.is_production else "/openapi.json",
+)
 
 app.add_middleware(
     CORSMiddleware,
