@@ -82,6 +82,7 @@ function ProductRowsCard({
   onGenerate,
   onClearInvoice,
   onCancelEdit,
+  onFieldChange,
   onRemoveItem,
   onUpdateItem,
 }) {
@@ -224,6 +225,35 @@ function ProductRowsCard({
               <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-400 lg:rounded-none lg:border-0 lg:border-t lg:border-stone-200">No hay productos disponibles para devolver de este cliente.</div>
             )}
           </div>
+        </div>
+
+        <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
+          <div className="text-sm font-bold text-brand-ink">Concepto manual</div>
+          <p className="mt-1 text-xs text-slate-500">
+            Usalo para acreditar un importe escrito como línea de la nota, por ejemplo un descuento extra o ajuste comercial.
+          </p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_150px]">
+            <input
+              className="input"
+              value={form.creditNoteManualDescription || ''}
+              onChange={(event) => onFieldChange('creditNoteManualDescription', event.target.value)}
+              placeholder="Descripción / producto-servicio"
+            />
+            <input
+              className="input"
+              type="number"
+              min="0"
+              step="0.01"
+              value={form.creditNoteManualAmount || ''}
+              onChange={(event) => onFieldChange('creditNoteManualAmount', event.target.value)}
+              placeholder="Importe"
+            />
+          </div>
+          {Number(form.creditNoteManualAmount || 0) > 0 ? (
+            <div className="mt-2 text-xs text-slate-600">
+              Total a acreditar: ${money(Number(form.creditNoteManualAmount || 0))}
+            </div>
+          ) : null}
         </div>
 
         <div className="mt-4">

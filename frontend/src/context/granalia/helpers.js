@@ -63,6 +63,15 @@ function buildTotals(form, productsById) {
     }
   }
 
+  if ((form.billingMode || 'internal_only') === 'internal_credit_note') {
+    const manualAmount = Number(form.creditNoteManualAmount || 0)
+    if (manualAmount > 0) {
+      subtotal += manualAmount
+      total += manualAmount
+      bultos += 1
+    }
+  }
+
   return { subtotal, bultos, weight, total }
 }
 
@@ -218,6 +227,9 @@ function buildInvoicePayload(form, currentCustomer) {
           bonus_quantity: ['fiscal_only', 'internal_credit_note'].includes(billingMode) ? 0 : toNonNegativeInteger(item.bonus_quantity),
           unit_price: item.unit_price === '' || item.unit_price === undefined ? undefined : Number(item.unit_price || 0),
         })),
+      manual_item: billingMode === 'internal_credit_note' && String(form.creditNoteManualDescription || '').trim() && Number(form.creditNoteManualAmount || 0) > 0
+        ? { description: String(form.creditNoteManualDescription || '').trim(), amount: Number(form.creditNoteManualAmount || 0) }
+        : null,
     },
     profile,
   }
@@ -230,9 +242,16 @@ function buildFormFromInvoiceDetail(invoiceDetail, customers) {
 
   if (isInternalCreditNote) {
     const items = []
+    let creditNoteManualDescription = ''
+    let creditNoteManualAmount = ''
     for (const item of invoiceDetail.items || []) {
       const sources = item.sources || []
       if (!sources.length) {
+        if (!item.product_id) {
+          creditNoteManualDescription = item.label || ''
+          creditNoteManualAmount = item.total || item.unit_price || ''
+          continue
+        }
         items.push({
           product_id: item.product_id || '',
           offering_id: item.offering_id || '',
@@ -277,6 +296,8 @@ function buildFormFromInvoiceDetail(invoiceDetail, customers) {
       lineDiscountsByGroup: { ...(invoiceDetail.line_discounts_by_format || {}) },
       automaticBonusRules: matchingCustomer?.automatic_bonus_rules || [],
       automaticBonusDisablesLineDiscount: Boolean(matchingCustomer?.automatic_bonus_disables_line_discount),
+      creditNoteManualDescription,
+      creditNoteManualAmount,
       items: items.length ? items : [{ product_id: '', offering_id: '', quantity: 0, bonus_quantity: 0, unit_price: '', bonus_quantity_manual: false }],
     }
   }

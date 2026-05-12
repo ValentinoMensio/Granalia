@@ -202,6 +202,7 @@ export default function OrderCreator() {
           onAddItem={addItemRow}
           onCancelEdit={handleCancelInvoiceEdit}
           onClearInvoice={handleClearInvoice}
+          onFieldChange={updateFormField}
           onGenerate={handleGenerateInvoice}
           onRemoveItem={removeItemRow}
           onUpdateItem={updateItem}

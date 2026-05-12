@@ -87,6 +87,7 @@ class OrderData(TypedDict):
     transport: str
     notes: list[str]
     items: list[OrderItemData]
+    manual_item: NotRequired[dict[str, object] | None]
 
 
 class InvoiceRowData(TypedDict):

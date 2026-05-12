@@ -69,6 +69,24 @@ class InvoiceItemInput(BaseModel):
         return round(float(value or 0))
 
 
+class CreditNoteManualItemInput(BaseModel):
+    description: NonEmptyStr
+    amount: float = Field(gt=0)
+    iva_rate: float | None = None
+
+    _normalize_description = field_validator("description")(_strip_required)
+
+    @field_validator("iva_rate")
+    @classmethod
+    def validate_iva_rate(cls, value: float | None) -> float | None:
+        if value is None:
+            return None
+        numeric = round(float(value), 3)
+        if numeric not in (0.105, 0.21):
+            raise ValueError("iva_rate must be 0.105 or 0.21")
+        return numeric
+
+
 class AutomaticBonusRule(BaseModel):
     product_id: int | None = None
     offering_id: int | None = None
@@ -92,6 +110,7 @@ class InvoiceCreate(BaseModel):
     transport: str = Field(default="", max_length=MAX_SHORT_TEXT_LENGTH)
     notes: list[str] = Field(default_factory=list, max_length=MAX_NOTES)
     items: list[InvoiceItemInput] = Field(max_length=MAX_INVOICE_ITEMS)
+    manual_item: CreditNoteManualItemInput | None = None
 
     _normalize_client_name = field_validator("client_name")(_strip_required)
     _normalize_secondary_line = field_validator("secondary_line", "transport")(_strip_optional)
@@ -180,24 +199,6 @@ class InvoiceRequest(BaseModel):
 class CreditNoteItemInput(BaseModel):
     invoice_item_id: int
     quantity: float = Field(gt=0)
-
-
-class CreditNoteManualItemInput(BaseModel):
-    description: NonEmptyStr
-    amount: float = Field(gt=0)
-    iva_rate: float | None = None
-
-    _normalize_description = field_validator("description")(_strip_required)
-
-    @field_validator("iva_rate")
-    @classmethod
-    def validate_iva_rate(cls, value: float | None) -> float | None:
-        if value is None:
-            return None
-        numeric = round(float(value), 3)
-        if numeric not in (0.105, 0.21):
-            raise ValueError("iva_rate must be 0.105 or 0.21")
-        return numeric
 
 
 class CreditNoteRequest(BaseModel):

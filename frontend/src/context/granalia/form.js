@@ -18,6 +18,8 @@ function createInitialForm() {
     lineDiscountsByGroup: {},
     automaticBonusRules: [],
     automaticBonusDisablesLineDiscount: false,
+    creditNoteManualDescription: '',
+    creditNoteManualAmount: '',
     items: [emptyItem()],
   }
 }

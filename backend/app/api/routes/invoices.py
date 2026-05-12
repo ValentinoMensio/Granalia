@@ -268,12 +268,13 @@ def empty_credit_note_snapshot(order: dict, profile: dict) -> dict:
 def append_manual_credit_note_item(snapshot: dict, manual_item: object, *, fiscal: bool) -> None:
     if manual_item is None:
         return
-    amount = money_decimal(manual_item.amount)
+    amount = money_decimal(manual_item.get("amount") if isinstance(manual_item, dict) else manual_item.amount)
     if amount <= 0:
         raise ValueError("El importe manual debe ser mayor a cero")
-    iva_rate = manual_item.iva_rate if fiscal else None
+    iva_rate = (manual_item.get("iva_rate") if isinstance(manual_item, dict) else manual_item.iva_rate) if fiscal else None
     if fiscal and iva_rate is None:
         raise ValueError("Seleccioná la alícuota de IVA para el concepto manual")
+    description = manual_item.get("description") if isinstance(manual_item, dict) else manual_item.description
     row = {
         "product_id": None,
         "offering_id": None,
@@ -282,7 +283,7 @@ def append_manual_credit_note_item(snapshot: dict, manual_item: object, *, fisca
         "offering_net_weight_kg": 0,
         "line_type": "sale",
         "discount_rate": 0,
-        "label": manual_item.description,
+        "label": description,
         "quantity": 1,
         "unit_price": int(amount.quantize(Decimal("1"), rounding=ROUND_HALF_UP)),
         "gross": int(amount.quantize(Decimal("1"), rounding=ROUND_HALF_UP)),
@@ -392,8 +393,8 @@ def build_internal_credit_note_from_sources(repository, order: dict, profile: di
             "quantity": quantity,
         })
     credit_items = list(credit_items_by_key.values())
-    if not credit_items:
-        raise ValueError("Seleccioná al menos un producto a devolver")
+    if not credit_items and not order.get("manual_item"):
+        raise ValueError("Seleccioná al menos un producto a devolver o cargá un concepto manual")
     return {**order, "items": credit_items, "declared": False}, source_links
 
 
@@ -511,7 +512,8 @@ def create_invoice(payload: InvoiceRequest, role: str = Depends(current_role)) -
                 for item in repository.list_internal_credit_note_available_items(int(profile["id"]))
             ]}
             catalog = catalog_with_invoice_history(catalog, history_invoice, order)
-            snapshot = generate_invoice_document(order, profile, catalog)
+            snapshot = generate_invoice_document(order, profile, catalog) if order.get("items") else empty_credit_note_snapshot(order, profile)
+            append_manual_credit_note_item(snapshot, order.get("manual_item"), fiscal=False)
             credit_note_id = repository.save_invoice(
                 order,
                 profile,
@@ -672,7 +674,8 @@ def update_invoice(invoice_id: int, payload: InvoiceRequest, _: str = Depends(re
                 for item in repository.list_internal_credit_note_available_items(int(profile["id"]), credit_note_invoice_id=invoice_id)
             ]}
             catalog = catalog_with_invoice_history(catalog, history_invoice, order)
-            snapshot = generate_invoice_document(order, profile, catalog)
+            snapshot = generate_invoice_document(order, profile, catalog) if order.get("items") else empty_credit_note_snapshot(order, profile)
+            append_manual_credit_note_item(snapshot, order.get("manual_item"), fiscal=False)
             credit_reason = " / ".join(order.get("notes") or []) or "Nota de crédito interna"
             repository.update_invoice(invoice_id, order, profile, snapshot, credit_reason=credit_reason, credit_note_sources=source_links)
             return InvoiceCreateOut.model_validate({

@@ -706,8 +706,14 @@ function useGranaliaData() {
     }
 
     const validItems = form.items.filter((item) => item.product_id && item.offering_id && (item.quantity > 0 || item.bonus_quantity > 0))
-    if (!validItems.length) {
-      setStatus(isInternalCreditNote ? 'Completá al menos un producto a devolver.' : 'Completá al menos un producto con presentación y cantidad.')
+    const hasManualCreditNoteItem = isInternalCreditNote && String(form.creditNoteManualDescription || '').trim() && Number(form.creditNoteManualAmount || 0) > 0
+    if (!validItems.length && !hasManualCreditNoteItem) {
+      setStatus(isInternalCreditNote ? 'Completá al menos un producto a devolver o un concepto manual.' : 'Completá al menos un producto con presentación y cantidad.')
+      return
+    }
+
+    if (isInternalCreditNote && (String(form.creditNoteManualDescription || '').trim() || Number(form.creditNoteManualAmount || 0) > 0) && !hasManualCreditNoteItem) {
+      setStatus('Completá descripción e importe del concepto manual.')
       return
     }
 
