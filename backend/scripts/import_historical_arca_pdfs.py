@@ -23,6 +23,18 @@ CREDIT_NOTE_RE = re.compile(r"NOTA\s+(?:DE\s+)?CR[EÉ]DITO|N\.?\s*CREDITO|NOTA.{
 
 
 @dataclass
+class HistoricalInvoiceItem:
+    label: str
+    quantity: Decimal
+    unit: str
+    unit_price: Decimal
+    discount_rate: Decimal
+    subtotal: Decimal
+    iva_rate: Decimal
+    fiscal_total: Decimal
+
+
+@dataclass
 class HistoricalInvoice:
     source_pdf: Path
     document_type: str
@@ -39,6 +51,7 @@ class HistoricalInvoice:
     net_by_rate: dict[Decimal, Decimal]
     iva_by_rate: dict[Decimal, Decimal]
     total: Decimal
+    items: list[HistoricalInvoiceItem]
 
 
 def compact_text(text: str) -> str:
@@ -153,6 +166,62 @@ def parse_amount_after_label(text: str, labels: list[str]) -> Decimal | None:
     return None
 
 
+def parse_decimal(value: str) -> Decimal:
+    return Decimal(value.replace(".", "").replace(",", "."))
+
+
+def parse_iva_rate(value: str) -> Decimal:
+    return (parse_decimal(value) / Decimal("100")).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
+
+
+def first_invoice_copy_text(raw_text: str) -> str:
+    match = re.search(r"(?=Fecha\s+de\s+Emisi[oó]n:\s*\nORIGINAL\b)(.*?)(?=\nFecha\s+de\s+Emisi[oó]n:\s*\nDUPLICADO\b|\Z)", raw_text, re.IGNORECASE | re.DOTALL)
+    return match.group(1) if match else raw_text
+
+
+def parse_invoice_items(raw_text: str) -> list[HistoricalInvoiceItem]:
+    first_copy = first_invoice_copy_text(raw_text)
+    match = re.search(r"IVA\s+Subtotal\s+c/IVA\s*(.*?)(?:\n\s*CAE\s+N|\n\s*Fecha\s+de\s+Vto\.\s+de\s+CAE)", first_copy, re.IGNORECASE | re.DOTALL)
+    if not match:
+        return []
+
+    item_pattern = re.compile(
+        r"^\s*(?P<label>.+?)\s+"
+        r"(?P<quantity>\d+(?:\.\d{3})*,\d{2})\s+"
+        r"(?P<unit>[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?:\s+[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+)*)\s+"
+        r"(?P<unit_price>\d+(?:\.\d{3})*,\d{2})\s+"
+        r"(?P<discount>\d+(?:\.\d{3})*,\d{2})\s+"
+        r"(?P<subtotal>\d+(?:\.\d{3})*,\d{2})\s+"
+        r"(?P<iva>\d+(?:[,.]\d+)?)%\s+"
+        r"(?P<fiscal_total>\d+(?:\.\d{3})*,\d{2})\s*$",
+        re.IGNORECASE,
+    )
+    items: list[HistoricalInvoiceItem] = []
+    pending_label_parts: list[str] = []
+    for raw_line in match.group(1).splitlines():
+        line = re.sub(r"\s+", " ", raw_line).strip()
+        if not line:
+            continue
+        candidate = " ".join([*pending_label_parts, line]).strip()
+        item_match = item_pattern.match(candidate)
+        if not item_match:
+            pending_label_parts.append(line)
+            continue
+        label = item_match.group("label").strip()
+        pending_label_parts = []
+        items.append(HistoricalInvoiceItem(
+            label=label[:255],
+            quantity=parse_decimal(item_match.group("quantity")),
+            unit=item_match.group("unit")[:120],
+            unit_price=parse_decimal(item_match.group("unit_price")),
+            discount_rate=parse_decimal(item_match.group("discount")) / Decimal("100"),
+            subtotal=parse_decimal(item_match.group("subtotal")),
+            iva_rate=parse_iva_rate(item_match.group("iva")),
+            fiscal_total=parse_decimal(item_match.group("fiscal_total")),
+        ))
+    return items
+
+
 def parse_number_pair(text: str) -> tuple[int, int] | None:
     patterns = [
         r"Punto\s+de\s+Venta\s*:?\s*(\d{1,5}).{0,80}?Comp\.?\s*Nro\s*:?\s*(\d+)",
@@ -256,6 +325,15 @@ def parse_pdf(path: Path, forced_point_of_sale: int | None = None, raw_text: str
         total = sum((net_by_rate[rate] + iva_by_rate[rate] for rate in net_by_rate), Decimal("0.00"))
     if not net_by_rate or total <= 0:
         raise ValueError("No se pudo leer importes fiscales")
+    items = parse_invoice_items(raw_text)
+    if items:
+        item_net_by_rate: dict[Decimal, Decimal] = {}
+        item_iva_by_rate: dict[Decimal, Decimal] = {}
+        for item in items:
+            item_net_by_rate[item.iva_rate] = item_net_by_rate.get(item.iva_rate, Decimal("0.00")) + item.subtotal
+            item_iva_by_rate[item.iva_rate] = item_iva_by_rate.get(item.iva_rate, Decimal("0.00")) + (item.fiscal_total - item.subtotal)
+        net_by_rate = {rate: amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) for rate, amount in item_net_by_rate.items()}
+        iva_by_rate = {rate: amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) for rate, amount in item_iva_by_rate.items()}
 
     return HistoricalInvoice(
         source_pdf=path,
@@ -273,6 +351,7 @@ def parse_pdf(path: Path, forced_point_of_sale: int | None = None, raw_text: str
         net_by_rate=net_by_rate,
         iva_by_rate=iva_by_rate,
         total=total,
+        items=items,
     )
 
 
@@ -299,6 +378,28 @@ def net_total(invoice: HistoricalInvoice) -> Decimal:
 
 def iva_total(invoice: HistoricalInvoice) -> Decimal:
     return sum(invoice.iva_by_rate.values(), Decimal("0.00")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def item_gross(item: HistoricalInvoiceItem) -> Decimal:
+    return (item.quantity * item.unit_price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def invoice_gross_total(invoice: HistoricalInvoice) -> int:
+    if not invoice.items:
+        return money_int(net_total(invoice))
+    return sum((money_int(item_gross(item)) for item in invoice.items), 0)
+
+
+def invoice_discount_total(invoice: HistoricalInvoice) -> int:
+    if not invoice.items:
+        return 0
+    return sum((money_int(item_gross(item) - item.subtotal) for item in invoice.items), 0)
+
+
+def invoice_total_bultos(invoice: HistoricalInvoice) -> Decimal:
+    if not invoice.items:
+        return Decimal(len(invoice.net_by_rate))
+    return sum((item.quantity for item in invoice.items), Decimal("0.00")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
 def resolve_customer_id(repo: PostgresRepository, connection, invoice: HistoricalInvoice, now) -> int | None:
@@ -487,44 +588,77 @@ def insert_historical_invoice(repo: PostgresRepository, connection, invoice: His
             notes=[f"Importado desde {invoice.source_pdf.name}"],
             footer_discounts=[],
             line_discounts_by_format={},
-            total_bultos=float(len(invoice.net_by_rate)),
-            gross_total=rounded_net_total,
-            discount_total=0,
+            total_bultos=invoice_total_bultos(invoice),
+            gross_total=invoice_gross_total(invoice),
+            discount_total=invoice_discount_total(invoice),
             final_total=rounded_net_total,
             created_at=now,
         )
         .returning(repo.invoices.c.id)
     ).scalar_one())
 
-    for line_number, (rate, net_amount) in enumerate(sorted(invoice.net_by_rate.items()), start=1):
-        iva_amount = invoice.iva_by_rate[rate]
-        fiscal_total = (net_amount + iva_amount).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        label = f"Comprobante histórico {invoice.document_type.replace('_', ' ')} A {invoice.point_of_sale:04d}-{invoice.invoice_number:08d} IVA {Decimal(rate * 100).normalize()}%"
-        rounded_net = money_int(net_amount)
-        connection.execute(
-            insert(repo.invoice_items)
-            .values(
-                invoice_id=invoice_id,
-                line_number=line_number,
-                product_id=None,
-                offering_id=None,
-                product_name="",
-                offering_label="",
-                offering_net_weight_kg=0,
-                line_type="sale",
-                discount_rate=0,
-                label=label,
-                quantity=1,
-                unit_price=rounded_net,
-                gross=rounded_net,
-                discount=0,
-                total=rounded_net,
-                iva_rate=rate,
-                net_amount=net_amount,
-                iva_amount=iva_amount,
-                fiscal_total=fiscal_total,
+    if invoice.items:
+        for line_number, item in enumerate(invoice.items, start=1):
+            gross = item_gross(item)
+            discount = gross - item.subtotal
+            iva_amount = (item.fiscal_total - item.subtotal).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            connection.execute(
+                insert(repo.invoice_items)
+                .values(
+                    invoice_id=invoice_id,
+                    line_number=line_number,
+                    product_id=None,
+                    offering_id=None,
+                    product_name=item.label,
+                    offering_label="",
+                    offering_net_weight_kg=0,
+                    line_type="sale",
+                    discount_rate=item.discount_rate,
+                    label=item.label,
+                    quantity=item.quantity,
+                    unit_price=money_int(item.unit_price),
+                    gross=money_int(gross),
+                    discount=money_int(discount),
+                    total=money_int(item.subtotal),
+                    iva_rate=item.iva_rate,
+                    net_amount=item.subtotal,
+                    iva_amount=iva_amount,
+                    fiscal_total=item.fiscal_total,
+                )
             )
-        )
+    else:
+        for line_number, (rate, net_amount) in enumerate(sorted(invoice.net_by_rate.items()), start=1):
+            iva_amount = invoice.iva_by_rate[rate]
+            fiscal_total = (net_amount + iva_amount).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            label = f"Comprobante histórico {invoice.document_type.replace('_', ' ')} A {invoice.point_of_sale:04d}-{invoice.invoice_number:08d} IVA {Decimal(rate * 100).normalize()}%"
+            rounded_net = money_int(net_amount)
+            connection.execute(
+                insert(repo.invoice_items)
+                .values(
+                    invoice_id=invoice_id,
+                    line_number=line_number,
+                    product_id=None,
+                    offering_id=None,
+                    product_name="",
+                    offering_label="",
+                    offering_net_weight_kg=0,
+                    line_type="sale",
+                    discount_rate=0,
+                    label=label,
+                    quantity=1,
+                    unit_price=rounded_net,
+                    gross=rounded_net,
+                    discount=0,
+                    total=rounded_net,
+                    iva_rate=rate,
+                    net_amount=net_amount,
+                    iva_amount=iva_amount,
+                    fiscal_total=fiscal_total,
+                )
+            )
+
+    for rate, net_amount in sorted(invoice.net_by_rate.items()):
+        iva_amount = invoice.iva_by_rate[rate]
         connection.execute(
             insert(repo.invoice_tax_breakdown)
             .values(
@@ -592,7 +726,7 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="Importa PDFs fiscales autorizados manualmente en ARCA como histórico.")
     parser.add_argument("--pdf-dir", type=Path, default=BACKEND_DIR.parent / "docs" / "preubas")
-    parser.add_argument("--point-of-sale", type=int, default=4, help="Punto de venta ARCA histórico")
+    parser.add_argument("--point-of-sale", type=int, default=2, help="Punto de venta ARCA histórico")
     parser.add_argument("--environment", choices=["produccion", "homologacion"], default="produccion")
     parser.add_argument("--only-credit-notes", action="store_true", help="Importa solo notas de crédito")
     parser.add_argument("--delete-historical", action="store_true", help="Borra solo comprobantes históricos importados por este script")
