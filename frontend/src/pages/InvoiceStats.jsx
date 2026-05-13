@@ -288,7 +288,6 @@ function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false
   const [showAllMobile, setShowAllMobile] = useState(false)
   const columns = [
     { key: 'label', label: 'Grupo', align: 'left' },
-    { key: 'count', label: countLabel, align: 'right' },
     { key: 'bultos', label: 'Bultos', align: 'right' },
     ...(showWeight ? [{ key: 'weight', label: 'Peso', align: 'right' }] : []),
     { key: 'discount', label: 'Descuento', align: 'right' },
@@ -379,26 +378,25 @@ function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false
         )}
       </div>
 
-      <div className="stats-table-scroll table-shell hidden max-h-[30rem] overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable] sm:block">
+      <div className="stats-table-scroll table-shell hidden max-h-[30rem] overflow-x-hidden overflow-y-auto sm:block">
         <table className="table-base !min-w-0 table-fixed text-xs sm:text-sm">
           <colgroup>
-            <col className={showWeight ? 'w-[34%]' : 'w-[38%]'} />
-            <col className={showWeight ? 'w-[13%]' : 'w-[15%]'} />
-            <col className={showWeight ? 'w-[14%]' : 'w-[16%]'} />
-            {showWeight ? <col className="w-[15%]" /> : null}
-            <col className={showWeight ? 'w-[12%]' : 'w-[15%]'} />
-            <col className={showWeight ? 'w-[12%]' : 'w-[16%]'} />
+            <col className={showWeight ? 'w-[32%]' : 'w-[40%]'} />
+            <col className={showWeight ? 'w-[13%]' : 'w-[18%]'} />
+            {showWeight ? <col className="w-[17%]" /> : null}
+            <col className={showWeight ? 'w-[18%]' : 'w-[20%]'} />
+            <col className={showWeight ? 'w-[20%]' : 'w-[22%]'} />
           </colgroup>
           <thead className="table-head">
             <tr>
               {columns.map((column) => (
                 <th
                   key={column.key}
-                  className={`sticky top-0 z-10 bg-stone-100 !px-2 ${column.align === 'right' ? 'text-right' : ''} ${column.key === 'total' ? '!pl-2 !pr-5' : ''}`.trim()}
+                  className={`sticky top-0 z-10 bg-stone-100 !px-2 ${column.align === 'right' ? 'text-right' : ''} ${column.key === 'total' ? '!pl-2 !pr-7' : ''}`.trim()}
                 >
                   <button
                     type="button"
-                    className={`inline-flex w-full items-center gap-1 ${column.align === 'right' ? 'justify-end' : 'justify-start'}`.trim()}
+                    className={`inline-flex w-full items-center gap-1 ${column.align === 'right' ? 'justify-center' : 'justify-start'}`.trim()}
                     onClick={() => updateSort(column.key)}
                   >
                     <span>{column.label}</span>
@@ -416,16 +414,15 @@ function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
               >
                 <td className="table-cell break-words !px-2 font-medium leading-snug">{row.label}</td>
-                <td className="table-cell whitespace-nowrap !px-2 text-right">{row.count}</td>
-                <td className="table-cell whitespace-nowrap !px-2 text-right">{money(row.bultos)}</td>
-                {showWeight ? <td className="table-cell whitespace-nowrap !px-2 text-right">{weight(row.weight)} kg</td> : null}
-                <td className="table-cell whitespace-nowrap !px-2 text-right">${money(row.discount)}</td>
-                <td className="table-cell whitespace-nowrap !pl-2 !pr-2 text-right font-semibold text-brand-red">${money(row.total)}</td>
+                <td className="table-cell whitespace-nowrap !px-2 text-right tabular-nums">{money(row.bultos)}</td>
+                {showWeight ? <td className="table-cell whitespace-nowrap !px-2 text-right tabular-nums">{weight(row.weight)} kg</td> : null}
+                <td className="table-cell whitespace-nowrap !px-3 text-right tabular-nums">${money(row.discount)}</td>
+                <td className="table-cell whitespace-nowrap !pl-3 !pr-7 text-right font-semibold tabular-nums text-brand-red">${money(row.total)}</td>
               </tr>
             ))}
             {sortedRows.length === 0 && (
               <tr>
-                <td colSpan={showWeight ? 6 : 5} className="table-cell py-8 text-center text-slate-400">No hay datos para estos filtros.</td>
+                <td colSpan={showWeight ? 5 : 4} className="table-cell py-8 text-center text-slate-400">No hay datos para estos filtros.</td>
               </tr>
             )}
           </tbody>

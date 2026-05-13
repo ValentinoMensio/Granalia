@@ -225,6 +225,11 @@
     @apply px-4 py-3 align-middle;
   }
 
+  .table-shell .table-base th:last-child,
+  .table-shell .table-base td:last-child {
+    padding-right: max(1.25rem, env(safe-area-inset-right));
+  }
+
   .stats-table-scroll {
     scrollbar-color: rgb(var(--border)) rgb(var(--surface));
   }
