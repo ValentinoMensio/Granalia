@@ -179,11 +179,14 @@ function buildProductTotalRanking(items) {
   return Array.from(grouped.values()).sort((a, b) => b.total - a.total)
 }
 
-function buildCustomerProductRanking(items) {
+function buildCustomerProductRanking(items, customers = []) {
+  const customerNamesById = new Map(customers.map((customer) => [String(customer.id), customer.name]))
   const grouped = new Map()
   for (const item of items) {
-    const key = item.client_name || 'Sin cliente'
-    const current = grouped.get(key) || { label: key, invoiceIds: new Set(), count: 0, bultos: 0, weight: 0, gross: 0, discount: 0, total: 0, iva: 0, totalWithIva: 0 }
+    const customerId = item.customer_id ? String(item.customer_id) : ''
+    const key = customerId || item.client_name || 'Sin cliente'
+    const label = customerId ? customerNamesById.get(customerId) || item.client_name || 'Sin cliente' : item.client_name || 'Sin cliente'
+    const current = grouped.get(key) || { label, invoiceIds: new Set(), count: 0, bultos: 0, weight: 0, gross: 0, discount: 0, total: 0, iva: 0, totalWithIva: 0 }
     current.invoiceIds.add(String(item.invoice_id))
     current.bultos += Number(item.quantity || 0)
     current.weight += itemWeight(item)
@@ -554,7 +557,7 @@ export default function InvoiceStats() {
   const selectedSummaryTotal = filters.ivaMode === 'with_iva' ? Number(summary.totalWithIva || 0) : Number(summary.total || 0)
   const selectedAverage = invoiceCount ? Math.round(selectedSummaryTotal / invoiceCount) : 0
   const selectedAverageKg = totalWeight ? selectedSummaryTotal / totalWeight : 0
-  const byCustomer = useMemo(() => displayTotalRows(buildCustomerProductRanking(filteredItems), filters.ivaMode), [filteredItems, filters.ivaMode])
+  const byCustomer = useMemo(() => displayTotalRows(buildCustomerProductRanking(filteredItems, customers), filters.ivaMode), [customers, filteredItems, filters.ivaMode])
   const byProductTotal = useMemo(() => displayTotalRows(buildProductTotalRanking(filteredItems), filters.ivaMode), [filteredItems, filters.ivaMode])
   const selectedProductFormats = useMemo(
     () => selectedProductLabel
