@@ -287,7 +287,7 @@ function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false
   const [sort, setSort] = useState(defaultSort)
   const [showAllMobile, setShowAllMobile] = useState(false)
   const columns = [
-    { key: 'top', label: 'Top', align: 'right', sortable: false },
+    { key: 'top', label: 'Top', align: 'center', sortable: false },
     { key: 'label', label: 'Grupo', align: 'left' },
     { key: 'bultos', label: 'Bultos', align: 'right' },
     ...(showWeight ? [{ key: 'weight', label: 'Peso', align: 'right' }] : []),
@@ -382,8 +382,8 @@ function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false
       <div className="stats-table-scroll table-shell hidden max-h-[30rem] overflow-x-hidden overflow-y-auto sm:block">
         <table className="table-base !min-w-0 table-fixed text-xs sm:text-sm">
           <colgroup>
-            <col className="w-[7%]" />
-            <col className={showWeight ? 'w-[29%]' : 'w-[35%]'} />
+            <col className="w-[5%]" />
+            <col className={showWeight ? 'w-[31%]' : 'w-[37%]'} />
             <col className={showWeight ? 'w-[12%]' : 'w-[17%]'} />
             {showWeight ? <col className="w-[16%]" /> : null}
             <col className={showWeight ? 'w-[17%]' : 'w-[19%]'} />
@@ -394,11 +394,11 @@ function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false
               {columns.map((column) => (
                 <th
                   key={column.key}
-                  className={`sticky top-0 z-10 bg-stone-100 !px-2 ${column.align === 'right' ? 'text-right' : ''} ${column.key === 'total' ? '!pl-2 !pr-7' : ''}`.trim()}
+                  className={`sticky top-0 z-10 bg-stone-100 !px-2 ${column.align === 'right' ? 'text-right' : ''} ${column.align === 'center' ? 'text-center' : ''} ${column.key === 'total' ? '!pl-2 !pr-7' : ''}`.trim()}
                 >
                   <button
                     type="button"
-                    className={`inline-flex w-full items-center gap-1 ${column.align === 'right' ? 'justify-end' : 'justify-start'}`.trim()}
+                    className={`inline-flex w-full items-center gap-1 ${column.align === 'right' ? 'justify-end' : ''} ${column.align === 'center' ? 'justify-center' : ''} ${column.align === 'left' ? 'justify-start' : ''}`.trim()}
                     onClick={column.sortable === false ? undefined : () => updateSort(column.key)}
                     disabled={column.sortable === false}
                   >
@@ -416,7 +416,7 @@ function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false
                 className={`table-row ${onRowClick ? 'cursor-pointer' : ''} ${selectedLabel === row.label ? '!bg-blue-100 ring-1 ring-inset ring-brand-red/30' : ''}`.trim()}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
               >
-                <td className="table-cell whitespace-nowrap !px-2 text-right text-slate-400 tabular-nums">{index + 1}</td>
+                <td className="table-cell whitespace-nowrap !px-1 text-center text-slate-400 tabular-nums">{index + 1}</td>
                 <td className="table-cell break-words !px-2 font-medium leading-snug">{row.label}</td>
                 <td className="table-cell whitespace-nowrap !px-2 text-right tabular-nums">{money(row.bultos)}</td>
                 {showWeight ? <td className="table-cell whitespace-nowrap !px-2 text-right tabular-nums">{weight(row.weight)} kg</td> : null}
