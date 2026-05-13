@@ -349,7 +349,11 @@ export default function InvoiceHistory() {
 
   return (
     <div className="mt-8 space-y-6">
-      <PageSectionHeader title="Facturas emitidas" />
+      <PageSectionHeader
+        eyebrow="Facturas"
+        title="Emitidas"
+        description="Consultá remitos, facturas declaradas y notas de crédito emitidas, con filtros por cliente, fecha y transporte."
+      />
 
       <div className="grid w-full items-start gap-4 sm:gap-6 xl:grid-cols-[220px_minmax(0,1fr)]">
       <div className="space-y-4">

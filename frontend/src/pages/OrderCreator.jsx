@@ -1,4 +1,5 @@
 import InvoiceFormCard from '../components/invoices/InvoiceFormCard'
+import PageSectionHeader from '../components/ui/PageSectionHeader'
 import ProductRowsCard from '../components/invoices/ProductRowsCard'
 import { useGranalia } from '../context/GranaliaContext'
 import { useNavigate } from 'react-router-dom'
@@ -168,6 +169,12 @@ export default function OrderCreator() {
   return (
     <main className="mt-8">
       <section className="space-y-6">
+        <PageSectionHeader
+          eyebrow="Facturas"
+          title="Creador"
+          description="Creá remitos, facturas declaradas y notas de crédito cargando cliente, descuentos y productos."
+        />
+
         <InvoiceFormCard
           bootstrap={bootstrap}
           customers={customers}
