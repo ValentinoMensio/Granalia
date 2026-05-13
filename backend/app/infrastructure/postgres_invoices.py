@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import hashlib
 import json
+import re
 from decimal import Decimal, ROUND_HALF_UP
 from datetime import date, datetime
 from typing import cast
@@ -16,6 +17,14 @@ from ..core.utils import canonicalize_discount_config
 from ..types import CustomerProfileData, InvoiceDetailData, InvoiceListItemData, InvoiceSnapshotData, OrderData
 from .postgres_protocol import PostgresRepositoryProtocol
 from .postgres_utils import serialize_value, utc_now
+
+
+def is_non_product_stats_item(item: dict[str, object]) -> bool:
+    text = " ".join(str(item.get(field) or "") for field in ("product_name", "offering_label", "label")).upper()
+    return bool(
+        re.search(r"\bFAC\.?(?:\s*[ABC])?\s*:", text)
+        or (re.search(r"\bDTO\b|\bDESCUENTO\b", text) and re.search(r"\bSOBRE\b|\bF\d+\b|\bFACTURA\b|\bFAC\b", text))
+    )
 
 
 class PostgresInvoiceMixin(PostgresRepositoryProtocol):
@@ -323,7 +332,7 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                 if item.get(field) is not None:
                     item[field] = -float(item[field]) if field in {"quantity", "net_amount", "iva_amount", "fiscal_total"} else -int(item[field])
 
-        return items
+        return [item for item in items if not is_non_product_stats_item(item)]
 
     def _allocate_integer_amount(self, total: int, weights: list[int]) -> list[int]:
         sign = -1 if total < 0 else 1

@@ -6,6 +6,7 @@ import json
 import os
 import re
 import sys
+import unicodedata
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal, ROUND_HALF_UP
@@ -56,6 +57,13 @@ class HistoricalInvoice:
 
 def compact_text(text: str) -> str:
     return re.sub(r"[ \t]+", " ", text.replace("\xa0", " ")).strip()
+
+
+def normalize_lookup_text(value: str) -> str:
+    text = unicodedata.normalize("NFKD", value or "")
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    text = re.sub(r"[^a-zA-Z0-9]+", " ", text).lower()
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def extract_text(path: Path) -> str:
@@ -524,6 +532,50 @@ def item_net_weight_kg(label: str) -> Decimal:
     return Decimal("0.000")
 
 
+def is_non_product_item_label(label: str) -> bool:
+    text = compact_text(label).upper()
+    return bool(
+        re.search(r"\bFAC\.?(?:\s*[ABC])?\s*:", text)
+        or (re.search(r"\bDTO\b|\bDESCUENTO\b", text) and re.search(r"\bSOBRE\b|\bF\d+\b|\bFACTURA\b|\bFAC\b", text))
+    )
+
+
+def canonical_offering_label(label: str) -> str:
+    text = normalize_lookup_text(label)
+    patterns = [
+        (r"\b16\s*x\s*300\s*(?:gr|g)?\b", "16x300 gr"),
+        (r"\b12\s*x\s*300\s*(?:gr|g)?\b", "12x300 gr"),
+        (r"\b12\s*x\s*350\s*(?:gr|g)?\b", "12x350 gr"),
+        (r"\b12\s*x\s*400\s*(?:gr|g)?\b", "12x400 gr"),
+        (r"\b10\s*x\s*500\s*(?:gr|g)?\b", "10x500 gr"),
+        (r"\b10\s*x\s*(?:1000\s*(?:gr|g)?|1\s*kg)\b", "10x1 kg"),
+        (r"\bx\s*4\s*kg\b|\b4\s*kg\b", "x 4 kg"),
+        (r"\bx\s*5\s*kg\b|\b5\s*kg\b", "x 5 kg"),
+        (r"\bx\s*25\s*kg\b|\b25\s*kg\b", "x 25 kg"),
+        (r"\bx\s*30\s*kg\b|\b30\s*kg\b", "x 30 kg"),
+    ]
+    for pattern, offering_label in patterns:
+        if re.search(pattern, text):
+            return offering_label
+    return ""
+
+
+def split_historical_item_label(label: str) -> tuple[str, str]:
+    if is_non_product_item_label(label):
+        return "", ""
+
+    from app.domain.catalog import DEFAULT_CATALOG
+
+    normalized_label = normalize_lookup_text(label)
+    for product in sorted(DEFAULT_CATALOG, key=lambda item: len(str(item["name"])), reverse=True):
+        names = [str(product["name"]), *(str(alias) for alias in product.get("aliases", []))]
+        for name in names:
+            normalized_name = normalize_lookup_text(name)
+            if normalized_label == normalized_name or normalized_label.startswith(f"{normalized_name} "):
+                return str(product["name"]), canonical_offering_label(label)
+    return compact_text(label)[:255], canonical_offering_label(label)
+
+
 def invoice_gross_total(invoice: HistoricalInvoice) -> int:
     if not invoice.items:
         return money_int(net_total(invoice))
@@ -742,6 +794,8 @@ def insert_historical_invoice(repo: PostgresRepository, connection, invoice: His
             gross = item_gross(item)
             discount = gross - item.subtotal
             iva_amount = (item.fiscal_total - item.subtotal).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            product_name, offering_label = split_historical_item_label(item.label)
+            net_weight_label = offering_label or item.label
             connection.execute(
                 insert(repo.invoice_items)
                 .values(
@@ -749,9 +803,9 @@ def insert_historical_invoice(repo: PostgresRepository, connection, invoice: His
                     line_number=line_number,
                     product_id=None,
                     offering_id=None,
-                    product_name=item.label,
-                    offering_label="",
-                    offering_net_weight_kg=item_net_weight_kg(item.label),
+                    product_name=product_name,
+                    offering_label=offering_label,
+                    offering_net_weight_kg=item_net_weight_kg(net_weight_label),
                     line_type="sale",
                     discount_rate=item.discount_rate,
                     label=item.label,
