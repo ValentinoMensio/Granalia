@@ -63,6 +63,13 @@ def _digits(value: object) -> str:
     return "".join(ch for ch in str(value or "") if ch.isdigit())
 
 
+def _format_cuit(value: object) -> str:
+    digits = _digits(value)
+    if len(digits) != 11:
+        return str(value or "").strip()
+    return f"{digits[:2]}-{digits[2:10]}-{digits[10]}"
+
+
 def _fiscal_percent(value: object) -> str:
     percent = Decimal(str(value or 0)) * Decimal("100")
     return f"{percent.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP):.2f}".replace(".", ",")
@@ -365,7 +372,7 @@ def _draw_invoice_info(pdf: canvas.Canvas, invoice: dict, y: float) -> float:
     y -= 24
 
     customer_fields = [
-        ("CUIT", invoice.get("customer_cuit")),
+        ("CUIT", _format_cuit(invoice.get("customer_cuit"))),
         ("Condición IVA", invoice.get("customer_iva_condition")),
         ("Dirección", invoice.get("customer_address")),
     ]
@@ -845,7 +852,7 @@ def _draw_fiscal_header(pdf: canvas.Canvas, invoice: dict, width: float, height:
 
     pdf.drawString(pos_label_x, info_y3, "CUIT:")
     pdf.setFont(FONT_REGULAR, 9)
-    pdf.drawString(pos_label_x + 35, info_y3, issuer["cuit"])
+    pdf.drawString(pos_label_x + 35, info_y3, _format_cuit(issuer["cuit"]))
 
     pdf.setFont(FONT_BOLD, 9)
     pdf.drawString(pos_label_x, info_y4, "Ingresos Brutos:")
@@ -868,7 +875,7 @@ def _draw_fiscal_receiver(pdf: canvas.Canvas, invoice: dict, width: float, y: fl
     bottom = top - height_box
     name = invoice.get("customer_business_name") or invoice.get("client_name") or invoice.get("customer_name") or ""
     address = invoice.get("customer_address") or ""
-    cuit = invoice.get("arca_doc_nro") or invoice.get("customer_cuit") or ""
+    cuit = _format_cuit(invoice.get("arca_doc_nro") or invoice.get("customer_cuit") or "")
     iva_condition = invoice.get("customer_iva_condition") or "IVA Responsable Inscripto"
     sale_condition = invoice.get("payment_condition") or invoice.get("sale_condition") or "Cuenta Corriente"
 
@@ -888,7 +895,7 @@ def _draw_fiscal_receiver(pdf: canvas.Canvas, invoice: dict, width: float, y: fl
     pdf.setFont(FONT_BOLD, 8)
     pdf.drawString(left + 6, top - 13, "CUIT:")
     pdf.setFont(FONT_REGULAR, 8)
-    pdf.drawString(left + 39, top - 13, str(cuit))
+    pdf.drawString(left + 39, top - 13, cuit)
 
     pdf.setFont(FONT_BOLD, 8)
     pdf.drawString(left + 214, top - 13, "Apellido y Nombre / Razón Social:")

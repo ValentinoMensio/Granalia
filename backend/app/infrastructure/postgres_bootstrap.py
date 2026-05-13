@@ -33,6 +33,7 @@ class PostgresBootstrapMixin(PostgresRepositoryProtocol):
             self._ensure_credit_note_item_sources(connection=connection)
             self._ensure_offering_net_weight(connection=connection)
             self._ensure_invoice_historical_snapshot_fields(connection=connection)
+            self._normalize_product_names(connection=connection)
             if os.getenv("GRANALIA_ENABLE_RUNTIME_ARCA_MIGRATIONS", "false").strip().lower() == "true":
                 self._ensure_arca_fiscal_base(connection=connection)
 

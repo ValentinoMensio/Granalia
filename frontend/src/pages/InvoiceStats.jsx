@@ -20,6 +20,76 @@ const MONTHLY_METRICS = [
 
 const weight = (value) => new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(Number(value || 0))
 
+const PRODUCT_ALIAS_LABELS = new Map([
+  ['arroz 5 0 largo fino', 'Arroz 5/0 Largo Fino'],
+  ['arroz largo fino 5 0', 'Arroz 5/0 Largo Fino'],
+  ['arroz largo fino', 'Arroz 5/0 Largo Fino'],
+  ['arroz integral', 'Arroz Integral Largo Fino'],
+  ['arroz integral largo fino', 'Arroz Integral Largo Fino'],
+  ['avena instantanea', 'Avena Instantánea'],
+  ['h maiz coc rapida', 'Harina de Maíz Cocción Rápida'],
+  ['h maiz cocc rapida', 'Harina de Maíz Cocción Rápida'],
+  ['harina de maiz coc rapida', 'Harina de Maíz Cocción Rápida'],
+  ['harina de maiz cocc rapida', 'Harina de Maíz Cocción Rápida'],
+  ['harina de maiz coccion rapida', 'Harina de Maíz Cocción Rápida'],
+  ['maiz partido blanco', 'Maíz Partido Blanco'],
+  ['maiz pisado blanco', 'Maíz Partido Blanco'],
+  ['semola de trigo', 'Sémola de Trigo'],
+  ['trigo burgol', 'Trigo Burgol'],
+  ['trigo machacado burgol', 'Trigo Burgol'],
+])
+
+function normalizeLookup(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ')
+}
+
+function offeringLabelFromText(value) {
+  const text = normalizeLookup(value)
+  if (/(^|[^0-9])16\s*x\s*300\s*(gr|g)?\b/.test(text)) return '16x300 gr'
+  if (/(^|[^0-9])12\s*x\s*300\s*(gr|g)?\b/.test(text)) return '12x300 gr'
+  if (/(^|[^0-9])12\s*x\s*350\s*(gr|g)?\b/.test(text)) return '12x350 gr'
+  if (/(^|[^0-9])12\s*x\s*400\s*(gr|g)?\b/.test(text)) return '12x400 gr'
+  if (/(^|[^0-9])10\s*x\s*500\s*(gr|g)?\b/.test(text)) return '10x500 gr'
+  if (/(^|[^0-9])10\s*x\s*(1000\s*(gr|g)?|1\s*kg)\b/.test(text)) return '10x1 kg'
+  if (/\bx\s*4\s*kg\b|\b4\s*kg\b/.test(text)) return 'x 4 kg'
+  if (/\bx\s*5\s*kg\b|\b5\s*kg\b/.test(text)) return 'x 5 kg'
+  if (/\bx\s*25\s*kg\b|\b25\s*kg\b/.test(text)) return 'x 25 kg'
+  if (/\bx\s*30\s*kg\b|\b30\s*kg\b/.test(text)) return 'x 30 kg'
+  return ''
+}
+
+function stripOfferingFromProductLabel(value) {
+  return String(value || '')
+    .replace(/(?:16|12|10)\s*x\s*(?:300|350|400|500|1000|1\s*kg)\s*(?:gr|g)?\b/ig, '')
+    .replace(/\bx\s*(?:4|5|25|30)\s*kg\b/ig, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function offeringWeightKg(label) {
+  const text = normalizeLookup(label)
+  const packMatch = text.match(/\b(\d+)\s*x\s*(\d+(?:\.\d+)?)\s*(kg|kilo|kilos|gr|g)?\b/)
+  if (packMatch) {
+    const units = Number(packMatch[1] || 0)
+    let amount = Number(packMatch[2] || 0)
+    if (!packMatch[3] || ['gr', 'g'].includes(packMatch[3])) amount /= 1000
+    return units * amount
+  }
+  const bagMatch = text.match(/\bx\s*(\d+(?:\.\d+)?)\s*(kg|kilo|kilos|gr|g)\b/)
+  if (bagMatch) {
+    let amount = Number(bagMatch[1] || 0)
+    if (['gr', 'g'].includes(bagMatch[2])) amount /= 1000
+    return amount
+  }
+  return 0
+}
+
 function invoiceStatsGross(invoice) {
   return Number(invoice?.gross_total || 0)
 }
@@ -130,15 +200,17 @@ function buildYearMonthlyRows(rows, year) {
 }
 
 function itemOfferingLabel(item) {
-  return String(item.offering_label || '').trim() || 'Sin formato'
+  return String(item.offering_label || '').trim() || offeringLabelFromText(item.product_name || item.label) || 'Sin formato'
 }
 
 function itemProductLabel(item) {
-  return String(item.product_name || '').trim() || 'Sin producto'
+  const productName = stripOfferingFromProductLabel(item.product_name || item.label)
+  return PRODUCT_ALIAS_LABELS.get(normalizeLookup(productName)) || productName || 'Sin producto'
 }
 
 function itemWeight(item) {
-  return Number(item.quantity || 0) * Number(item.offering_net_weight_kg || 0)
+  const netWeight = Number(item.offering_net_weight_kg || 0) || offeringWeightKg(itemOfferingLabel(item)) || offeringWeightKg(item.product_name || item.label)
+  return Number(item.quantity || 0) * netWeight
 }
 
 function buildProductRanking(items) {

@@ -79,6 +79,47 @@ class PostgresMigrationMixin(PostgresRepositoryProtocol):
         if not self._column_exists(connection, table_name, column_name):
             connection.execute(text(statement))
 
+    def _normalize_product_names(self, *, connection) -> None:
+        if self._table_exists(connection, "products"):
+            connection.execute(
+                text(
+                    """
+                    UPDATE products
+                    SET name = 'Maíz Partido Blanco',
+                        aliases = '["Maíz Partido Blanco", "Maiz Partido Blanco", "Maíz Pisado Blanco", "Maiz Pisado Blanco"]'::jsonb,
+                        updated_at = now()
+                    WHERE name IN ('Maíz Pisado Blanco', 'Maiz Pisado Blanco', 'Maíz Partido Blanco', 'Maiz Partido Blanco')
+                    """
+                )
+            )
+
+        if self._table_exists(connection, "invoice_items") and self._column_exists(connection, "invoice_items", "product_name"):
+            connection.execute(
+                text(
+                    """
+                    UPDATE invoice_items
+                    SET product_name = 'Maíz Partido Blanco'
+                    WHERE product_name IN ('Maíz Pisado Blanco', 'Maiz Pisado Blanco', 'Maíz Partido Blanco', 'Maiz Partido Blanco')
+                    """
+                )
+            )
+
+        if not self._table_exists(connection, "catalogs"):
+            return
+        rows = connection.execute(select(self.catalogs.c.id, self.catalogs.c.catalog)).mappings().all()
+        for row in rows:
+            changed = False
+            catalog = []
+            for product in row["catalog"] or []:
+                next_product = dict(product)
+                if next_product.get("name") in {"Maíz Pisado Blanco", "Maiz Pisado Blanco", "Maíz Partido Blanco", "Maiz Partido Blanco"}:
+                    next_product["name"] = "Maíz Partido Blanco"
+                    next_product["aliases"] = ["Maíz Partido Blanco", "Maiz Partido Blanco", "Maíz Pisado Blanco", "Maiz Pisado Blanco"]
+                    changed = True
+                catalog.append(next_product)
+            if changed:
+                connection.execute(update(self.catalogs).where(self.catalogs.c.id == row["id"]).values(catalog=catalog))
+
     def _ensure_customer_billing_fields(self, *, connection) -> None:
         if not self._table_exists(connection, "customers"):
             return

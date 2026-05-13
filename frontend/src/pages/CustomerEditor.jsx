@@ -214,10 +214,13 @@ export default function CustomerEditor() {
             <div className="flex gap-2">
               <input
                 type="text"
-                value={formData.cuit || ''}
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={11}
+                value={String(formData.cuit || '').replace(/\D/g, '')}
                 onChange={(e) => {
                   setLastTaxpayerCuit('')
-                  setFormData({ ...formData, cuit: e.target.value })
+                  setFormData({ ...formData, cuit: e.target.value.replace(/\D/g, '').slice(0, 11) })
                 }}
                 className="input"
               />
