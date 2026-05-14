@@ -6,7 +6,7 @@ import Button from '../components/ui/Button'
 import PageSectionHeader from '../components/ui/PageSectionHeader'
 import DateRangePicker from '../components/ui/DateRangePicker'
 import { useAuth } from '../context/AuthContext'
-import { CalendarDays, DollarSign, FileText, SlidersHorizontal, Users, X } from 'lucide-react'
+import { CalendarDays, DollarSign, FileText, SlidersHorizontal, Users, X } from '../components/ui/Icons'
 
 const PAGE_SIZE = 10
 const EMPTY_FILTERS = { customerId: '', dateFrom: '', dateTo: '', transport: '', operationType: '', minTotal: '', maxTotal: '' }

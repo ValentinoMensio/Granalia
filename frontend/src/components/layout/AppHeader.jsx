@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { BarChart3, FilePlus2, LogOut, ReceiptText, Settings } from 'lucide-react'
+import { BarChart3, FilePlus2, LogOut, ReceiptText, Settings } from '../ui/Icons'
 import logoImage from '../../../../img/logof.png'
 import Button from '../ui/Button'
 import { useAuth } from '../../context/AuthContext'
