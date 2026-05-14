@@ -20,6 +20,7 @@ function createInitialForm() {
     automaticBonusDisablesLineDiscount: false,
     creditNoteManualDescription: '',
     creditNoteManualAmount: '',
+    creditNoteManualItems: [{ description: '', amount: '' }],
     items: [emptyItem()],
   }
 }

@@ -706,13 +706,15 @@ function useGranaliaData() {
     }
 
     const validItems = form.items.filter((item) => item.product_id && item.offering_id && (item.quantity > 0 || item.bonus_quantity > 0))
-    const hasManualCreditNoteItem = isInternalCreditNote && String(form.creditNoteManualDescription || '').trim() && Number(form.creditNoteManualAmount || 0) > 0
-    if (!validItems.length && !hasManualCreditNoteItem) {
+    const manualCreditNoteItems = form.creditNoteManualItems || [{ description: form.creditNoteManualDescription || '', amount: form.creditNoteManualAmount || '' }]
+    const completeManualCreditNoteItems = manualCreditNoteItems.filter((item) => String(item.description || '').trim() && Number(item.amount || 0) > 0)
+    const incompleteManualCreditNoteItems = manualCreditNoteItems.filter((item) => String(item.description || '').trim() || Number(item.amount || 0) > 0).length !== completeManualCreditNoteItems.length
+    if (!validItems.length && !completeManualCreditNoteItems.length) {
       setStatus(isInternalCreditNote ? 'Completá al menos un producto a devolver o un concepto manual.' : 'Completá al menos un producto con presentación y cantidad.')
       return
     }
 
-    if (isInternalCreditNote && (String(form.creditNoteManualDescription || '').trim() || Number(form.creditNoteManualAmount || 0) > 0) && !hasManualCreditNoteItem) {
+    if (isInternalCreditNote && incompleteManualCreditNoteItems) {
       setStatus('Completá descripción e importe del concepto manual.')
       return
     }

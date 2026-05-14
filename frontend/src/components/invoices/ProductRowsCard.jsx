@@ -87,7 +87,9 @@ function ProductRowsCard({
   onRemoveItem,
   onUpdateItem,
 }) {
-  const isInternalCreditNote = (form.billingMode || 'internal_only') === 'internal_credit_note'
+  const billingMode = form.billingMode || 'internal_only'
+  const isInternalCreditNote = billingMode === 'internal_credit_note'
+  const showBonusColumn = billingMode !== 'fiscal_only'
   const hasLineDiscounts = Object.values(form.lineDiscountsByGroup || {}).some((rate) => Number(rate) > 0)
   const sourceItemsById = Object.fromEntries(creditNoteSourceItems.map((item) => [String(item.invoice_item_id), item]))
   const sourceProductOptions = useMemo(
@@ -105,6 +107,30 @@ function ProductRowsCard({
     ).sort(compareProducts),
     [creditNoteSourceItems]
   )
+
+  const manualCreditNoteItems = form.creditNoteManualItems || [{ description: form.creditNoteManualDescription || '', amount: form.creditNoteManualAmount || '' }]
+
+  function updateManualCreditNoteItem(index, field, value) {
+    const nextItems = manualCreditNoteItems.map((item, itemIndex) => (itemIndex === index ? { ...item, [field]: value } : item))
+    onFieldChange('creditNoteManualItems', nextItems)
+    if (index === 0) {
+      onFieldChange(field === 'description' ? 'creditNoteManualDescription' : 'creditNoteManualAmount', value)
+    }
+  }
+
+  function addManualCreditNoteItem() {
+    onFieldChange('creditNoteManualItems', [...manualCreditNoteItems, { description: '', amount: '' }])
+  }
+
+  function removeManualCreditNoteItem(index) {
+    const nextItems = manualCreditNoteItems.filter((_, itemIndex) => itemIndex !== index)
+    onFieldChange('creditNoteManualItems', nextItems.length ? nextItems : [{ description: '', amount: '' }])
+    if (index === 0) {
+      const first = nextItems[0] || { description: '', amount: '' }
+      onFieldChange('creditNoteManualDescription', first.description)
+      onFieldChange('creditNoteManualAmount', first.amount)
+    }
+  }
 
   if (isInternalCreditNote) {
     return (
@@ -167,7 +193,7 @@ function ProductRowsCard({
             const quantity = Number(item.quantity || 0)
             const price = Number(source?.unit_price ?? item.unit_price ?? 0)
             return (
-              <div key={index} className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-sm lg:rounded-none lg:border-0 lg:border-t lg:border-stone-200 lg:bg-white lg:grid-cols-[minmax(0,1fr)_12rem_minmax(0,1fr)_8rem_8rem_8rem_8rem_auto] lg:items-center">
+              <div key={index} className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-sm lg:rounded-none lg:border-0 lg:border-t lg:border-slate-200 lg:bg-white lg:grid-cols-[minmax(0,1fr)_12rem_minmax(0,1fr)_8rem_8rem_8rem_8rem_auto] lg:items-center">
                 <select
                   className="input"
                   value={selectedProductId}
@@ -228,38 +254,48 @@ function ProductRowsCard({
             )
             })}
             {creditNoteSourceItems.length === 0 && form.customerId && (
-              <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-400 lg:rounded-none lg:border-0 lg:border-t lg:border-stone-200">No hay productos disponibles para devolver de este cliente.</div>
+              <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-400 lg:rounded-none lg:border-0 lg:border-t lg:border-slate-200">No hay productos disponibles para devolver de este cliente.</div>
             )}
           </div>
         </div>
 
         <div className="advanced-panel mt-5">
-          <div className="text-sm font-bold text-brand-ink">Concepto manual</div>
+          <div className="text-sm font-bold text-brand-ink">Conceptos manuales</div>
           <p className="mt-1 text-xs text-slate-500">
             Usalo para acreditar un importe escrito como línea de la nota, por ejemplo un descuento extra o ajuste comercial.
           </p>
-          <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_150px]">
-            <input
-              className="input"
-              value={form.creditNoteManualDescription || ''}
-              onChange={(event) => onFieldChange('creditNoteManualDescription', event.target.value)}
-              placeholder="Descripción / producto-servicio"
-            />
-            <input
-              className="input"
-              type="number"
-              min="0"
-              step="0.01"
-              value={form.creditNoteManualAmount || ''}
-              onChange={(event) => onFieldChange('creditNoteManualAmount', event.target.value)}
-              placeholder="Importe"
-            />
+          <div className="mt-3 space-y-3">
+            {manualCreditNoteItems.map((manualItem, index) => (
+              <div key={index} className="grid gap-3 sm:grid-cols-[1fr_150px_auto]">
+                <input
+                  className="input"
+                  value={manualItem.description || ''}
+                  onChange={(event) => updateManualCreditNoteItem(index, 'description', event.target.value)}
+                  placeholder="Descripción / producto-servicio"
+                />
+                <input
+                  className="input"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={manualItem.amount || ''}
+                  onChange={(event) => updateManualCreditNoteItem(index, 'amount', event.target.value)}
+                  placeholder="Importe"
+                />
+                <Button variant="ghost" className="danger-link min-h-0" onClick={() => removeManualCreditNoteItem(index)} disabled={manualCreditNoteItems.length === 1 && !manualItem.description && !manualItem.amount}>
+                  <Trash2 size={14} />Quitar
+                </Button>
+              </div>
+            ))}
           </div>
-          {Number(form.creditNoteManualAmount || 0) > 0 ? (
+          {manualCreditNoteItems.some((item) => Number(item.amount || 0) > 0) ? (
             <div className="mt-2 text-xs text-slate-600">
-              Total a acreditar: ${money(Number(form.creditNoteManualAmount || 0))}
+              Total a acreditar: ${money(manualCreditNoteItems.reduce((sum, item) => sum + Number(item.amount || 0), 0))}
             </div>
           ) : null}
+          <Button variant="secondary" className="mt-3" onClick={addManualCreditNoteItem}>
+            <Plus size={16} />Agregar concepto manual
+          </Button>
         </div>
 
         <div className="mt-4">
@@ -314,12 +350,12 @@ function ProductRowsCard({
         <div className="hidden lg:block">
           <table className="table-base w-full table-fixed border-collapse">
             <colgroup>
-              <col className="w-[27%]" />
-              <col className="w-[18%]" />
-              <col className="w-[12%]" />
-              <col className="w-[12%]" />
-              <col className="w-[15%]" />
-              <col className="w-[9%]" />
+              <col className={showBonusColumn ? 'w-[27%]' : 'w-[30%]'} />
+              <col className={showBonusColumn ? 'w-[18%]' : 'w-[20%]'} />
+              <col className={showBonusColumn ? 'w-[12%]' : 'w-[14%]'} />
+              {showBonusColumn ? <col className="w-[12%]" /> : null}
+              <col className={showBonusColumn ? 'w-[15%]' : 'w-[17%]'} />
+              <col className={showBonusColumn ? 'w-[9%]' : 'w-[12%]'} />
               <col className="w-[7%]" />
             </colgroup>
 
@@ -334,9 +370,11 @@ function ProductRowsCard({
                 <th className="table-cell text-center text-[11px] font-bold uppercase tracking-[0.16em]">
                   Cantidad
                 </th>
-                <th className="table-cell text-center text-[11px] font-bold uppercase tracking-[0.16em]">
-                  Bonificación
-                </th>
+                {showBonusColumn ? (
+                  <th className="table-cell text-center text-[11px] font-bold uppercase tracking-[0.16em]">
+                    Bonificación
+                  </th>
+                ) : null}
                 <th className="table-cell text-center text-[11px] font-bold uppercase tracking-[0.16em]">
                   Precio
                 </th>
@@ -416,18 +454,20 @@ function ProductRowsCard({
                       />
                     </td>
 
-                      <td className="table-cell align-middle">
-                      <input
-                        className="input w-full min-w-0"
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={item.bonus_quantity ?? ''}
-                        onChange={(event) =>
-                          onUpdateItem(index, 'bonus_quantity', event.target.value === '' ? 0 : Math.round(Number(event.target.value)))
-                        }
-                      />
-                    </td>
+                      {showBonusColumn ? (
+                        <td className="table-cell align-middle">
+                          <input
+                            className="input w-full min-w-0"
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={item.bonus_quantity ?? ''}
+                            onChange={(event) =>
+                              onUpdateItem(index, 'bonus_quantity', event.target.value === '' ? 0 : Math.round(Number(event.target.value)))
+                            }
+                          />
+                        </td>
+                      ) : null}
 
                       <td className="table-cell align-middle">
                       <input
@@ -542,21 +582,23 @@ function ProductRowsCard({
                       />
                     </div>
 
-                    <div>
-                      <div className="field-label mb-1">
-                        Bonificación
+                    {showBonusColumn ? (
+                      <div>
+                        <div className="field-label mb-1">
+                          Bonificación
+                        </div>
+                        <input
+                          className="input w-full min-w-0"
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={item.bonus_quantity ?? ''}
+                          onChange={(event) =>
+                            onUpdateItem(index, 'bonus_quantity', event.target.value === '' ? 0 : Math.round(Number(event.target.value)))
+                          }
+                        />
                       </div>
-                      <input
-                        className="input w-full min-w-0"
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={item.bonus_quantity ?? ''}
-                        onChange={(event) =>
-                          onUpdateItem(index, 'bonus_quantity', event.target.value === '' ? 0 : Math.round(Number(event.target.value)))
-                        }
-                      />
-                    </div>
+                    ) : null}
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">

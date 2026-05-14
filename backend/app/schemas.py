@@ -111,6 +111,7 @@ class InvoiceCreate(BaseModel):
     notes: list[str] = Field(default_factory=list, max_length=MAX_NOTES)
     items: list[InvoiceItemInput] = Field(max_length=MAX_INVOICE_ITEMS)
     manual_item: CreditNoteManualItemInput | None = None
+    manual_items: list[CreditNoteManualItemInput] = Field(default_factory=list, max_length=MAX_INVOICE_ITEMS)
 
     _normalize_client_name = field_validator("client_name")(_strip_required)
     _normalize_secondary_line = field_validator("secondary_line", "transport")(_strip_optional)
@@ -206,12 +207,13 @@ class CreditNoteRequest(BaseModel):
     reason: NonEmptyStr
     items: list[CreditNoteItemInput] = Field(default_factory=list, max_length=MAX_INVOICE_ITEMS)
     manual_item: CreditNoteManualItemInput | None = None
+    manual_items: list[CreditNoteManualItemInput] = Field(default_factory=list, max_length=MAX_INVOICE_ITEMS)
 
     _normalize_reason = field_validator("reason")(_strip_required)
 
     @model_validator(mode="after")
     def validate_credit_note_content(self) -> "CreditNoteRequest":
-        if not self.items and self.manual_item is None:
+        if not self.items and self.manual_item is None and not self.manual_items:
             raise ValueError("Seleccioná productos o cargá un concepto manual")
         return self
 

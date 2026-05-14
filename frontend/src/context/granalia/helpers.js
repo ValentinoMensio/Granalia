@@ -64,8 +64,12 @@ function buildTotals(form, productsById) {
   }
 
   if ((form.billingMode || 'internal_only') === 'internal_credit_note') {
-    const manualAmount = Number(form.creditNoteManualAmount || 0)
-    if (manualAmount > 0) {
+    const manualItems = form.creditNoteManualItems || [
+      { description: form.creditNoteManualDescription || '', amount: form.creditNoteManualAmount || '' },
+    ]
+    for (const manualItem of manualItems) {
+      const manualAmount = Number(manualItem.amount || 0)
+      if (manualAmount <= 0) continue
       subtotal += manualAmount
       total += manualAmount
       bultos += 1
@@ -202,6 +206,11 @@ function buildProfilePayload(currentCustomer, form) {
 function buildInvoicePayload(form, currentCustomer) {
   const profile = buildProfilePayload(currentCustomer, form)
   const billingMode = form.billingMode || (form.declared ? 'fiscal_only' : 'internal_only')
+  const manualItems = (form.creditNoteManualItems || [
+    { description: form.creditNoteManualDescription || '', amount: form.creditNoteManualAmount || '' },
+  ])
+    .map((item) => ({ description: String(item.description || '').trim(), amount: Number(item.amount || 0) }))
+    .filter((item) => item.description && item.amount > 0)
 
   return {
     order: {
@@ -227,9 +236,8 @@ function buildInvoicePayload(form, currentCustomer) {
           bonus_quantity: ['fiscal_only', 'internal_credit_note'].includes(billingMode) ? 0 : toNonNegativeInteger(item.bonus_quantity),
           unit_price: item.unit_price === '' || item.unit_price === undefined ? undefined : Number(item.unit_price || 0),
         })),
-      manual_item: billingMode === 'internal_credit_note' && String(form.creditNoteManualDescription || '').trim() && Number(form.creditNoteManualAmount || 0) > 0
-        ? { description: String(form.creditNoteManualDescription || '').trim(), amount: Number(form.creditNoteManualAmount || 0) }
-        : null,
+      manual_item: billingMode === 'internal_credit_note' ? (manualItems[0] || null) : null,
+      manual_items: billingMode === 'internal_credit_note' ? manualItems : [],
     },
     profile,
   }
@@ -242,14 +250,12 @@ function buildFormFromInvoiceDetail(invoiceDetail, customers) {
 
   if (isInternalCreditNote) {
     const items = []
-    let creditNoteManualDescription = ''
-    let creditNoteManualAmount = ''
+    const creditNoteManualItems = []
     for (const item of invoiceDetail.items || []) {
       const sources = item.sources || []
       if (!sources.length) {
         if (!item.product_id) {
-          creditNoteManualDescription = item.label || ''
-          creditNoteManualAmount = item.total || item.unit_price || ''
+          creditNoteManualItems.push({ description: item.label || '', amount: item.total || item.unit_price || '' })
           continue
         }
         items.push({
@@ -296,8 +302,9 @@ function buildFormFromInvoiceDetail(invoiceDetail, customers) {
       lineDiscountsByGroup: { ...(invoiceDetail.line_discounts_by_format || {}) },
       automaticBonusRules: matchingCustomer?.automatic_bonus_rules || [],
       automaticBonusDisablesLineDiscount: Boolean(matchingCustomer?.automatic_bonus_disables_line_discount),
-      creditNoteManualDescription,
-      creditNoteManualAmount,
+      creditNoteManualDescription: creditNoteManualItems[0]?.description || '',
+      creditNoteManualAmount: creditNoteManualItems[0]?.amount || '',
+      creditNoteManualItems: creditNoteManualItems.length ? creditNoteManualItems : [{ description: '', amount: '' }],
       items: items.length ? items : [{ product_id: '', offering_id: '', quantity: 0, bonus_quantity: 0, unit_price: '', bonus_quantity_manual: false }],
     }
   }
