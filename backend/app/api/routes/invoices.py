@@ -232,6 +232,19 @@ def is_fiscal_invoice(invoice: dict) -> bool:
     return bool(invoice.get("declared")) or invoice.get("split_kind") == "fiscal"
 
 
+def ensure_operator_internal_billing(order: dict) -> None:
+    billing_mode = str(order.get("billing_mode") or ("fiscal_only" if order.get("declared") else "internal_only"))
+    if billing_mode != "internal_only" or bool(order.get("declared")):
+        raise HTTPException(status_code=403, detail="Los operadores solo pueden crear facturas internas")
+
+
+def ensure_operator_invoice_editable(invoice: dict) -> None:
+    if is_fiscal_invoice(invoice) or is_credit_note(invoice) or invoice.get("batch_id") is not None:
+        raise HTTPException(status_code=403, detail="Los operadores solo pueden editar facturas internas")
+    if str(invoice.get("order_date") or "") < date.today().isoformat():
+        raise HTTPException(status_code=403, detail="Los operadores solo pueden editar facturas del día actual en adelante")
+
+
 def profile_from_invoice(invoice: dict) -> dict:
     return {
         "id": invoice.get("customer_id"),
@@ -506,6 +519,8 @@ def create_invoice(payload: InvoiceRequest, role: str = Depends(current_role)) -
     order = payload.order.model_dump()
     profile = payload.profile.model_dump()
     billing_mode = str(order.get("billing_mode") or ("fiscal_only" if order.get("declared") else "internal_only"))
+    if role == "operator":
+        ensure_operator_internal_billing(order)
     try:
         if billing_mode == "internal_credit_note":
             order, source_links = build_internal_credit_note_from_sources(repository, order, profile)
@@ -657,16 +672,20 @@ def authorize_invoice_in_arca(invoice_id: int, payload: AuthorizationPayload, _:
 
 
 @router.put("/{invoice_id}", response_model=InvoiceCreateOut)
-def update_invoice(invoice_id: int, payload: InvoiceRequest, _: str = Depends(require_admin)) -> InvoiceCreateOut:
+def update_invoice(invoice_id: int, payload: InvoiceRequest, role: str = Depends(current_role)) -> InvoiceCreateOut:
     repository = get_repository()
     invoice = repository.get_invoice_detail(invoice_id)
     if not invoice:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
+    if role == "operator":
+        ensure_operator_invoice_editable(invoice)
     ensure_invoice_editable(invoice)
     batch_id = int(invoice["batch_id"]) if invoice.get("batch_id") is not None else None
     ensure_batch_editable(repository, batch_id)
     order = payload.order.model_dump()
     profile = payload.profile.model_dump()
+    if role == "operator":
+        ensure_operator_internal_billing(order)
     is_internal_credit_note = is_credit_note(invoice) and invoice.get("fiscal_status") == "internal"
     try:
         if is_internal_credit_note:
@@ -699,7 +718,7 @@ def update_invoice(invoice_id: int, payload: InvoiceRequest, _: str = Depends(re
         if batch_id is not None:
             if str(order.get("billing_mode") or "") != "split":
                 raise ValueError("Para editar un batch split se debe regenerar el split completo")
-            return build_and_save_split(repository, order, profile, update_customer=True, replace_batch_id=batch_id)
+            return build_and_save_split(repository, order, profile, update_customer=role == "admin", replace_batch_id=batch_id)
 
         base_catalog = repository.get_catalog_for_price_list(int(order["price_list_id"])) if order.get("price_list_id") else repository.get_active_catalog()
         catalog = catalog_with_invoice_history(base_catalog, invoice, order)

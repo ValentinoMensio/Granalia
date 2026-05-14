@@ -105,9 +105,14 @@ function canCreateCreditNote(invoice) {
   return String(invoice.fiscal_status || '') === 'authorized'
 }
 
-function canEditInvoice(invoice) {
+function canEditInvoice(invoice, role = 'operator') {
   if (!invoice) return false
-  return String(invoice.fiscal_status || '') !== 'authorized'
+  if (role === 'admin') return String(invoice.fiscal_status || '') !== 'authorized'
+  const todayKey = new Date().toLocaleDateString('en-CA')
+  return !isFiscalInvoice(invoice)
+    && !isCreditNote(invoice)
+    && !invoice.batch_id
+    && String(invoice.order_date || '') >= todayKey
 }
 
 function paginationPages(current, total) {
@@ -501,7 +506,7 @@ export default function InvoiceHistory() {
                   </div>
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
-                  {isAdmin && canEditInvoice(invoice) && (
+                  {canEditInvoice(invoice, session?.role) && (
                     <Button variant="secondary" className="w-full" onClick={(event) => { event.stopPropagation(); handleEditInvoice(invoice.invoice_id) }}>
                       Editar
                     </Button>
@@ -576,7 +581,7 @@ export default function InvoiceHistory() {
                     <td className="table-cell whitespace-nowrap text-right font-extrabold text-brand-ink">${isFiscalInvoice(invoice) ? fiscalMoney(signedInvoiceTotal(invoice)) : money(signedInvoiceTotal(invoice))}</td>
                     <td className="table-cell">
                       <div className="flex items-center justify-center gap-x-2 whitespace-nowrap text-xs leading-tight">
-                        {isAdmin && canEditInvoice(invoice) && (
+                        {canEditInvoice(invoice, session?.role) && (
                           <Button variant="ghost" className="min-h-0 px-0 py-0 text-brand-ink" onClick={(event) => { event.stopPropagation(); handleEditInvoice(invoice.invoice_id) }}>
                             Editar
                           </Button>
@@ -832,7 +837,7 @@ export default function InvoiceHistory() {
             )}
 
             <div className="action-bar action-bar-end mt-0">
-              {isAdmin && canEditInvoice(invoiceDetail) && (
+              {canEditInvoice(invoiceDetail, session?.role) && (
                 <Button variant="secondary" className="w-full sm:w-auto" onClick={() => handleEditInvoice(invoiceDetail.id)}>
                   Editar
                 </Button>

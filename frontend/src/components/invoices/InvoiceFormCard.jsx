@@ -24,6 +24,7 @@ function InvoiceFormCard({
   onRemoveAutomaticBonusRule,
   onSave,
   onCancelEdit,
+  allowAdvancedBilling = true,
 }) {
   const [discountsOpen, setDiscountsOpen] = useState(false)
   const defaultPriceListName = bootstrap?.price_list?.name || 'sin lista activa'
@@ -52,9 +53,9 @@ function InvoiceFormCard({
           <Field label="Modo de facturación">
             <select className="input" value={billingMode} onChange={(event) => onFieldChange('billingMode', event.target.value)} disabled={Boolean(editingInvoiceId)}>
               <option value="internal_only">Solo interna</option>
-              <option value="internal_credit_note">Nota de crédito interna</option>
-              <option value="fiscal_only">Solo declarada</option>
-              <option value="split">Dividida</option>
+              {allowAdvancedBilling ? <option value="internal_credit_note">Nota de crédito interna</option> : null}
+              {allowAdvancedBilling ? <option value="fiscal_only">Solo declarada</option> : null}
+              {allowAdvancedBilling ? <option value="split">Dividida</option> : null}
             </select>
             {editingInvoiceId ? <p className="mt-1 text-xs font-semibold text-slate-500">El modo se define al crear {isCreditNote ? 'la nota de crédito' : 'la factura'}.</p> : null}
           </Field>

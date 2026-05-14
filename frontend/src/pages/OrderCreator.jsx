@@ -118,6 +118,12 @@ export default function OrderCreator() {
   } = useGranalia()
 
   useEffect(() => {
+    if (!isAdmin && (form.billingMode || 'internal_only') !== 'internal_only') {
+      updateFormField('billingMode', 'internal_only')
+    }
+  }, [form.billingMode, isAdmin])
+
+  useEffect(() => {
     let cancelled = false
     async function loadFiscalCatalog() {
       if ((form.billingMode || 'internal_only') !== 'split') {
@@ -195,6 +201,7 @@ export default function OrderCreator() {
           onRemoveAutomaticBonusRule={removeAutomaticBonusRule}
           onSave={isAdmin ? saveCustomer : null}
           onCancelEdit={handleCancelInvoiceEdit}
+          allowAdvancedBilling={isAdmin}
         />
 
         <ProductRowsCard
