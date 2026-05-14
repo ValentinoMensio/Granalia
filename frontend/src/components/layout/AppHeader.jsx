@@ -11,16 +11,13 @@ function AppHeader() {
     { to: '/', label: 'Creador', exact: true },
     { to: '/history', label: 'Facturas', exact: true },
     ...(isAdmin ? [
-      { to: '/management?tab=products', label: 'Productos', exact: true },
+      { to: '/history/stats', label: 'Estadística', exact: true },
       { to: '/management', label: 'Gestión' },
     ] : []),
   ]
 
   function isActive(link) {
-    const current = `${location.pathname}${location.search}`
-    if (link.to.includes('?')) return current === link.to
     if (link.exact) return location.pathname === link.to
-    if (link.to === '/management' && location.search.includes('tab=products')) return false
     return location.pathname.startsWith(link.to)
   }
 
@@ -35,16 +32,16 @@ function AppHeader() {
           >
             <img
               src={logoImage}
-              alt="d-nada"
+              alt="Granalia"
               className="max-h-full max-w-full object-contain"
             />
           </Link>
 
           <div className="min-w-0">
-            <p className="text-lg font-extrabold leading-tight tracking-[-0.05em] text-brand-ink sm:text-xl">
-              d-nada
+            <p className="text-lg font-extrabold leading-tight tracking-[-0.05em] text-white sm:text-xl">
+              Granalia
             </p>
-            <p className="mt-0.5 max-w-[320px] text-xs font-semibold leading-4 text-slate-500 sm:text-sm sm:leading-5">
+            <p className="mt-0.5 max-w-[320px] text-xs font-semibold leading-4 text-white/72 sm:text-sm sm:leading-5">
               Sistema de facturación y gestión comercial
             </p>
           </div>

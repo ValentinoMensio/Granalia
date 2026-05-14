@@ -36,7 +36,6 @@ function InvoiceFormCard({
         <div className="flex items-center gap-3">
           <div className="card-header-icon">ƒ</div>
           <div>
-            <div className="eyebrow">Operación</div>
           <h2 className="subsection-title text-xl sm:text-2xl">
             {editingInvoiceId
               ? (isCreditNote ? `Editar nota de crédito #${editingInvoiceId}` : `Editar factura #${editingInvoiceId}`)
@@ -49,7 +48,7 @@ function InvoiceFormCard({
       <div className="module-section">
         <h3 className="module-title">Facturación</h3>
         <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Tipo de facturación">
+          <Field label="Modo de facturación">
             <select className="input" value={billingMode} onChange={(event) => onFieldChange('billingMode', event.target.value)} disabled={Boolean(editingInvoiceId)}>
               <option value="internal_only">Solo interna</option>
               <option value="internal_credit_note">Nota de crédito interna</option>
@@ -67,7 +66,7 @@ function InvoiceFormCard({
           )}
 
         {(billingMode === 'internal_only' || billingMode === 'internal_credit_note' || billingMode === 'split') && (
-          <Field label="Lista de precios">
+          <Field label="Lista interna">
             <select className="input" value={form.internalPriceListId || form.priceListId} onChange={(event) => onFieldChange('internalPriceListId', event.target.value)}>
               <option value="">Lista predeterminada ({defaultPriceListName})</option>
               {priceLists.map((priceList) => (
@@ -96,7 +95,7 @@ function InvoiceFormCard({
           <h3 className="module-title mb-0">Cliente</h3>
         </div>
 
-        <Field label="Cliente / contacto">
+        <Field label="Cliente histórico">
           <select className="input" value={form.customerId} onChange={(event) => onApplyCustomer(event.target.value)}>
             <option value="">Nuevo cliente</option>
             {customers.map((customer) => (
@@ -109,11 +108,11 @@ function InvoiceFormCard({
           <input className="input" type="date" value={form.date} onChange={(event) => onFieldChange('date', event.target.value)} />
         </Field>
 
-        <Field label="Ejecuta" full>
+        <Field label="Cliente" full>
           <input className="input" value={form.clientName} onChange={(event) => onFieldChange('clientName', event.target.value)} />
         </Field>
 
-        <Field label="Línea telefónica" full>
+        <Field label="Línea secundaria" full>
           <input className="input" value={form.secondaryLine} onChange={(event) => onFieldChange('secondaryLine', event.target.value)} />
         </Field>
 
@@ -134,7 +133,6 @@ function InvoiceFormCard({
       {!isCreditNote && <div className="advanced-panel mt-5">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <div className="eyebrow">Herramienta avanzada</div>
             <h3 className="subsection-title mt-1 text-xl">Configuración de descuentos y bonificación</h3>
           </div>
         </div>
@@ -155,7 +153,7 @@ function InvoiceFormCard({
             <div className="mt-5 grid gap-8 md:grid-cols-2">
               <div className="space-y-4">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <label className="field-label mb-0">Descuentos globales</label>
+                  <label className="field-label mb-0">Descuentos Globales (al pie)</label>
                   <Button variant="ghost" className="min-h-0 px-2 py-1 text-xs text-brand-red" onClick={onAddFooterDiscount}>
                     + Agregar
                   </Button>
@@ -192,7 +190,7 @@ function InvoiceFormCard({
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <label className="field-label mb-0">Descuentos por grupo</label>
+                  <label className="field-label mb-0">Descuentos por Grupo (línea)</label>
                 </div>
                 <div className="max-h-64 space-y-2 overflow-y-auto pr-2">
                   {availableDiscountGroups.map((group) => (

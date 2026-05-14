@@ -272,9 +272,9 @@ function ProductRowsCard({
         </div>
 
         <div className="mt-6 grid gap-3 md:grid-cols-4">
-          <Metric label="Total bruto" value={money(totals.subtotal)} />
-          <Metric label="Total Ds." value={money(Math.max(0, Number(totals.subtotal || 0) - Number(totals.total || 0)))} />
-          <Metric label="Subtotal" value={money(totals.total)} />
+          <Metric label="Total bultos" value={money(totals.bultos)} />
+          <Metric label="Total Kg" value={weight(totals.weight)} />
+          <Metric label="Subtotal" value={money(totals.subtotal)} />
           <Metric label="Total a acreditar" value={money(totals.total)} />
         </div>
 
@@ -303,7 +303,6 @@ function ProductRowsCard({
           <div>
           <div className="eyebrow">Detalle</div>
           <h2 className="subsection-title mt-1 text-xl sm:text-2xl">Productos y cantidades</h2>
-          <p className="mt-2 text-sm font-semibold text-slate-500">Cargá producto, presentación, cantidad, bonificación y precio para calcular la factura.</p>
           </div>
         </div>
       </div>
@@ -667,10 +666,10 @@ function ProductRowsCard({
       )}
 
       <div className="mt-6 grid gap-3 md:grid-cols-4">
-        <Metric label="Total bruto" value={money(totals.subtotal)} />
-        <Metric label="Total Ds." value={money(Math.max(0, Number(totals.subtotal || 0) - Number(totals.total || 0)))} />
-        <Metric label="Subtotal" value={money(totals.total)} />
-        <Metric label="Total facturado" value={money(totals.total)} />
+        <Metric label="Total bultos" value={money(totals.bultos)} />
+        <Metric label="Total Kg" value={weight(totals.weight)} />
+        <Metric label="Subtotal" value={money(totals.subtotal)} />
+        <Metric label="Total estimado" value={money(totals.total)} />
       </div>
 
       <div className="action-bar action-bar-start">
