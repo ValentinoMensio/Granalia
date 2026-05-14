@@ -793,7 +793,7 @@ export default function InvoiceHistory() {
               </div>
             )}
 
-            <div className="flex flex-col gap-3 border-t border-stone-200 pt-4 sm:flex-row sm:flex-wrap sm:justify-end">
+            <div className="action-bar action-bar-end mt-0">
               {isAdmin && canEditInvoice(invoiceDetail) && (
                 <Button variant="secondary" className="w-full sm:w-auto" onClick={() => handleEditInvoice(invoiceDetail.id)}>
                   Editar

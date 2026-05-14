@@ -108,18 +108,23 @@ function ProductRowsCard({
   if (isInternalCreditNote) {
     return (
       <div className="surface p-4 sm:p-6 lg:p-7">
-        <div className="mb-5">
+        <div className="card-header">
+          <div className="flex items-center gap-3">
+            <div className="card-header-icon">↩</div>
+            <div>
           <div className="eyebrow">Detalle</div>
-          <h2 className="subsection-title mt-2 text-xl sm:text-2xl">Productos a devolver</h2>
+          <h2 className="subsection-title mt-1 text-xl sm:text-2xl">Productos a devolver</h2>
           <p className="mt-2 text-sm text-slate-500">Seleccioná líneas facturadas al cliente. El precio se toma del remito original y la cantidad no puede superar lo disponible.</p>
+            </div>
+          </div>
         </div>
 
         {!form.customerId && (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Elegí un cliente histórico para ver productos disponibles para devolución.</div>
         )}
 
-        <div className="mt-4 overflow-hidden rounded-[26px] border border-stone-200 bg-stone-50/70">
-          <div className="table-head hidden px-3 py-3 text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500 lg:grid lg:grid-cols-[minmax(0,1fr)_12rem_minmax(0,1fr)_8rem_8rem_8rem_8rem_auto] lg:items-center lg:gap-3">
+        <div className="table-shell mt-4">
+          <div className="table-head hidden px-3 py-3 text-[11px] font-bold uppercase tracking-[0.16em] lg:grid lg:grid-cols-[minmax(0,1fr)_12rem_minmax(0,1fr)_8rem_8rem_8rem_8rem_auto] lg:items-center lg:gap-3">
             <div>Producto</div>
             <div>Formato</div>
             <div>Remito origen</div>
@@ -216,7 +221,7 @@ function ProductRowsCard({
                   <span className="font-semibold text-brand-red">${money(quantity * price)}</span>
                 </div>
                 <div className="flex items-center justify-between gap-3 lg:justify-end">
-                  <Button variant="ghost" className="px-2 py-2 text-xs text-slate-500" onClick={() => onRemoveItem(index)}>Quitar</Button>
+                  <Button variant="ghost" className="danger-link min-h-0" onClick={() => onRemoveItem(index)}>Quitar</Button>
                 </div>
               </div>
             )
@@ -227,7 +232,7 @@ function ProductRowsCard({
           </div>
         </div>
 
-        <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
+        <div className="advanced-panel mt-5">
           <div className="text-sm font-bold text-brand-ink">Concepto manual</div>
           <p className="mt-1 text-xs text-slate-500">
             Usalo para acreditar un importe escrito como línea de la nota, por ejemplo un descuento extra o ajuste comercial.
@@ -267,13 +272,13 @@ function ProductRowsCard({
         </div>
 
         <div className="mt-6 grid gap-3 md:grid-cols-4">
-          <Metric label="Total bultos" value={money(totals.bultos)} />
-          <Metric label="Total Kg" value={weight(totals.weight)} />
-          <Metric label="Subtotal" value={money(totals.subtotal)} />
+          <Metric label="Total bruto" value={money(totals.subtotal)} />
+          <Metric label="Total Ds." value={money(Math.max(0, Number(totals.subtotal || 0) - Number(totals.total || 0)))} />
+          <Metric label="Subtotal" value={money(totals.total)} />
           <Metric label="Total a acreditar" value={money(totals.total)} />
         </div>
 
-        <div className="mt-6 flex flex-col gap-3 border-t border-stone-200 pt-5 sm:flex-row sm:flex-wrap sm:justify-start">
+        <div className="action-bar action-bar-start">
           <Button variant="primary" className="w-full sm:min-w-[220px] sm:w-auto" onClick={onGenerate} disabled={generating}>
             {generating ? 'Guardando...' : editingInvoiceId ? 'Actualizar nota de crédito' : 'Generar nota de crédito'}
           </Button>
@@ -292,14 +297,18 @@ function ProductRowsCard({
 
   return (
     <div className="surface p-4 sm:p-6 lg:p-7">
-      <div className="mb-5">
-        <div>
+      <div className="card-header">
+        <div className="flex items-center gap-3">
+          <div className="card-header-icon">#</div>
+          <div>
           <div className="eyebrow">Detalle</div>
-          <h2 className="subsection-title mt-2 text-xl sm:text-2xl">Productos y cantidades</h2>
+          <h2 className="subsection-title mt-1 text-xl sm:text-2xl">Productos y cantidades</h2>
+          <p className="mt-2 text-sm font-semibold text-slate-500">Cargá producto, presentación, cantidad, bonificación y precio para calcular la factura.</p>
+          </div>
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-[26px] border border-stone-200 bg-stone-50/70">
+      <div className="table-shell">
         <div className="hidden lg:block">
           <table className="table-base w-full table-fixed border-collapse">
             <colgroup>
@@ -314,22 +323,22 @@ function ProductRowsCard({
 
             <thead className="table-head">
               <tr>
-                <th className="table-cell text-center text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500">
+                <th className="table-cell text-center text-[11px] font-bold uppercase tracking-[0.16em]">
                   Producto
                 </th>
-                <th className="table-cell text-center text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500">
+                <th className="table-cell text-center text-[11px] font-bold uppercase tracking-[0.16em]">
                   Presentación
                 </th>
-                <th className="table-cell text-center text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500">
+                <th className="table-cell text-center text-[11px] font-bold uppercase tracking-[0.16em]">
                   Cantidad
                 </th>
-                <th className="table-cell text-center text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500">
+                <th className="table-cell text-center text-[11px] font-bold uppercase tracking-[0.16em]">
                   Bonificación
                 </th>
-                <th className="table-cell text-center text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500">
+                <th className="table-cell text-center text-[11px] font-bold uppercase tracking-[0.16em]">
                   Precio
                 </th>
-                <th className="table-cell text-center text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500">
+                <th className="table-cell text-center text-[11px] font-bold uppercase tracking-[0.16em]">
                   Total
                 </th>
                 <th className="table-cell" />
@@ -438,7 +447,7 @@ function ProductRowsCard({
                       <td className="table-cell text-right align-middle">
                       <Button
                         variant="ghost"
-                        className="px-2 py-2 text-xs text-slate-500"
+                        className="danger-link min-h-0"
                         onClick={() => onRemoveItem(index)}
                       >
                         Quitar
@@ -596,7 +605,7 @@ function ProductRowsCard({
       </div>
 
       {splitPreview?.enabled && (
-        <div className="mt-6 rounded-[26px] border border-amber-200 bg-amber-50/80 p-4 sm:p-5">
+        <div className="mt-6 rounded-[20px] border border-amber-200 bg-amber-50/80 p-4 shadow-sm sm:p-5">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <div className="eyebrow text-amber-700">Preview de división</div>
@@ -658,13 +667,13 @@ function ProductRowsCard({
       )}
 
       <div className="mt-6 grid gap-3 md:grid-cols-4">
-        <Metric label="Total bultos" value={money(totals.bultos)} />
-        <Metric label="Total Kg" value={weight(totals.weight)} />
-        <Metric label="Subtotal" value={money(totals.subtotal)} />
-        <Metric label="Total estimado" value={money(totals.total)} />
+        <Metric label="Total bruto" value={money(totals.subtotal)} />
+        <Metric label="Total Ds." value={money(Math.max(0, Number(totals.subtotal || 0) - Number(totals.total || 0)))} />
+        <Metric label="Subtotal" value={money(totals.total)} />
+        <Metric label="Total facturado" value={money(totals.total)} />
       </div>
 
-      <div className="mt-6 flex flex-col gap-3 border-t border-stone-200 pt-5 sm:flex-row sm:flex-wrap sm:justify-start">
+      <div className="action-bar action-bar-start">
         <Button
           variant="primary"
           className="w-full sm:min-w-[180px] sm:w-auto"

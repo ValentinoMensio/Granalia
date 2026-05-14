@@ -32,38 +32,42 @@ function InvoiceFormCard({
   const isCreditNote = billingMode === 'internal_credit_note'
   return (
     <div className="surface p-4 sm:p-6 lg:p-7">
-      <div className="mb-5 flex items-center justify-between gap-4 border-b border-stone-200 pb-5 sm:mb-6">
-        <div>
+      <div className="card-header">
+        <div className="flex items-center gap-3">
+          <div className="card-header-icon">ƒ</div>
+          <div>
+            <div className="eyebrow">Operación</div>
           <h2 className="subsection-title text-xl sm:text-2xl">
             {editingInvoiceId
               ? (isCreditNote ? `Editar nota de crédito #${editingInvoiceId}` : `Editar factura #${editingInvoiceId}`)
               : (isCreditNote ? 'Nueva nota de crédito interna' : 'Nueva factura')}
           </h2>
+          </div>
         </div>
       </div>
 
-      <div className="border-b border-stone-200 pb-6">
-        <h3 className="subsection-title mb-4 text-lg">Facturación</h3>
+      <div className="module-section">
+        <h3 className="module-title">Facturación</h3>
         <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Modo de facturación">
+          <Field label="Tipo de facturación">
             <select className="input" value={billingMode} onChange={(event) => onFieldChange('billingMode', event.target.value)} disabled={Boolean(editingInvoiceId)}>
               <option value="internal_only">Solo interna</option>
               <option value="internal_credit_note">Nota de crédito interna</option>
               <option value="fiscal_only">Solo declarada</option>
               <option value="split">Dividida</option>
             </select>
-            {editingInvoiceId ? <p className="mt-1 text-xs text-slate-500">El modo se define al crear {isCreditNote ? 'la nota de crédito' : 'la factura'}.</p> : null}
+            {editingInvoiceId ? <p className="mt-1 text-xs font-semibold text-slate-500">El modo se define al crear {isCreditNote ? 'la nota de crédito' : 'la factura'}.</p> : null}
           </Field>
 
           {billingMode === 'split' && (
             <Field label="% declarado">
               <input className="input" type="number" min="0" max="100" step="1" value={form.declaredPercentage} onChange={(event) => onFieldChange('declaredPercentage', Number(event.target.value || 0))} />
-              <p className="mt-1 text-xs text-slate-500">El porcentaje interno es el resto.</p>
+              <p className="mt-1 text-xs font-semibold text-slate-500">El porcentaje interno es el resto.</p>
             </Field>
           )}
 
         {(billingMode === 'internal_only' || billingMode === 'internal_credit_note' || billingMode === 'split') && (
-          <Field label="Lista interna">
+          <Field label="Lista de precios">
             <select className="input" value={form.internalPriceListId || form.priceListId} onChange={(event) => onFieldChange('internalPriceListId', event.target.value)}>
               <option value="">Lista predeterminada ({defaultPriceListName})</option>
               {priceLists.map((priceList) => (
@@ -87,12 +91,12 @@ function InvoiceFormCard({
         </div>
       </div>
 
-      <div className="mt-6 grid gap-4 md:grid-cols-2">
+      <div className="module-section mt-5 grid gap-4 md:grid-cols-2">
         <div className="md:col-span-2">
-          <h3 className="subsection-title text-lg">Cliente</h3>
+          <h3 className="module-title mb-0">Cliente</h3>
         </div>
 
-        <Field label="Cliente histórico">
+        <Field label="Cliente / contacto">
           <select className="input" value={form.customerId} onChange={(event) => onApplyCustomer(event.target.value)}>
             <option value="">Nuevo cliente</option>
             {customers.map((customer) => (
@@ -105,11 +109,11 @@ function InvoiceFormCard({
           <input className="input" type="date" value={form.date} onChange={(event) => onFieldChange('date', event.target.value)} />
         </Field>
 
-        <Field label="Cliente" full>
+        <Field label="Ejecuta" full>
           <input className="input" value={form.clientName} onChange={(event) => onFieldChange('clientName', event.target.value)} />
         </Field>
 
-        <Field label="Línea secundaria" full>
+        <Field label="Línea telefónica" full>
           <input className="input" value={form.secondaryLine} onChange={(event) => onFieldChange('secondaryLine', event.target.value)} />
         </Field>
 
@@ -127,17 +131,22 @@ function InvoiceFormCard({
         </Field>
       </div>
 
-      {!isCreditNote && <div className="mt-6 border-t border-stone-200 pt-6">
-        <h3 className="subsection-title text-xl">Configuración de descuentos y bonificación</h3>
+      {!isCreditNote && <div className="advanced-panel mt-5">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="eyebrow">Herramienta avanzada</div>
+            <h3 className="subsection-title mt-1 text-xl">Configuración de descuentos y bonificación</h3>
+          </div>
+        </div>
 
         {!discountsOpen && (
           <button
             type="button"
             onClick={() => setDiscountsOpen(true)}
-            className="mt-4 flex h-10 w-full items-center justify-center rounded-xl border border-blue-200 bg-blue-50 text-xl font-semibold leading-none text-blue-700 transition hover:border-blue-300 hover:bg-blue-100"
+            className="advanced-toggle"
             aria-label="Desplegar configuración de descuentos y bonificación"
           >
-            Editar ▼
+            Editar <span aria-hidden="true">↓</span>
           </button>
         )}
 
@@ -146,8 +155,8 @@ function InvoiceFormCard({
             <div className="mt-5 grid gap-8 md:grid-cols-2">
               <div className="space-y-4">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <label className="text-sm font-medium text-slate-700">Descuentos Globales (al pie)</label>
-                  <Button variant="ghost" className="px-0 py-0 text-xs text-brand-red" onClick={onAddFooterDiscount}>
+                  <label className="field-label mb-0">Descuentos globales</label>
+                  <Button variant="ghost" className="min-h-0 px-2 py-1 text-xs text-brand-red" onClick={onAddFooterDiscount}>
                     + Agregar
                   </Button>
                 </div>
@@ -170,25 +179,25 @@ function InvoiceFormCard({
                         />
                         <span className="text-xs text-slate-400">%</span>
                       </div>
-                      <button onClick={() => onRemoveFooterDiscount(index)} className="text-slate-300 hover:text-red-500">
+                      <button onClick={() => onRemoveFooterDiscount(index)} className="danger-link">
                         ✕
                       </button>
                     </div>
                   ))}
                   {(!form.footerDiscounts || form.footerDiscounts.length === 0) && (
-                    <p className="text-xs italic text-slate-400">No hay descuentos globales configurados.</p>
+                    <p className="text-xs font-semibold italic text-slate-400">No hay descuentos globales configurados.</p>
                   )}
                 </div>
               </div>
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-slate-700">Descuentos por Grupo (línea)</label>
+                  <label className="field-label mb-0">Descuentos por grupo</label>
                 </div>
                 <div className="max-h-64 space-y-2 overflow-y-auto pr-2">
                   {availableDiscountGroups.map((group) => (
-                    <div key={group} className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 p-2">
-                      <span className="text-xs font-medium text-slate-600">{group}</span>
+                    <div key={group} className="flex items-center justify-between rounded-[14px] border border-slate-200 bg-white/80 p-2 shadow-sm">
+                      <span className="text-xs font-bold text-slate-600">{group}</span>
                       <div className="flex items-center gap-1">
                         <input
                           type="number"
@@ -204,7 +213,7 @@ function InvoiceFormCard({
               </div>
             </div>
 
-            <div className="mt-6 border-t border-stone-200 pt-6">
+            <div className="mt-6 border-t border-blue-200/70 pt-6">
               <AutomaticBonusRules
                 rules={form.automaticBonusRules}
                 disablesLineDiscount={form.automaticBonusDisablesLineDiscount}
@@ -219,17 +228,17 @@ function InvoiceFormCard({
             <button
               type="button"
               onClick={() => setDiscountsOpen(false)}
-              className="mt-5 flex h-10 w-full items-center justify-center rounded-xl border border-blue-200 bg-blue-50 text-xl font-semibold leading-none text-blue-700 transition hover:border-blue-300 hover:bg-blue-100"
+              className="advanced-toggle"
               aria-label="Ocultar configuración de descuentos y bonificación"
             >
-              Ocultar ▲
+              Ocultar <span aria-hidden="true">↑</span>
             </button>
           </>
         )}
       </div>}
 
       {onSave && !isCreditNote && (
-        <div className="mt-6 flex flex-wrap gap-3 border-t border-stone-200 pt-5">
+        <div className="action-bar action-bar-start">
           <Button variant="primary" className="w-full sm:min-w-[180px] sm:w-auto" onClick={onSave} disabled={saving}>
             {saving ? 'Guardando...' : 'Guardar cambios'}
           </Button>

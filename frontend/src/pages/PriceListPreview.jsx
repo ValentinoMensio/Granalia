@@ -229,7 +229,7 @@ function PriceListPreview() {
         </table>
       </div>
 
-      <div className="flex flex-wrap justify-end gap-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm print:hidden">
+      <div className="action-bar action-bar-end rounded-[18px] border border-slate-200 bg-white p-4 shadow-sm print:hidden">
         <Button variant="ghost" onClick={() => window.print()}>Imprimir</Button>
         <Button variant="secondary" onClick={closePreview} disabled={saving}>Cancelar</Button>
         <Button variant="primary" onClick={savePreview} disabled={saving}>{saving ? 'Guardando...' : 'Guardar lista'}</Button>

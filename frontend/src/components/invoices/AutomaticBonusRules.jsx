@@ -10,15 +10,15 @@ function AutomaticBonusRules({ rules, catalog, disablesLineDiscount, onAdd, onCh
     <div className="space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <label className="text-sm font-medium text-slate-700">Bonificación automática</label>
-          <p className="mt-1 text-xs text-slate-400">Ej: cada 10 productos agrega 1 bonificado.</p>
+          <label className="field-label mb-0">Bonificación automática</label>
+          <p className="mt-1 text-xs font-semibold text-slate-400">Ej: cada 10 productos agrega 1 bonificado.</p>
         </div>
-        <Button variant="ghost" className="px-0 py-0 text-xs text-brand-red" onClick={onAdd}>
+        <Button variant="ghost" className="min-h-0 px-2 py-1 text-xs text-brand-red" onClick={onAdd}>
           + Agregar
         </Button>
       </div>
 
-      <label className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs font-medium text-slate-600">
+      <label className="flex items-start gap-2 rounded-[14px] border border-slate-200 bg-white/80 p-3 text-xs font-bold text-slate-600 shadow-sm">
         <input
           type="checkbox"
           checked={Boolean(disablesLineDiscount)}
@@ -35,7 +35,7 @@ function AutomaticBonusRules({ rules, catalog, disablesLineDiscount, onAdd, onCh
           const formatValue = rule.product_id ? (rule.offering_id || '') : (rule.offering_label || '')
 
           return (
-            <div key={index} className="grid gap-2 rounded-lg border border-slate-100 bg-slate-50 p-3 lg:grid-cols-[1fr_1fr_6rem_6rem_auto] lg:items-end">
+            <div key={index} className="grid gap-2 rounded-[16px] border border-slate-200 bg-white/85 p-3 shadow-sm lg:grid-cols-[1fr_1fr_6rem_6rem_auto] lg:items-end">
               <div>
                 <div className="mb-1 text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500">Producto</div>
                 <select
@@ -93,7 +93,7 @@ function AutomaticBonusRules({ rules, catalog, disablesLineDiscount, onAdd, onCh
                 />
               </div>
 
-              <button onClick={() => onRemove(index)} className="text-left text-xs text-slate-400 hover:text-red-500 lg:pb-2 lg:text-center">
+              <button onClick={() => onRemove(index)} className="danger-link text-left lg:mb-1 lg:text-center">
                 Quitar
               </button>
             </div>
@@ -101,7 +101,7 @@ function AutomaticBonusRules({ rules, catalog, disablesLineDiscount, onAdd, onCh
         })}
 
         {(!rules || rules.length === 0) && (
-          <p className="text-xs italic text-slate-400">No hay bonificaciones automáticas configuradas.</p>
+          <p className="text-xs font-semibold italic text-slate-400">No hay bonificaciones automáticas configuradas.</p>
         )}
       </div>
     </div>

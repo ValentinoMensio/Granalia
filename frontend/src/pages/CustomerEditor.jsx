@@ -316,7 +316,7 @@ export default function CustomerEditor() {
                     </div>
                     <button 
                       onClick={() => removeFooterDiscount(i)}
-                      className="text-slate-300 hover:text-red-500"
+                      className="danger-link"
                     >
                       ✕
                     </button>
@@ -365,7 +365,7 @@ export default function CustomerEditor() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-3 pt-6 border-t sm:flex-row sm:justify-end">
+        <div className="action-bar action-bar-end">
           <Button variant="secondary" className="w-full sm:w-auto" onClick={() => navigate(managementPath)}>
             Cancelar
           </Button>
