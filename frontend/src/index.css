@@ -85,6 +85,7 @@
   }
 
   .surface-strong {
+    @apply sticky top-3 z-50;
     @apply rounded-[10px] border shadow-card;
     border-color: rgba(255,255,255,0.10);
     background:
@@ -288,15 +289,30 @@
   }
 
   .tab-button {
-    @apply flex-1 whitespace-nowrap rounded-[8px] px-3 py-2.5 text-center text-sm font-extrabold transition sm:flex-none sm:px-4;
-    color: rgba(255,255,255,0.86);
+    @apply flex flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-[8px] px-3 py-2.5 text-center text-sm font-extrabold transition sm:flex-none sm:px-4;
+    color: rgb(var(--primary) / 0.78);
   }
 
   .tab-button-active {
     @apply shadow-sm;
-    background: rgba(255,255,255,0.08);
+    background: rgb(232 241 255);
+    color: rgb(8 52 112);
+    box-shadow: inset 0 0 0 1px rgba(9,68,148,0.14);
+  }
+
+  .surface-strong .tab-nav {
+    @apply border-white/15;
+    background: rgba(255,255,255,0.02);
+  }
+
+  .surface-strong .tab-button {
+    color: rgba(255,255,255,0.88);
+  }
+
+  .surface-strong .tab-button-active {
+    background: linear-gradient(135deg, rgba(255,255,255,0.14), rgba(96, 165, 250, 0.16));
     color: white;
-    box-shadow: 0 8px 20px rgba(0,0,0,0.18), inset 0 0 0 1px rgba(255,255,255,0.16);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.18), inset 0 0 0 1px rgba(255,255,255,0.18);
   }
 
   .status-bar {
@@ -442,5 +458,35 @@
 
   .danger-link:hover {
     background: rgb(var(--danger) / 0.07);
+  }
+
+  .filter-group-title {
+    @apply mb-3 mt-4 flex items-center gap-2 text-[12px] font-extrabold tracking-[-0.01em];
+    color: rgb(var(--primary));
+  }
+
+  .filter-group-title::after {
+    content: '';
+    @apply h-px flex-1;
+    background: rgb(var(--border));
+  }
+
+  .invoice-chip {
+    @apply inline-flex items-center rounded-[8px] border px-3 py-1.5 text-xs font-bold;
+    border-color: rgb(191 219 254);
+    background: rgb(239 246 255);
+    color: rgb(9 68 148);
+  }
+
+  .status-chip {
+    @apply inline-flex items-center rounded-[8px] border px-3 py-1.5 text-xs font-bold;
+    border-color: rgb(187 247 208);
+    background: rgb(220 252 231);
+    color: rgb(5 150 105);
+  }
+
+  .invoice-row-selected {
+    background: rgb(232 241 255) !important;
+    box-shadow: inset 3px 0 0 rgb(9 68 148);
   }
 }

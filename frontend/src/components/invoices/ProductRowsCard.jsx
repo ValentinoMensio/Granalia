@@ -274,8 +274,8 @@ function ProductRowsCard({
         <div className="mt-6 grid gap-3 md:grid-cols-4">
           <Metric label="Total bultos" value={money(totals.bultos)} />
           <Metric label="Total Kg" value={weight(totals.weight)} />
-          <Metric label="Subtotal" value={money(totals.subtotal)} />
-          <Metric label="Total a acreditar" value={money(totals.total)} />
+          <Metric label="Subtotal" value={`$${money(totals.subtotal)}`} />
+          <Metric label="Total a acreditar" value={`$${money(totals.total)}`} />
         </div>
 
         <div className="action-bar action-bar-start">
@@ -668,8 +668,8 @@ function ProductRowsCard({
       <div className="mt-6 grid gap-3 md:grid-cols-4">
         <Metric label="Total bultos" value={money(totals.bultos)} />
         <Metric label="Total Kg" value={weight(totals.weight)} />
-        <Metric label="Subtotal" value={money(totals.subtotal)} />
-        <Metric label="Total estimado" value={money(totals.total)} />
+        <Metric label="Subtotal" value={`$${money(totals.subtotal)}`} />
+        <Metric label="Total estimado" value={`$${money(totals.total)}`} />
       </div>
 
       <div className="action-bar action-bar-start">

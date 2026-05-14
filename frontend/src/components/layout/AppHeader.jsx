@@ -1,7 +1,15 @@
 import { Link, useLocation } from 'react-router-dom'
+import { BarChart3, FilePlus2, LogOut, ReceiptText, Settings } from 'lucide-react'
 import logoImage from '../../../../img/logof.png'
 import Button from '../ui/Button'
 import { useAuth } from '../../context/AuthContext'
+
+const icons = {
+  Creador: FilePlus2,
+  Facturas: ReceiptText,
+  Estadística: BarChart3,
+  Gestión: Settings,
+}
 
 function AppHeader() {
   const location = useLocation()
@@ -51,6 +59,7 @@ function AppHeader() {
             <nav className="tab-nav">
               {links.map((link) => {
                 const active = isActive(link)
+                const Icon = icons[link.label]
                 return (
                   <Link
                     key={link.to}
@@ -58,12 +67,14 @@ function AppHeader() {
                     aria-current={active ? 'page' : undefined}
                     className={`tab-button ${active ? 'tab-button-active' : ''}`.trim()}
                   >
+                    {Icon ? <Icon size={17} strokeWidth={2.2} /> : null}
                     {link.label}
                   </Link>
                 )
               })}
             </nav>
             <Button variant="danger" className="w-full sm:w-auto" onClick={logout}>
+              <LogOut size={16} strokeWidth={2.2} />
               Salir
             </Button>
           </div>

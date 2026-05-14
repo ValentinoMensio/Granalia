@@ -6,6 +6,7 @@ import Button from '../components/ui/Button'
 import PageSectionHeader from '../components/ui/PageSectionHeader'
 import DateRangePicker from '../components/ui/DateRangePicker'
 import { useAuth } from '../context/AuthContext'
+import { CalendarDays, DollarSign, FileText, SlidersHorizontal, Users, X } from 'lucide-react'
 
 const PAGE_SIZE = 10
 const EMPTY_FILTERS = { customerId: '', dateFrom: '', dateTo: '', transport: '', operationType: '', minTotal: '', maxTotal: '' }
@@ -355,16 +356,21 @@ export default function InvoiceHistory() {
         description="Consultá remitos, facturas declaradas y notas de crédito emitidas, con filtros por cliente, fecha y transporte."
       />
 
-      <div className="grid w-full items-start gap-4 sm:gap-6 xl:grid-cols-[220px_minmax(0,1fr)]">
+      <div className="grid w-full items-start gap-4 sm:gap-6 xl:grid-cols-[300px_minmax(0,1fr)]">
       <div className="space-y-4">
         <aside className="surface w-full self-start p-4 sm:p-6">
           <div className="flex min-h-0 items-start justify-between gap-4 border-b border-stone-200 pb-4 pt-1 sm:min-h-[4.5rem]">
-            <div>
+            <div className="flex items-center gap-3">
+              <span className="card-header-icon h-10 w-10"><SlidersHorizontal size={20} /></span>
               <h2 className="subsection-title text-xl sm:text-2xl">Filtros</h2>
             </div>
           </div>
 
-          <div className="mt-6 space-y-3">
+          <div className="mt-5 space-y-3">
+            <div className="filter-group-title"><CalendarDays size={16} />Periodo</div>
+            <DateRangePicker dateFrom={filters.dateFrom} dateTo={filters.dateTo} onChange={updateDateRange} />
+
+            <div className="filter-group-title"><Users size={16} />Cliente y operación</div>
             <select
               value={filters.customerId}
               onChange={(event) => updateFilter('customerId', event.target.value)}
@@ -375,7 +381,6 @@ export default function InvoiceHistory() {
                 <option key={customer.id} value={customer.id}>{customer.name}</option>
               ))}
             </select>
-            <DateRangePicker dateFrom={filters.dateFrom} dateTo={filters.dateTo} onChange={updateDateRange} />
             <select
               value={filters.transport}
               onChange={(event) => updateFilter('transport', event.target.value)}
@@ -397,6 +402,8 @@ export default function InvoiceHistory() {
               <option value="internal_credit_note">Notas de crédito internas</option>
               <option value="fiscal_credit_note">Notas de crédito fiscales</option>
             </select>
+
+            <div className="filter-group-title"><DollarSign size={16} />Monto</div>
             <input
               type="number"
               min="0"
@@ -417,6 +424,7 @@ export default function InvoiceHistory() {
 
           <div className="mt-3 flex justify-end">
             <Button variant="secondary" onClick={resetFilters} className="w-full">
+              <X size={16} />
               Limpiar filtros
             </Button>
           </div>
@@ -426,10 +434,25 @@ export default function InvoiceHistory() {
 
       <section className="surface w-full self-start p-4 sm:p-6">
         <div className="flex min-h-0 flex-col gap-4 border-b border-stone-200 pb-4 pt-1 md:min-h-[4.5rem] md:flex-row md:items-start md:justify-between">
-          <div>
+          <div className="flex items-start gap-3">
+            <span className="card-header-icon h-10 w-10"><FileText size={20} /></span>
+            <div>
             <h2 className="subsection-title text-xl sm:text-2xl">Facturas</h2>
+            <p className="mt-1 text-sm font-semibold text-slate-500">Documentos emitidos según los filtros aplicados</p>
+            </div>
           </div>
           <div className="badge self-start md:mt-1">{filteredInvoices.length} resultados</div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          <span className="invoice-chip">Cliente: {filters.customerId ? customers.find((customer) => String(customer.id) === String(filters.customerId))?.name || 'Seleccionado' : 'Todos los clientes'}</span>
+          <span className="invoice-chip">Transporte: {filters.transport ? (bootstrap?.transports || []).find((transport) => String(transport.transport_id) === String(filters.transport))?.name || 'Seleccionado' : 'Todos los transportes'}</span>
+          <span className="invoice-chip">Tipo: {filters.operationType ? {
+            internal_invoice: 'Remitos internos',
+            fiscal_invoice: 'Facturas declaradas',
+            internal_credit_note: 'Notas de crédito internas',
+            fiscal_credit_note: 'Notas de crédito fiscales',
+          }[filters.operationType] : 'Todos los tipos'}</span>
         </div>
 
         <div className="mobile-list mt-6">
@@ -437,7 +460,7 @@ export default function InvoiceHistory() {
             const isUpcoming = invoice.order_date >= todayKey
 
             return (
-              <article key={invoice.invoice_id} className={`rounded-2xl border p-4 ${isUpcoming ? 'border-slate-300 bg-stone-100' : 'border-slate-200 bg-white'}`}>
+              <article key={invoice.invoice_id} onClick={() => handleSelectInvoice(invoice.invoice_id)} className={`cursor-pointer rounded-2xl border p-4 transition ${invoiceDetail?.id === invoice.invoice_id ? 'invoice-row-selected' : ''} ${isUpcoming ? 'border-slate-300 bg-stone-100' : 'border-slate-200 bg-white'}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="font-mono text-xs text-slate-500">{displayInvoiceNumber(invoice)}</div>
@@ -464,11 +487,8 @@ export default function InvoiceHistory() {
                   </div>
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
-                  <Button variant="secondary" className="w-full" onClick={() => handleSelectInvoice(invoice.invoice_id)}>
-                    Detalle
-                  </Button>
                   {isAdmin && canEditInvoice(invoice) && (
-                    <Button variant="secondary" className="w-full" onClick={() => handleEditInvoice(invoice.invoice_id)}>
+                    <Button variant="secondary" className="w-full" onClick={(event) => { event.stopPropagation(); handleEditInvoice(invoice.invoice_id) }}>
                       Editar
                     </Button>
                   )}
@@ -476,6 +496,7 @@ export default function InvoiceHistory() {
                     href={invoicePdfUrl(invoice.invoice_id)}
                     target="_blank"
                     rel="noreferrer"
+                    onClick={(event) => event.stopPropagation()}
                     className="btn-secondary w-full"
                   >
                     PDF
@@ -484,7 +505,7 @@ export default function InvoiceHistory() {
                     <Button
                       variant="danger"
                       className="col-span-2"
-                      onClick={() => handleDeleteInvoice(invoice.invoice_id)}
+                      onClick={(event) => { event.stopPropagation(); handleDeleteInvoice(invoice.invoice_id) }}
                       disabled={deletingInvoiceId === invoice.invoice_id}
                     >
                       {deletingInvoiceId === invoice.invoice_id ? 'Eliminando...' : 'Eliminar'}
@@ -511,7 +532,7 @@ export default function InvoiceHistory() {
               <col className="w-[10%]" />
               <col className="w-[12%]" />
               <col className="w-[11%]" />
-              <col className="w-[25%]" />
+              <col className="w-[20%]" />
             </colgroup>
             <thead className="table-head">
               <tr>
@@ -528,23 +549,21 @@ export default function InvoiceHistory() {
             <tbody className="bg-white">
               {paginatedInvoices.map((invoice) => {
                 const isUpcoming = invoice.order_date >= todayKey
+                const selected = invoiceDetail?.id === invoice.invoice_id
 
                 return (
-                  <tr key={invoice.invoice_id} className={`table-row ${isUpcoming ? 'bg-stone-100 text-brand-ink' : ''}`}>
+                  <tr key={invoice.invoice_id} onClick={() => handleSelectInvoice(invoice.invoice_id)} className={`table-row cursor-pointer ${selected ? 'invoice-row-selected' : ''} ${isUpcoming ? 'bg-stone-100 text-brand-ink' : ''}`}>
                     <td className="table-cell text-center font-mono text-xs">{displayInvoiceNumber(invoice)}</td>
                     <td className="table-cell break-words font-medium leading-snug" title={invoice.client_name}>{invoice.client_name}</td>
                     <td className={`table-cell whitespace-nowrap text-center ${isUpcoming ? 'text-slate-800' : 'text-slate-600'}`}>{date(invoice.order_date)}</td>
                     <td className={`table-cell break-words leading-snug ${isUpcoming ? 'text-slate-800' : 'text-slate-600'}`} title={invoice.transport || 'Sin transporte'}>{invoice.transport || 'Sin transporte'}</td>
-                    <td className="table-cell text-center">{invoiceTypeLabel(invoice)}</td>
-                    <td className="table-cell text-center">{fiscalStatusLabel(invoice)}</td>
-                    <td className="table-cell whitespace-nowrap text-right font-medium">${isFiscalInvoice(invoice) ? fiscalMoney(signedInvoiceTotal(invoice)) : money(signedInvoiceTotal(invoice))}</td>
+                    <td className="table-cell text-center"><span className="invoice-chip">{invoiceTypeLabel(invoice)}</span></td>
+                    <td className="table-cell text-center"><span className="status-chip">{fiscalStatusLabel(invoice)}</span></td>
+                    <td className="table-cell whitespace-nowrap text-right font-extrabold text-brand-ink">${isFiscalInvoice(invoice) ? fiscalMoney(signedInvoiceTotal(invoice)) : money(signedInvoiceTotal(invoice))}</td>
                     <td className="table-cell">
                       <div className="flex items-center justify-center gap-x-2 whitespace-nowrap text-xs leading-tight">
-                        <Button variant="ghost" className="px-0 py-0 text-brand-red" onClick={() => handleSelectInvoice(invoice.invoice_id)}>
-                          Ver detalle
-                        </Button>
                         {isAdmin && canEditInvoice(invoice) && (
-                          <Button variant="ghost" className="px-0 py-0 text-brand-ink" onClick={() => handleEditInvoice(invoice.invoice_id)}>
+                          <Button variant="ghost" className="min-h-0 px-0 py-0 text-brand-ink" onClick={(event) => { event.stopPropagation(); handleEditInvoice(invoice.invoice_id) }}>
                             Editar
                           </Button>
                         )}
@@ -552,6 +571,7 @@ export default function InvoiceHistory() {
                           href={invoicePdfUrl(invoice.invoice_id)}
                           target="_blank"
                           rel="noreferrer"
+                          onClick={(event) => event.stopPropagation()}
                           className="font-semibold text-brand-ink hover:text-brand-red"
                         >
                           PDF
@@ -560,7 +580,7 @@ export default function InvoiceHistory() {
                           <Button
                             variant="ghost"
                             className="px-0 py-0 text-xs text-red-600"
-                            onClick={() => handleDeleteInvoice(invoice.invoice_id)}
+                            onClick={(event) => { event.stopPropagation(); handleDeleteInvoice(invoice.invoice_id) }}
                             disabled={deletingInvoiceId === invoice.invoice_id}
                           >
                             {deletingInvoiceId === invoice.invoice_id ? 'Eliminando...' : 'Eliminar'}

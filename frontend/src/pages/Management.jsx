@@ -111,7 +111,7 @@ export default function Management() {
 
       <div className="page-header">
         <div className="soft-note">Elegí una sección para editar registros, crear nuevos elementos y depurar datos.</div>
-        <nav className="tab-nav">
+        <nav className="tab-nav border-slate-200 bg-white/80">
           {['customers', 'transports', 'products'].map((t) => (
             <button
               key={t}
