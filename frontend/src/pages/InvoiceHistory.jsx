@@ -6,7 +6,7 @@ import Button from '../components/ui/Button'
 import PageSectionHeader from '../components/ui/PageSectionHeader'
 import DateRangePicker from '../components/ui/DateRangePicker'
 import { useAuth } from '../context/AuthContext'
-import { CalendarDays, DollarSign, FileText, SlidersHorizontal, Users, X } from '../components/ui/Icons'
+import { CalendarDays, ChevronLeft, ChevronRight, DollarSign, FileText, SlidersHorizontal, Users, X } from '../components/ui/Icons'
 
 const PAGE_SIZE = 10
 const EMPTY_FILTERS = { customerId: '', dateFrom: '', dateTo: '', transport: '', operationType: '', minTotal: '', maxTotal: '' }
@@ -108,6 +108,20 @@ function canCreateCreditNote(invoice) {
 function canEditInvoice(invoice) {
   if (!invoice) return false
   return String(invoice.fiscal_status || '') !== 'authorized'
+}
+
+function paginationPages(current, total) {
+  if (total <= 7) return Array.from({ length: total }, (_, index) => index + 1)
+  if (current <= 2) return [1, 2, 3, 'right', total]
+  if (current >= total - 1) return [1, 'left', total - 2, total - 1, total]
+  const pages = [1]
+  const start = Math.max(2, current - 1)
+  const end = Math.min(total - 1, current + 1)
+  if (start > 2) pages.push('left')
+  for (let pageNumber = start; pageNumber <= end; pageNumber += 1) pages.push(pageNumber)
+  if (end < total - 1) pages.push('right')
+  pages.push(total)
+  return pages
 }
 
 export default function InvoiceHistory() {
@@ -600,16 +614,20 @@ export default function InvoiceHistory() {
           </table>
         </div>
 
-        <div className="mt-4 flex flex-col gap-3 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-          <div>Pagina {page} de {totalPages}</div>
-          <div className="grid grid-cols-2 gap-2 sm:flex">
-            <Button variant="secondary" className="w-full sm:w-auto" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page === 1}>
-              Anterior
-            </Button>
-            <Button variant="secondary" className="w-full sm:w-auto" onClick={() => setPage((current) => Math.min(totalPages, current + 1))} disabled={page === totalPages}>
-              Siguiente
-            </Button>
-          </div>
+        <div className="pagination-bar mt-0">
+          <button type="button" className="pagination-button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page === 1}>
+            <ChevronLeft size={16} /> Anterior
+          </button>
+          {paginationPages(page, totalPages).map((pageItem) => (
+            typeof pageItem === 'number' ? (
+              <button key={pageItem} type="button" className={`pagination-button ${page === pageItem ? 'pagination-button-active' : ''}`.trim()} onClick={() => setPage(pageItem)}>
+                {pageItem}
+              </button>
+            ) : <span key={pageItem} className="pagination-ellipsis">...</span>
+          ))}
+          <button type="button" className="pagination-button" onClick={() => setPage((current) => Math.min(totalPages, current + 1))} disabled={page === totalPages}>
+            Siguiente <ChevronRight size={16} />
+          </button>
         </div>
       </section>
 

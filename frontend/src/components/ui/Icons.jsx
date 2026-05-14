@@ -80,3 +80,15 @@ export function Plus(props) {
 export function Trash2(props) {
   return <Icon {...props}><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /></Icon>
 }
+
+export function ChevronLeft(props) {
+  return <Icon {...props}><path d="m15 18-6-6 6-6" /></Icon>
+}
+
+export function ChevronRight(props) {
+  return <Icon {...props}><path d="m9 18 6-6-6-6" /></Icon>
+}
+
+export function PackageSearch(props) {
+  return <Icon {...props}><path d="m7.5 4.27 9 5.15" /><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4" /><path d="m3.3 7 8.7 5 8.7-5" /><path d="M12 22V12" /><circle cx="17" cy="17" r="3" /><path d="m21 21-1.9-1.9" /></Icon>
+}

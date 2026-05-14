@@ -6,6 +6,7 @@ import Button from '../components/ui/Button'
 import DateRangePicker from '../components/ui/DateRangePicker'
 import Metric from '../components/ui/Metric'
 import PageSectionHeader from '../components/ui/PageSectionHeader'
+import { CalendarDays, DollarSign, PackageSearch, Plus, SlidersHorizontal, Trash2, Users, X } from '../components/ui/Icons'
 
 const EMPTY_FILTERS = { customerIds: [''], dateFrom: '', dateTo: '', transport: '', priceListId: '', declared: '', ivaMode: 'without_iva' }
 const EMPTY_PRODUCT_FILTERS = { lines: [{ productId: '', offeringId: '' }] }
@@ -325,7 +326,7 @@ function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false
 
   return (
     <section className={embedded ? '' : 'surface p-4 pr-5 sm:p-6 sm:pr-8'}>
-      <div className="mb-4 flex flex-col gap-3 border-b border-stone-200 pb-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="mb-4 flex flex-col gap-3 border-b border-slate-200 pb-3 sm:flex-row sm:items-start sm:justify-between">
         <h2 className="subsection-title text-xl">{title}</h2>
         <div className="badge">{rows.length} filas</div>
       </div>
@@ -335,7 +336,7 @@ function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false
           <button
             key={column.key}
             type="button"
-            className={`shrink-0 rounded-full border border-stone-200 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.12em] ${sort.key === column.key ? 'bg-brand-red text-white' : 'bg-white text-slate-500'}`.trim()}
+            className={`shrink-0 rounded-full border px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.12em] ${sort.key === column.key ? 'border-blue-700 bg-blue-700 text-white' : 'border-slate-200 bg-white text-slate-500'}`.trim()}
             onClick={() => updateSort(column.key)}
           >
             {column.label} {sortIndicator(column.key)}
@@ -360,7 +361,7 @@ function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false
               </div>
             </div>
             <div className="text-right">
-              <div className="text-sm font-bold text-brand-red">${money(row.total)}</div>
+              <div className="amount-text text-sm">${money(row.total)}</div>
               {Number(row.discount || 0) > 0 ? <div className="text-[11px] text-slate-400">Dto ${money(row.discount)}</div> : null}
             </div>
           </button>
@@ -394,7 +395,7 @@ function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false
               {columns.map((column) => (
                 <th
                   key={column.key}
-                  className={`sticky top-0 z-10 bg-stone-100 !px-2 ${column.align === 'right' ? 'text-right' : ''} ${column.align === 'center' ? 'text-center' : ''} ${column.key === 'total' ? '!pl-2 !pr-7' : ''}`.trim()}
+                  className={`sticky top-0 z-10 bg-slate-50 !px-2 ${column.align === 'right' ? 'text-right' : ''} ${column.align === 'center' ? 'text-center' : ''} ${column.key === 'total' ? '!pl-2 !pr-7' : ''}`.trim()}
                 >
                   <button
                     type="button"
@@ -413,15 +414,15 @@ function RankingTable({ title, rows, countLabel = 'Facturas', showWeight = false
             {sortedRows.map((row, index) => (
               <tr
                 key={row.label}
-                className={`table-row ${onRowClick ? 'cursor-pointer' : ''} ${selectedLabel === row.label ? '!bg-blue-100 ring-1 ring-inset ring-brand-red/30' : ''}`.trim()}
+                className={`table-row ${onRowClick ? 'cursor-pointer' : ''} ${selectedLabel === row.label ? 'invoice-row-selected' : ''}`.trim()}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
               >
-                <td className="table-cell whitespace-nowrap !px-1 text-center text-slate-400 tabular-nums">{index + 1}</td>
-                <td className="table-cell break-words !px-2 font-medium leading-snug">{row.label}</td>
-                <td className="table-cell whitespace-nowrap !px-2 text-right tabular-nums">{money(row.bultos)}</td>
-                {showWeight ? <td className="table-cell whitespace-nowrap !px-2 text-right tabular-nums">{weight(row.weight)} kg</td> : null}
-                <td className="table-cell whitespace-nowrap !px-3 text-right tabular-nums">${money(row.discount)}</td>
-                <td className="table-cell whitespace-nowrap !pl-3 !pr-7 text-right font-semibold tabular-nums text-brand-red">${money(row.total)}</td>
+                <td className="table-cell whitespace-nowrap !px-1 text-center font-mono text-xs text-slate-500 tabular-nums">{String(index + 1).padStart(2, '0')}</td>
+                <td className="table-cell break-words !px-2 font-extrabold leading-snug text-brand-ink">{row.label}</td>
+                <td className="table-cell whitespace-nowrap !px-2 text-right font-semibold tabular-nums text-slate-600">{money(row.bultos)}</td>
+                {showWeight ? <td className="table-cell whitespace-nowrap !px-2 text-right font-semibold tabular-nums text-slate-600">{weight(row.weight)} kg</td> : null}
+                <td className="table-cell whitespace-nowrap !px-3 text-right font-semibold tabular-nums text-slate-600">${money(row.discount)}</td>
+                <td className="amount-text table-cell whitespace-nowrap !pl-3 !pr-7 text-right tabular-nums">${money(row.total)}</td>
               </tr>
             ))}
             {sortedRows.length === 0 && (
@@ -702,36 +703,46 @@ export default function InvoiceStats() {
       />
 
       <section className="surface p-4 sm:p-6">
-        <div className="mb-4 border-b border-stone-200 pb-3">
+        <div className="mb-4 flex items-center gap-3 border-b border-slate-200 pb-4">
+          <span className="card-header-icon h-10 w-10"><SlidersHorizontal size={20} /></span>
           <h2 className="subsection-title text-xl">Filtros generales</h2>
         </div>
-        <div className="grid gap-3 md:grid-cols-5">
-          <DateRangePicker dateFrom={filters.dateFrom} dateTo={filters.dateTo} onChange={updateDateRange} />
-          <select className="input" value={filters.transport} onChange={(event) => updateFilter('transport', event.target.value)}>
-            <option value="">Todos los transportes</option>
-            {(bootstrap?.transports || []).map((transport) => (
-              <option key={transport.transport_id} value={transport.transport_id}>{transport.name}</option>
-            ))}
-          </select>
-          <select className="input" value={filters.priceListId} onChange={(event) => updateFilter('priceListId', event.target.value)}>
-            <option value="">Todas las listas</option>
-            {(bootstrap?.price_lists || []).map((priceList) => (
-              <option key={priceList.id} value={priceList.id}>{priceList.name}</option>
-            ))}
-          </select>
-          <select className="input" value={filters.declared} onChange={(event) => updateFilter('declared', event.target.value)}>
-            <option value="">Declaradas e internas</option>
-            <option value="true">Declaradas</option>
-            <option value="false">Internas</option>
-          </select>
-          <select className="input" value={filters.ivaMode} onChange={(event) => updateFilter('ivaMode', event.target.value)}>
-            <option value="without_iva">Ver sin IVA</option>
-            <option value="with_iva">Ver con IVA</option>
-          </select>
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+          <div>
+            <div className="filter-group-title"><CalendarDays size={16} />Periodo y documento</div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <DateRangePicker dateFrom={filters.dateFrom} dateTo={filters.dateTo} onChange={updateDateRange} />
+              <select className="input" value={filters.declared} onChange={(event) => updateFilter('declared', event.target.value)}>
+                <option value="">Declaradas e internas</option>
+                <option value="true">Declaradas</option>
+                <option value="false">Internas</option>
+              </select>
+              <select className="input" value={filters.ivaMode} onChange={(event) => updateFilter('ivaMode', event.target.value)}>
+                <option value="without_iva">Ver sin IVA</option>
+                <option value="with_iva">Ver con IVA</option>
+              </select>
+              <select className="input" value={filters.priceListId} onChange={(event) => updateFilter('priceListId', event.target.value)}>
+                <option value="">Todas las listas</option>
+                {(bootstrap?.price_lists || []).map((priceList) => (
+                  <option key={priceList.id} value={priceList.id}>{priceList.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <div className="filter-group-title"><Users size={16} />Cliente y transporte</div>
+            <select className="input" value={filters.transport} onChange={(event) => updateFilter('transport', event.target.value)}>
+              <option value="">Todos los transportes</option>
+              {(bootstrap?.transports || []).map((transport) => (
+                <option key={transport.transport_id} value={transport.transport_id}>{transport.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div className="mt-4 space-y-3">
-          <div className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Clientes a comparar</div>
+          <div className="filter-group-title"><DollarSign size={16} />Clientes a comparar</div>
           {(filters.customerIds || ['']).map((customerId, index) => (
             <div key={index} className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
               <select className="input" value={customerId} onChange={(event) => updateCustomerFilter(index, event.target.value)}>
@@ -741,19 +752,20 @@ export default function InvoiceStats() {
                 ))}
               </select>
               <Button variant="secondary" onClick={() => removeCustomerFilter(index)} disabled={(filters.customerIds || ['']).length === 1}>
-                Quitar
+                <Trash2 size={15} />Quitar
               </Button>
             </div>
           ))}
           <div className="flex flex-col gap-2 sm:flex-row">
-            <Button variant="ghost" onClick={addCustomerFilter}>+ Agregar cliente</Button>
-            <Button variant="secondary" onClick={resetFilters}>Limpiar</Button>
+            <Button variant="ghost" onClick={addCustomerFilter}><Plus size={15} />Agregar cliente</Button>
+            <Button variant="secondary" onClick={resetFilters}><X size={15} />Limpiar</Button>
           </div>
         </div>
       </section>
 
       <section className="surface p-4 sm:p-6">
-        <div className="mb-4 border-b border-stone-200 pb-3">
+        <div className="mb-4 flex items-center gap-3 border-b border-slate-200 pb-4">
+          <span className="card-header-icon h-10 w-10"><PackageSearch size={20} /></span>
           <h2 className="subsection-title text-xl">Filtros de producto</h2>
         </div>
         <div className="space-y-3">
@@ -774,14 +786,14 @@ export default function InvoiceStats() {
                   ))}
                 </select>
                 <Button variant="secondary" onClick={() => removeProductFilter(index)} disabled={(productFilters.lines || []).length === 1}>
-                  Quitar
+                  <Trash2 size={15} />Quitar
                 </Button>
               </div>
             )
           })}
           <div className="flex flex-col gap-2 sm:flex-row">
-            <Button variant="ghost" onClick={addProductFilter}>+ Agregar producto</Button>
-            <Button variant="secondary" onClick={() => { setSelectedProductLabel(''); setProductFilters(EMPTY_PRODUCT_FILTERS) }}>Limpiar productos</Button>
+            <Button variant="ghost" onClick={addProductFilter}><Plus size={15} />Agregar producto</Button>
+            <Button variant="secondary" onClick={() => { setSelectedProductLabel(''); setProductFilters(EMPTY_PRODUCT_FILTERS) }}><X size={15} />Limpiar productos</Button>
           </div>
         </div>
       </section>
