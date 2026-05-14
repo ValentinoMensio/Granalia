@@ -241,8 +241,9 @@ def ensure_operator_internal_billing(order: dict) -> None:
 def ensure_operator_invoice_editable(invoice: dict) -> None:
     if is_fiscal_invoice(invoice) or is_credit_note(invoice) or invoice.get("batch_id") is not None:
         raise HTTPException(status_code=403, detail="Los operadores solo pueden editar facturas internas")
-    if str(invoice.get("order_date") or "") < date.today().isoformat():
-        raise HTTPException(status_code=403, detail="Los operadores solo pueden editar facturas del día actual en adelante")
+    min_edit_date = (date.today() - timedelta(days=2)).isoformat()
+    if str(invoice.get("order_date") or "") < min_edit_date:
+        raise HTTPException(status_code=403, detail="Los operadores solo pueden editar facturas del día actual y los dos días anteriores")
 
 
 def profile_from_invoice(invoice: dict) -> dict:

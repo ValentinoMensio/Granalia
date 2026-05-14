@@ -108,11 +108,13 @@ function canCreateCreditNote(invoice) {
 function canEditInvoice(invoice, role = 'operator') {
   if (!invoice) return false
   if (role === 'admin') return String(invoice.fiscal_status || '') !== 'authorized'
-  const todayKey = new Date().toLocaleDateString('en-CA')
+  const minDate = new Date()
+  minDate.setDate(minDate.getDate() - 2)
+  const minEditKey = minDate.toLocaleDateString('en-CA')
   return !isFiscalInvoice(invoice)
     && !isCreditNote(invoice)
     && !invoice.batch_id
-    && String(invoice.order_date || '') >= todayKey
+    && String(invoice.order_date || '') >= minEditKey
 }
 
 function paginationPages(current, total) {
