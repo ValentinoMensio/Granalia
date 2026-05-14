@@ -29,7 +29,7 @@ export default function Login() {
         <div className="hidden bg-[#0B2545] p-10 text-white lg:flex lg:flex-col lg:justify-between">
           <div>
             <img src={logoImage} alt="Granalia" className="h-20 w-auto rounded-2xl bg-white/95 p-2 object-contain" />
-            <h1 className="mt-8 text-4xl font-extrabold tracking-[-0.06em]">Facturación premium para operación diaria.</h1>
+            <h1 className="mt-8 text-4xl font-extrabold tracking-[-0.06em]">Sistema de gestión para operación diaria.</h1>
             <p className="mt-4 max-w-sm text-sm leading-6 text-white/62">Clientes, transportes, productos, historial y emisión en una interfaz pensada para velocidad y control.</p>
           </div>
         </div>
