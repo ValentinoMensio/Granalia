@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import Field from '../ui/Field'
 import Button from '../ui/Button'
+import { FilePlus2, Save } from '../ui/Icons'
 import AutomaticBonusRules from './AutomaticBonusRules'
 
 function InvoiceFormCard({
@@ -34,7 +35,7 @@ function InvoiceFormCard({
     <div className="surface p-4 sm:p-6 lg:p-7">
       <div className="card-header">
         <div className="flex items-center gap-3">
-          <div className="card-header-icon">ƒ</div>
+          <div className="card-header-icon"><FilePlus2 size={21} /></div>
           <div>
           <h2 className="subsection-title text-xl sm:text-2xl">
             {editingInvoiceId
@@ -238,6 +239,7 @@ function InvoiceFormCard({
       {onSave && !isCreditNote && (
         <div className="action-bar action-bar-start">
           <Button variant="primary" className="w-full sm:min-w-[180px] sm:w-auto" onClick={onSave} disabled={saving}>
+            <Save size={16} />
             {saving ? 'Guardando...' : 'Guardar cambios'}
           </Button>
         </div>

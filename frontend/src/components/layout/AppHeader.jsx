@@ -46,10 +46,10 @@ function AppHeader() {
           </Link>
 
           <div className="min-w-0">
-            <p className="text-lg font-extrabold leading-tight tracking-[-0.05em] text-white sm:text-xl">
+            <p className="app-header-title">
               Granalia
             </p>
-            <p className="mt-0.5 max-w-[320px] text-xs font-semibold leading-4 text-white/72 sm:text-sm sm:leading-5">
+            <p className="app-header-tagline">
               Sistema de facturación y gestión comercial
             </p>
           </div>

@@ -466,7 +466,7 @@ export default function InvoiceHistory() {
                     <div className="font-mono text-xs text-slate-500">{displayInvoiceNumber(invoice)}</div>
                     <h3 className="mt-1 truncate font-semibold text-brand-ink">{invoice.client_name}</h3>
                   </div>
-                  <div className="shrink-0 whitespace-nowrap text-right text-sm font-semibold text-brand-red">${isFiscalInvoice(invoice) ? fiscalMoney(signedInvoiceTotal(invoice)) : money(signedInvoiceTotal(invoice))}</div>
+                  <div className="amount-text shrink-0 whitespace-nowrap text-right text-sm">${isFiscalInvoice(invoice) ? fiscalMoney(signedInvoiceTotal(invoice)) : money(signedInvoiceTotal(invoice))}</div>
                 </div>
                 <div className="mt-3 grid gap-2 text-sm text-slate-600">
                   <div className="flex justify-between gap-3">
@@ -572,7 +572,7 @@ export default function InvoiceHistory() {
                           target="_blank"
                           rel="noreferrer"
                           onClick={(event) => event.stopPropagation()}
-                          className="font-semibold text-brand-ink hover:text-brand-red"
+                          className="font-semibold text-brand-ink hover:text-blue-700"
                         >
                           PDF
                         </a>
@@ -693,7 +693,7 @@ export default function InvoiceHistory() {
                           <div className="mt-1 text-xs text-slate-400">{itemSecondaryLabel(item)}</div>
                         ) : null}
                       </div>
-                      <div className="shrink-0 text-right text-sm font-semibold text-brand-red">${isFiscalInvoice(invoiceDetail) ? fiscalMoney(itemFiscalTotal(item)) : money(item.total)}</div>
+                      <div className="amount-text shrink-0 text-right text-sm">${isFiscalInvoice(invoiceDetail) ? fiscalMoney(itemFiscalTotal(item)) : money(item.total)}</div>
                     </div>
                     <div className="mobile-field-grid">
                       <div className="mobile-field">
@@ -793,7 +793,7 @@ export default function InvoiceHistory() {
                 </div>
                 <div className="metric-card">
                   <div className="text-xs uppercase tracking-wide text-slate-400">Total con IVA</div>
-                  <div className="mt-2 text-lg font-semibold text-brand-red">${fiscalMoney(fiscalTotal(invoiceDetail))}</div>
+                  <div className="amount-text mt-2 text-lg">${fiscalMoney(fiscalTotal(invoiceDetail))}</div>
                 </div>
               </div>
             ) : (
@@ -808,7 +808,7 @@ export default function InvoiceHistory() {
                 </div>
                 <div className="metric-card">
                   <div className="text-xs uppercase tracking-wide text-slate-400">Final</div>
-                  <div className="mt-2 text-lg font-semibold text-brand-red">${money(invoiceDetail.final_total)}</div>
+                  <div className="amount-text mt-2 text-lg">${money(invoiceDetail.final_total)}</div>
                 </div>
               </div>
             )}

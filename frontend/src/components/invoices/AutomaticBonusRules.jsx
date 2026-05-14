@@ -1,4 +1,5 @@
 import Button from '../ui/Button'
+import { Plus, Trash2 } from '../ui/Icons'
 import { compareProducts, discountKeyForLabel, productSelectOptionRows } from '../../lib/format'
 
 function AutomaticBonusRules({ rules, catalog, disablesLineDiscount, onAdd, onChange, onRemove, onDisablesLineDiscountChange }) {
@@ -14,6 +15,7 @@ function AutomaticBonusRules({ rules, catalog, disablesLineDiscount, onAdd, onCh
           <p className="mt-1 text-xs font-semibold text-slate-400">Ej: cada 10 productos agrega 1 bonificado.</p>
         </div>
         <Button variant="ghost" className="min-h-0 px-2 py-1 text-xs text-brand-red" onClick={onAdd}>
+          <Plus size={14} />
           + Agregar
         </Button>
       </div>
@@ -37,7 +39,7 @@ function AutomaticBonusRules({ rules, catalog, disablesLineDiscount, onAdd, onCh
           return (
             <div key={index} className="grid gap-2 rounded-[16px] border border-slate-200 bg-white/85 p-3 shadow-sm lg:grid-cols-[1fr_1fr_6rem_6rem_auto] lg:items-end">
               <div>
-                <div className="mb-1 text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500">Producto</div>
+                <div className="field-label mb-1">Producto</div>
                 <select
                   className="input w-full py-1.5 text-xs"
                   value={rule.product_id || ''}
@@ -54,7 +56,7 @@ function AutomaticBonusRules({ rules, catalog, disablesLineDiscount, onAdd, onCh
               </div>
 
               <div>
-                <div className="mb-1 text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500">Formato</div>
+                <div className="field-label mb-1">Formato</div>
                 <select
                   className="input w-full py-1.5 text-xs"
                   value={formatValue}
@@ -72,7 +74,7 @@ function AutomaticBonusRules({ rules, catalog, disablesLineDiscount, onAdd, onCh
               </div>
 
               <div>
-                <div className="mb-1 text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500">Cada</div>
+                <div className="field-label mb-1">Cada</div>
                 <input
                   className="input w-full py-1.5 text-right text-xs"
                   type="number"
@@ -83,7 +85,7 @@ function AutomaticBonusRules({ rules, catalog, disablesLineDiscount, onAdd, onCh
               </div>
 
               <div>
-                <div className="mb-1 text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500">Bonifica</div>
+                <div className="field-label mb-1">Bonifica</div>
                 <input
                   className="input w-full py-1.5 text-right text-xs"
                   type="number"
@@ -94,7 +96,7 @@ function AutomaticBonusRules({ rules, catalog, disablesLineDiscount, onAdd, onCh
               </div>
 
               <button onClick={() => onRemove(index)} className="danger-link text-left lg:mb-1 lg:text-center">
-                Quitar
+                <Trash2 size={14} />Quitar
               </button>
             </div>
           )

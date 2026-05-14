@@ -315,6 +315,21 @@
     box-shadow: 0 8px 20px rgba(0,0,0,0.18), inset 0 0 0 1px rgba(255,255,255,0.18);
   }
 
+  .app-header-title {
+    @apply text-lg font-extrabold leading-tight tracking-[-0.05em] sm:text-xl;
+    color: white !important;
+  }
+
+  .app-header-tagline {
+    @apply mt-0.5 max-w-[320px] text-xs font-semibold leading-4 sm:text-sm sm:leading-5;
+    color: rgba(255,255,255,0.78) !important;
+  }
+
+  .amount-text {
+    @apply font-extrabold;
+    color: rgb(8 52 112);
+  }
+
   .status-bar {
     @apply mt-4 rounded-2xl border px-4 py-3 text-xs sm:mt-6 sm:px-5 sm:py-4 sm:text-sm;
     border-color: rgb(var(--border));

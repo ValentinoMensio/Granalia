@@ -60,3 +60,23 @@ export function Users(props) {
 export function X(props) {
   return <Icon {...props}><path d="M18 6 6 18" /><path d="m6 6 12 12" /></Icon>
 }
+
+export function Package(props) {
+  return <Icon {...props}><path d="m7.5 4.27 9 5.15" /><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" /><path d="m3.3 7 8.7 5 8.7-5" /><path d="M12 22V12" /></Icon>
+}
+
+export function RotateCcw(props) {
+  return <Icon {...props}><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v6h6" /></Icon>
+}
+
+export function Save(props) {
+  return <Icon {...props}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><path d="M17 21v-8H7v8" /><path d="M7 3v5h8" /></Icon>
+}
+
+export function Plus(props) {
+  return <Icon {...props}><path d="M12 5v14" /><path d="M5 12h14" /></Icon>
+}
+
+export function Trash2(props) {
+  return <Icon {...props}><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /></Icon>
+}

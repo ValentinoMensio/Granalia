@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import Button from '../ui/Button'
 import Metric from '../ui/Metric'
+import { FileText, Package, Plus, RotateCcw, Trash2 } from '../ui/Icons'
 import { compareProducts, discountKeyForLabel, isX1KgLabel, money, percent, productSelectOptionRows } from '../../lib/format'
 
 function lineDiscountRateForItem(form, item, offeringLabel) {
@@ -110,7 +111,7 @@ function ProductRowsCard({
       <div className="surface p-4 sm:p-6 lg:p-7">
         <div className="card-header">
           <div className="flex items-center gap-3">
-            <div className="card-header-icon">↩</div>
+            <div className="card-header-icon"><RotateCcw size={21} /></div>
             <div>
           <div className="eyebrow">Detalle</div>
           <h2 className="subsection-title mt-1 text-xl sm:text-2xl">Productos a devolver</h2>
@@ -217,11 +218,11 @@ function ProductRowsCard({
                   disabled={!source}
                 />
                 <div className="font-semibold text-slate-700 lg:text-right">${money(price)}</div>
-                <div className="font-semibold text-brand-red lg:text-right">
-                  <span className="font-semibold text-brand-red">${money(quantity * price)}</span>
+                <div className="amount-text lg:text-right">
+                  <span>${money(quantity * price)}</span>
                 </div>
                 <div className="flex items-center justify-between gap-3 lg:justify-end">
-                  <Button variant="ghost" className="danger-link min-h-0" onClick={() => onRemoveItem(index)}>Quitar</Button>
+                  <Button variant="ghost" className="danger-link min-h-0" onClick={() => onRemoveItem(index)}><Trash2 size={14} />Quitar</Button>
                 </div>
               </div>
             )
@@ -267,7 +268,7 @@ function ProductRowsCard({
             onClick={onAddItem}
             disabled={generating}
           >
-            + Agregar línea
+            <Plus size={16} /> Agregar línea
           </Button>
         </div>
 
@@ -280,9 +281,11 @@ function ProductRowsCard({
 
         <div className="action-bar action-bar-start">
           <Button variant="primary" className="w-full sm:min-w-[220px] sm:w-auto" onClick={onGenerate} disabled={generating}>
+            <FileText size={16} />
             {generating ? 'Guardando...' : editingInvoiceId ? 'Actualizar nota de crédito' : 'Generar nota de crédito'}
           </Button>
           <Button variant="secondary" className="w-full sm:min-w-[180px] sm:w-auto" onClick={onClearInvoice} disabled={generating}>
+            <RotateCcw size={16} />
             Limpiar nota de crédito
           </Button>
           {editingInvoiceId && (
@@ -299,7 +302,7 @@ function ProductRowsCard({
     <div className="surface p-4 sm:p-6 lg:p-7">
       <div className="card-header">
         <div className="flex items-center gap-3">
-          <div className="card-header-icon">#</div>
+          <div className="card-header-icon"><Package size={21} /></div>
           <div>
           <div className="eyebrow">Detalle</div>
           <h2 className="subsection-title mt-1 text-xl sm:text-2xl">Productos y cantidades</h2>
@@ -437,7 +440,7 @@ function ProductRowsCard({
                     </td>
 
                       <td className="table-cell text-right align-middle">
-                      <span className="text-sm font-semibold text-brand-red">
+                      <span className="amount-text text-sm">
                         ${money(rowTotal)}
                         {discountRate > 0 ? <span className="block text-[11px] font-medium text-slate-400">Dto. {percent(discountRate)}</span> : null}
                       </span>
@@ -449,7 +452,7 @@ function ProductRowsCard({
                         className="danger-link min-h-0"
                         onClick={() => onRemoveItem(index)}
                       >
-                        Quitar
+                        <Trash2 size={14} />Quitar
                       </Button>
                     </td>
                   </tr>
@@ -475,7 +478,7 @@ function ProductRowsCard({
               <div key={index} className="surface-muted p-4">
                 <div className="grid gap-3">
                   <div>
-                    <div className="mb-1 text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500">
+                    <div className="field-label mb-1">
                       Producto
                     </div>
                     <select
@@ -502,7 +505,7 @@ function ProductRowsCard({
                   </div>
 
                   <div>
-                    <div className="mb-1 text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500">
+                    <div className="field-label mb-1">
                       Presentación
                     </div>
                     <select
@@ -524,7 +527,7 @@ function ProductRowsCard({
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <div className="mb-1 text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500">
+                      <div className="field-label mb-1">
                         Cantidad
                       </div>
                       <input
@@ -540,7 +543,7 @@ function ProductRowsCard({
                     </div>
 
                     <div>
-                      <div className="mb-1 text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500">
+                      <div className="field-label mb-1">
                         Bonificación
                       </div>
                       <input
@@ -558,7 +561,7 @@ function ProductRowsCard({
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <div className="mb-1 text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500">
+                      <div className="field-label mb-1">
                         Precio
                       </div>
                       <input
@@ -571,10 +574,10 @@ function ProductRowsCard({
                     </div>
 
                     <div className="text-right">
-                      <div className="mb-1 text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500">
+                      <div className="field-label mb-1">
                         Total
                       </div>
-                      <div className="text-sm font-semibold text-brand-red">
+                      <div className="amount-text text-sm">
                         ${money(rowTotal)}
                         {discountRate > 0 ? <span className="block text-[11px] font-medium text-slate-400">Dto. {percent(discountRate)}</span> : null}
                       </div>
@@ -587,7 +590,7 @@ function ProductRowsCard({
                       className="px-2 py-2 text-xs text-slate-500"
                       onClick={() => onRemoveItem(index)}
                     >
-                      Quitar
+                      <Trash2 size={14} />Quitar
                     </Button>
                   </div>
                 </div>
@@ -599,7 +602,7 @@ function ProductRowsCard({
 
       <div className="mt-4">
         <Button variant="secondary" className="w-full sm:w-auto" onClick={onAddItem}>
-          Agregar fila
+          <Plus size={16} />Agregar fila
         </Button>
       </div>
 
@@ -679,6 +682,7 @@ function ProductRowsCard({
           onClick={onGenerate}
           disabled={generating}
         >
+          <FileText size={16} />
           {generating ? 'Guardando...' : editingInvoiceId ? 'Actualizar factura' : 'Generar factura'}
         </Button>
         <Button
@@ -687,6 +691,7 @@ function ProductRowsCard({
           onClick={onClearInvoice}
           disabled={generating}
         >
+          <RotateCcw size={16} />
           Limpiar factura
         </Button>
         {editingInvoiceId && (
