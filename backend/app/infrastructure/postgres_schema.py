@@ -39,7 +39,7 @@ def build_metadata() -> tuple[MetaData, dict[str, Table]]:
             CheckConstraint("char_length(btrim(filename)) > 0", name="ck_price_lists_filename_not_blank"),
             CheckConstraint("char_length(btrim(content_type)) > 0", name="ck_price_lists_content_type_not_blank"),
             CheckConstraint("char_length(btrim(source)) > 0", name="ck_price_lists_source_not_blank"),
-            CheckConstraint("size > 0 AND size <= 20971520", name="ck_price_lists_size_range"),
+            CheckConstraint("size >= 0 AND size <= 20971520", name="ck_price_lists_size_range"),
             CheckConstraint("octet_length(pdf_data) = size", name="ck_price_lists_pdf_size_matches"),
         ),
         "price_list_versions": Table(
@@ -62,7 +62,7 @@ def build_metadata() -> tuple[MetaData, dict[str, Table]]:
             CheckConstraint("char_length(btrim(filename)) > 0", name="ck_price_list_versions_filename_not_blank"),
             CheckConstraint("char_length(btrim(content_type)) > 0", name="ck_price_list_versions_content_type_not_blank"),
             CheckConstraint("char_length(pdf_sha256) = 64", name="ck_price_list_versions_pdf_sha256_length"),
-            CheckConstraint("size > 0 AND size <= 20971520", name="ck_price_list_versions_size_range"),
+            CheckConstraint("size >= 0 AND size <= 20971520", name="ck_price_list_versions_size_range"),
             CheckConstraint("octet_length(pdf_data) = size", name="ck_price_list_versions_pdf_size_matches"),
             CheckConstraint("jsonb_typeof(catalog_snapshot) = 'array'", name="ck_price_list_versions_catalog_array"),
             UniqueConstraint("price_list_id", "version_number", name="uq_price_list_versions_list_version"),

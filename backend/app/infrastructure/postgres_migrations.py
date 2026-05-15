@@ -536,6 +536,8 @@ class PostgresMigrationMixin(PostgresRepositoryProtocol):
     def _ensure_price_list_version_history(self, *, connection) -> None:
         if not self._table_exists(connection, "price_lists"):
             return
+        connection.execute(text("ALTER TABLE price_lists DROP CONSTRAINT IF EXISTS ck_price_lists_size_range"))
+        connection.execute(text("ALTER TABLE price_lists ADD CONSTRAINT ck_price_lists_size_range CHECK (size >= 0 AND size <= 20971520)"))
         if not self._table_exists(connection, "price_list_versions"):
             connection.execute(
                 text(
@@ -558,6 +560,8 @@ class PostgresMigrationMixin(PostgresRepositoryProtocol):
                     """
                 )
             )
+        connection.execute(text("ALTER TABLE price_list_versions DROP CONSTRAINT IF EXISTS ck_price_list_versions_size_range"))
+        connection.execute(text("ALTER TABLE price_list_versions ADD CONSTRAINT ck_price_list_versions_size_range CHECK (size >= 0 AND size <= 20971520)"))
 
         rows = connection.execute(select(self.price_lists).order_by(self.price_lists.c.id)).mappings().all()
         for row in rows:
