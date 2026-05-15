@@ -20,7 +20,21 @@ function PriceListPanel({ bootstrap, priceListUploadName, priceListUploadTargetI
         Carga manual
         <span className="h-px flex-1 bg-blue-200" />
       </div>
-      <div className="space-y-3 rounded-2xl border border-blue-100 bg-blue-50/50 p-3">
+      <Button variant="primary" className="mt-3 w-full justify-center" onClick={onManual} disabled={uploading}>
+        Cargar precios manualmente
+      </Button>
+
+      <div className="my-5 flex items-center gap-3 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
+        <span className="h-px flex-1 bg-slate-200" />
+        Carga PDF
+        <span className="h-px flex-1 bg-slate-200" />
+      </div>
+
+      <label className="block text-xs font-bold uppercase tracking-[0.12em] text-slate-400">
+        Carga desde archivo
+      </label>
+      <input className="input mt-1 text-xs file:mr-3 file:rounded-lg file:border-0 file:bg-brand-red file:px-3 file:py-2 file:text-sm file:font-medium file:text-white file:cursor-pointer sm:text-sm" type="file" accept="application/pdf" onChange={(event) => onFileChange(event.target.files?.[0] || null)} />
+      <div className="mt-3 space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
         <div>
           <label className="field-label">Destino de la lista</label>
           <select className="input" value={priceListUploadTargetId || ''} onChange={(event) => onUploadTargetChange(event.target.value)}>
@@ -39,24 +53,10 @@ function PriceListPanel({ bootstrap, priceListUploadName, priceListUploadTargetI
             placeholder={selectedPriceList ? `Mantener: ${selectedPriceList.name}` : 'Ej: Mayorista Abril'}
           />
           <p className="mt-1 text-xs text-slate-500">
-            {selectedPriceList ? 'Completalo solo si querés cambiar el nombre de la lista seleccionada.' : 'Si lo dejás vacío, se usará el nombre del archivo o Lista manual.'}
+            {selectedPriceList ? 'Completalo solo si querés cambiar el nombre de la lista seleccionada.' : 'Si lo dejás vacío, se usará el nombre del archivo.'}
           </p>
         </div>
       </div>
-      <Button variant="primary" className="mt-3 w-full justify-center" onClick={onManual} disabled={uploading}>
-        Cargar precios manualmente
-      </Button>
-
-      <div className="my-5 flex items-center gap-3 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
-        <span className="h-px flex-1 bg-slate-200" />
-        Carga PDF
-        <span className="h-px flex-1 bg-slate-200" />
-      </div>
-
-      <label className="block text-xs font-bold uppercase tracking-[0.12em] text-slate-400">
-        Carga desde archivo
-      </label>
-      <input className="input mt-1 text-xs file:mr-3 file:rounded-lg file:border-0 file:bg-brand-red file:px-3 file:py-2 file:text-sm file:font-medium file:text-white file:cursor-pointer sm:text-sm" type="file" accept="application/pdf" onChange={(event) => onFileChange(event.target.files?.[0] || null)} />
 
       <Button variant="primary" className="mt-3 w-full justify-center" onClick={onUpload} disabled={uploading}>
         {uploading ? 'Procesando...' : 'Previsualizar PDF'}
