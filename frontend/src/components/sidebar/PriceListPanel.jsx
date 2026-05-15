@@ -8,9 +8,10 @@ function formatDate(value) {
   return text || '-'
 }
 
-function PriceListPanel({ bootstrap, uploading, onActivate, onDelete, onRename, onFileChange, onUpload, onManual }) {
+function PriceListPanel({ bootstrap, priceListUploadName, priceListUploadTargetId, uploading, onActivate, onDelete, onRename, onFileChange, onUploadNameChange, onUploadTargetChange, onUpload, onManual }) {
   const versions = bootstrap?.price_list_versions || []
   const priceLists = bootstrap?.price_lists || []
+  const selectedPriceList = priceLists.find((priceList) => String(priceList.id) === String(priceListUploadTargetId || ''))
 
   return (
     <Panel title="Lista de precios">
@@ -18,6 +19,29 @@ function PriceListPanel({ bootstrap, uploading, onActivate, onDelete, onRename, 
         <span className="h-px flex-1 bg-blue-200" />
         Carga manual
         <span className="h-px flex-1 bg-blue-200" />
+      </div>
+      <div className="space-y-3 rounded-2xl border border-blue-100 bg-blue-50/50 p-3">
+        <div>
+          <label className="field-label">Destino de la lista</label>
+          <select className="input" value={priceListUploadTargetId || ''} onChange={(event) => onUploadTargetChange(event.target.value)}>
+            <option value="">Crear lista nueva</option>
+            {priceLists.map((priceList) => (
+              <option key={priceList.id} value={priceList.id}>Actualizar: {priceList.name}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="field-label">Nombre de lista</label>
+          <input
+            className="input"
+            value={priceListUploadName || ''}
+            onChange={(event) => onUploadNameChange(event.target.value)}
+            placeholder={selectedPriceList ? `Mantener: ${selectedPriceList.name}` : 'Ej: Mayorista Abril'}
+          />
+          <p className="mt-1 text-xs text-slate-500">
+            {selectedPriceList ? 'Completalo solo si querés cambiar el nombre de la lista seleccionada.' : 'Si lo dejás vacío, se usará el nombre del archivo o Lista manual.'}
+          </p>
+        </div>
       </div>
       <Button variant="primary" className="mt-3 w-full justify-center" onClick={onManual} disabled={uploading}>
         Cargar precios manualmente
