@@ -124,6 +124,7 @@ function PriceListPreview() {
       if (data?.bootstrap) {
         window.localStorage.setItem('granalia:price-list-saved-at', new Date().toISOString())
       }
+      navigate('/management?tab=products')
     } catch (error) {
       setMessage(`Error al guardar: ${error.message}`)
     } finally {
