@@ -742,6 +742,9 @@ function useGranaliaData() {
       const previewInvoiceId = data.invoice_id || createdInvoices[0]?.invoice_id
       const previewOpened = previewInvoiceId ? openInvoicePdfPreview(previewInvoiceId, previewWindow) : false
       await refreshInvoices()
+      if (isEditing) {
+        await loadInvoiceDetail(invoiceId)
+      }
       setEditingInvoiceId(null)
       const defaultPriceListId = bootstrap?.price_list?.id ? String(bootstrap.price_list.id) : ''
       setForm({ ...createInitialForm(), priceListId: defaultPriceListId, internalPriceListId: defaultPriceListId, fiscalPriceListId: defaultPriceListId })

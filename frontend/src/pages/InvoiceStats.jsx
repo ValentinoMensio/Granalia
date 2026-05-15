@@ -517,9 +517,11 @@ export default function InvoiceStats() {
   const [loadingItems, setLoadingItems] = useState(false)
 
   useEffect(() => {
+    let cancelled = false
     setLoadingItems(true)
     Promise.all([request('/api/invoices?limit=10000'), request('/api/invoices/stats/items')])
       .then(([nextInvoices, nextItems]) => {
+        if (cancelled) return
         setStatsInvoices(nextInvoices)
         setInvoiceItems(nextItems.map((item) => ({
           ...item,
@@ -529,8 +531,13 @@ export default function InvoiceStats() {
           fiscal_total: Number(item.fiscal_total ?? item.effective_total ?? item.total ?? 0),
         })))
       })
-      .finally(() => setLoadingItems(false))
-  }, [])
+      .finally(() => {
+        if (!cancelled) setLoadingItems(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [invoices])
 
   const filteredInvoices = useMemo(() => {
     const selectedCustomerIds = (filters.customerIds || []).filter(Boolean).map(String)
