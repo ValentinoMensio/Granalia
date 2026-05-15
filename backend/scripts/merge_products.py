@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import argparse
 import copy
+import sys
 from pathlib import Path
 from typing import Any
 
 from sqlalchemy import select, text, update
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.infrastructure.postgres import PostgresRepository
 from app.infrastructure.postgres_utils import utc_now
