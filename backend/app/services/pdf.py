@@ -65,6 +65,15 @@ def _discount_summary(invoice: dict) -> str:
     return " + ".join(f"{rate:g}%" for rate in rates) or "Sin descuentos"
 
 
+def _has_line_discount(items: list[dict]) -> bool:
+    return any(float(item.get("discount_rate") or 0) > 0 for item in items)
+
+
+def _discount_rate(value: object) -> str:
+    rate = round(float(value or 0) * 100, 2)
+    return f"{rate:g}%" if rate > 0 else ""
+
+
 def _set_color(pdf: canvas.Canvas, color: tuple[float, float, float]) -> None:
     pdf.setFillColorRGB(*color)
     pdf.setStrokeColorRGB(*color)
@@ -242,7 +251,7 @@ def _draw_invoice_info(pdf: canvas.Canvas, invoice: dict, y: float) -> float:
     return y - 40
 
 
-def _draw_items_header(pdf: canvas.Canvas, width: float, y: float) -> float:
+def _draw_items_header(pdf: canvas.Canvas, width: float, y: float, show_discount_column: bool) -> float:
     pdf.setFillColorRGB(*COLOR_HEADER_BG)
     pdf.rect(MARGIN - TABLE_PAD_X, y - 12, width - (MARGIN * 2) + (TABLE_PAD_X * 2), 30, stroke=0, fill=1)
 
@@ -250,8 +259,10 @@ def _draw_items_header(pdf: canvas.Canvas, width: float, y: float) -> float:
     _set_color(pdf, COLOR_TEXT)
 
     pdf.drawString(MARGIN + TABLE_INNER_PAD_X, y, "Producto")
-    pdf.drawRightString(MARGIN + 260, y, "Cant.")
-    pdf.drawRightString(MARGIN + 370, y, "Precio")
+    pdf.drawRightString(MARGIN + 235 if show_discount_column else MARGIN + 260, y, "Cant.")
+    pdf.drawRightString(MARGIN + 335 if show_discount_column else MARGIN + 370, y, "Precio")
+    if show_discount_column:
+        pdf.drawRightString(MARGIN + 405, y, "Dto.")
     pdf.drawRightString(width - MARGIN - TABLE_INNER_PAD_X, y, "Total")
 
     y -= 12
@@ -260,7 +271,7 @@ def _draw_items_header(pdf: canvas.Canvas, width: float, y: float) -> float:
     return y - 18
 
 
-def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: int) -> float:
+def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: int, show_discount_column: bool) -> float:
     font_size = ITEM_FONT_SIZE
     row_height = ITEM_ROW_HEIGHT
 
@@ -271,12 +282,14 @@ def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: in
         str(item.get("label") or ""),
         FONT_REGULAR,
         font_size,
-        max_width=242,
+        max_width=217 if show_discount_column else 242,
     )
 
     pdf.drawString(MARGIN + TABLE_INNER_PAD_X, y, label)
-    pdf.drawRightString(MARGIN + 250, y, format_quantity(item.get("quantity") or 0))
-    pdf.drawRightString(MARGIN + 370, y, _money(item.get("unit_price") or 0))
+    pdf.drawRightString(MARGIN + 225 if show_discount_column else MARGIN + 250, y, format_quantity(item.get("quantity") or 0))
+    pdf.drawRightString(MARGIN + 335 if show_discount_column else MARGIN + 370, y, _money(item.get("unit_price") or 0))
+    if show_discount_column:
+        pdf.drawRightString(MARGIN + 405, y, _discount_rate(item.get("discount_rate")))
     pdf.drawRightString(width - MARGIN - TABLE_INNER_PAD_X, y, _money(item.get("total") or 0))
 
     pdf.setStrokeColorRGB(0.45, 0.45, 0.45)
@@ -388,12 +401,12 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
 
     return min(shipment_y, totals_y) - 20
 
-def _new_page(pdf: canvas.Canvas, invoice: dict, width: float, height: float) -> float:
+def _new_page(pdf: canvas.Canvas, invoice: dict, width: float, height: float, show_discount_column: bool) -> float:
     pdf.showPage()
 
     y = height - 28
     y = _draw_header(pdf, invoice, width, y)
-    y = _draw_items_header(pdf, width, y)
+    y = _draw_items_header(pdf, width, y, show_discount_column)
 
     return y
 
@@ -404,18 +417,20 @@ def build_invoice_pdf(invoice: dict) -> bytes:
 
     width, height = PAGE_SIZE
     y = height - 28
+    items = invoice.get("items", [])
+    show_discount_column = _has_line_discount(items)
 
     pdf.setTitle(f"Factura {invoice['id']}")
 
     y = _draw_header(pdf, invoice, width, y)
     y = _draw_invoice_info(pdf, invoice, y)
-    y = _draw_items_header(pdf, width, y)
+    y = _draw_items_header(pdf, width, y, show_discount_column)
 
-    for index, item in enumerate(invoice.get("items", [])):
+    for index, item in enumerate(items):
         if y < 120:
-            y = _new_page(pdf, invoice, width, height)
+            y = _new_page(pdf, invoice, width, height, show_discount_column)
 
-        y = _draw_item(pdf, item, width, y, index)
+        y = _draw_item(pdf, item, width, y, index, show_discount_column)
 
     y = _draw_totals(pdf, invoice, width, y)
 
