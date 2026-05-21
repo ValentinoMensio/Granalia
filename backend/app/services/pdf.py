@@ -207,6 +207,10 @@ def _has_line_discounts(invoice: dict) -> bool:
     return any(float(rate or 0) > 0 for rate in (invoice.get("line_discounts_by_format") or {}).values())
 
 
+def _has_item_line_discounts(items: list[dict]) -> bool:
+    return any(float(item.get("discount_rate") or 0) > 0 for item in items)
+
+
 def _set_color(pdf: canvas.Canvas, color: tuple[float, float, float]) -> None:
     pdf.setFillColorRGB(*color)
     pdf.setStrokeColorRGB(*color)
@@ -400,7 +404,7 @@ def _draw_invoice_info(pdf: canvas.Canvas, invoice: dict, y: float) -> float:
 
     return y - 32
 
-def _table_columns(width: float) -> dict[str, float]:
+def _table_columns(width: float, show_discount_column: bool = True) -> dict[str, float]:
     """Columnas del remito con espacio reservado para importes largos.
 
     - Producto mantiene un ancho cómodo sin alejar demasiado Cant.
@@ -411,8 +415,8 @@ def _table_columns(width: float) -> dict[str, float]:
     right = width - MARGIN - TABLE_INNER_PAD_X
     product_x = MARGIN + TABLE_INNER_PAD_X
 
-    cant_x = MARGIN + 228
-    precio_x = MARGIN + 318
+    cant_x = MARGIN + (228 if show_discount_column else 250)
+    precio_x = MARGIN + (318 if show_discount_column else 370)
     dto_x = MARGIN + 358
     total_x = right
 
@@ -465,8 +469,8 @@ def _draw_issuer_footer(pdf: canvas.Canvas, width: float, y: float) -> float:
     _set_color(pdf, COLOR_TEXT)
     return row3_y - 8
 
-def _draw_items_header(pdf: canvas.Canvas, width: float, y: float) -> float:
-    columns = _table_columns(width)
+def _draw_items_header(pdf: canvas.Canvas, width: float, y: float, show_discount_column: bool) -> float:
+    columns = _table_columns(width, show_discount_column)
 
     pdf.setFillColorRGB(*COLOR_HEADER_BG)
     pdf.rect(MARGIN - TABLE_PAD_X, y - 12, width - (MARGIN * 2) + (TABLE_PAD_X * 2), 30, stroke=0, fill=1)
@@ -477,7 +481,8 @@ def _draw_items_header(pdf: canvas.Canvas, width: float, y: float) -> float:
     pdf.drawString(columns["product_x"], y, "Producto")
     pdf.drawCentredString(columns["cant_x"], y, "Cant.")
     pdf.drawRightString(columns["precio_x"], y, "Precio")
-    pdf.drawCentredString(columns["dto_x"], y, "Dto.")
+    if show_discount_column:
+        pdf.drawCentredString(columns["dto_x"], y, "Dto.")
     pdf.drawRightString(columns["total_x"], y, "Total")
 
     y -= 12
@@ -486,8 +491,8 @@ def _draw_items_header(pdf: canvas.Canvas, width: float, y: float) -> float:
     return y - 18
 
 
-def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: int) -> float:
-    columns = _table_columns(width)
+def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: int, show_discount_column: bool) -> float:
+    columns = _table_columns(width, show_discount_column)
     font_size = ITEM_FONT_SIZE
     row_height = ITEM_ROW_HEIGHT
 
@@ -504,7 +509,8 @@ def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: in
     pdf.drawString(columns["product_x"], y, label)
     pdf.drawCentredString(columns["cant_x"], y, format_quantity(item.get("quantity") or 0))
     pdf.drawRightString(columns["precio_x"], y, _money(item.get("unit_price") or 0))
-    pdf.drawCentredString(columns["dto_x"], y, _item_discount_text(item))
+    if show_discount_column:
+        pdf.drawCentredString(columns["dto_x"], y, _item_discount_text(item))
     pdf.drawRightString(columns["total_x"], y, _money(item.get("total") or 0))
 
     pdf.setStrokeColorRGB(0.45, 0.45, 0.45)
@@ -515,7 +521,7 @@ def _draw_item(pdf: canvas.Canvas, item: dict, width: float, y: float, index: in
     return y - row_height
 
 
-def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> float:
+def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float, show_discount_column: bool) -> float:
     shipment_label_x = MARGIN + TABLE_INNER_PAD_X
     shipment_value_x = MARGIN + 120
     totals_label_x = width - 240
@@ -537,7 +543,7 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
     y -= 14
     pdf.setFont(FONT_BOLD, SUMMARY_FONT_SIZE)
     _set_color(pdf, COLOR_TEXT)
-    columns = _table_columns(width)
+    columns = _table_columns(width, show_discount_column)
     pdf.drawString(MARGIN + TABLE_INNER_PAD_X, y, "Bultos")
     pdf.drawCentredString(columns["cant_x"], y, format_quantity(total_bultos))
 
@@ -614,12 +620,12 @@ def _draw_totals(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
     footer_y = min(shipment_y, totals_y) - 24
     return _draw_issuer_footer(pdf, width, footer_y)
 
-def _new_page(pdf: canvas.Canvas, invoice: dict, width: float, height: float) -> float:
+def _new_page(pdf: canvas.Canvas, invoice: dict, width: float, height: float, show_discount_column: bool) -> float:
     pdf.showPage()
 
     y = height - 28
     y = _draw_header(pdf, invoice, width, y)
-    y = _draw_items_header(pdf, width, y)
+    y = _draw_items_header(pdf, width, y, show_discount_column)
 
     return y
 
@@ -1087,20 +1093,22 @@ def build_invoice_pdf(invoice: dict) -> bytes:
 
     width, height = PAGE_SIZE
     y = height - 28
+    items = invoice.get("items", [])
+    show_discount_column = _has_item_line_discounts(items)
 
     pdf.setTitle(f"{'Nota de crédito' if _is_credit_note(invoice) else 'Remito'} {invoice['id']}")
 
     y = _draw_header(pdf, invoice, width, y)
     y = _draw_invoice_info(pdf, invoice, y)
-    y = _draw_items_header(pdf, width, y)
+    y = _draw_items_header(pdf, width, y, show_discount_column)
 
-    for index, item in enumerate(invoice.get("items", [])):
+    for index, item in enumerate(items):
         if y < 120:
-            y = _new_page(pdf, invoice, width, height)
+            y = _new_page(pdf, invoice, width, height, show_discount_column)
 
-        y = _draw_item(pdf, item, width, y, index)
+        y = _draw_item(pdf, item, width, y, index, show_discount_column)
 
-    y = _draw_totals(pdf, invoice, width, y)
+    y = _draw_totals(pdf, invoice, width, y, show_discount_column)
 
     pdf.save()
 
