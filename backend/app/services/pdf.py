@@ -209,17 +209,12 @@ def _draw_header(pdf: canvas.Canvas, invoice: dict, width: float, y: float) -> f
 
     _set_color(pdf, COLOR_TEXT)
     pdf.setFont(FONT_BOLD, 17)
-    has_cae = bool(invoice.get("arca_cae"))
-    title = str(invoice.get("fiscal_number") or f"Comprobante interno #{invoice['id']}")
-    pdf.drawRightString(width - MARGIN, y - 8, title)
+    fiscal_number = invoice.get("fiscal_number") or f"Factura #{invoice['id']}"
+    pdf.drawRightString(width - MARGIN, y - 8, str(fiscal_number))
 
     pdf.setFont(FONT_REGULAR, 12)
     _set_color(pdf, COLOR_MUTED)
     pdf.drawRightString(width - MARGIN, y - 25, f"Fecha de Emisión: {_date(invoice.get('order_date') or invoice.get('date'))}")
-    if not has_cae:
-        pdf.drawRightString(width - MARGIN, y - 42, "No válido como factura fiscal")
-    else:
-        pdf.drawRightString(width - MARGIN, y - 42, f"CAE: {invoice.get('arca_cae')} · Vto.: {_date(invoice.get('arca_cae_due_date'))}")
 
     _set_color(pdf, COLOR_TEXT)
 

@@ -11,31 +11,18 @@ const PAGE_SIZE = 10
 const EMPTY_FILTERS = { customerId: '', dateFrom: '', dateTo: '', transport: '', minTotal: '', maxTotal: '' }
 
 function shortInvoiceNumber(invoice) {
-  if (invoice?.arca_invoice_number) return String(invoice.arca_invoice_number).padStart(8, '0')
-  if (invoice?.internal_number) return `INT-${String(invoice.internal_number).padStart(8, '0')}`
-  if (invoice?.invoice_number) return `INT-${String(invoice.invoice_number).padStart(8, '0')}`
+  if (invoice?.invoice_number) return String(invoice.invoice_number).padStart(8, '0')
   return `#${invoice?.invoice_id || invoice?.id}`
-}
-
-function fiscalLabel(invoice) {
-  const kind = invoice?.fiscal_kind || (invoice?.declared ? 'fiscal' : 'internal')
-  const status = invoice?.fiscal_status || 'draft'
-  if (kind === 'internal') return 'Comprobante interno'
-  if (status === 'authorized') return 'Autorizada con CAE'
-  if (status === 'pending_authorization') return 'Lista para autorizar'
-  if (status === 'rejected') return 'Rechazada por ARCA'
-  return 'Factura fiscal ARCA'
 }
 
 export default function InvoiceHistory() {
   const navigate = useNavigate()
   const { session } = useAuth()
   const isAdmin = session?.role === 'admin'
-  const { bootstrap, invoices, customers, invoiceDetail, loadInvoiceDetail, clearInvoiceDetail, invoicePdfUrl, startInvoiceEdit, deleteInvoice, authorizeInvoiceInArca, setStatus } = useGranalia()
+  const { bootstrap, invoices, customers, invoiceDetail, loadInvoiceDetail, clearInvoiceDetail, invoicePdfUrl, startInvoiceEdit, deleteInvoice } = useGranalia()
   const [filters, setFilters] = useState(EMPTY_FILTERS)
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [deletingInvoiceId, setDeletingInvoiceId] = useState(null)
-  const [authorizingInvoiceId, setAuthorizingInvoiceId] = useState(null)
   const [page, setPage] = useState(1)
   const todayKey = new Date().toLocaleDateString('en-CA')
 
@@ -106,24 +93,6 @@ export default function InvoiceHistory() {
     } finally {
       setDeletingInvoiceId(null)
     }
-  }
-
-  async function handleAuthorizeInvoice(invoiceId) {
-    const password = window.prompt('Esta operación emitirá una Factura A fiscal ante ARCA. No podrá editarse ni eliminarse luego de obtener CAE. Ingresá la contraseña para continuar.')
-    if (!password) return
-    setAuthorizingInvoiceId(invoiceId)
-    try {
-      await authorizeInvoiceInArca(invoiceId, password)
-    } catch (error) {
-      setStatus(`Error al autorizar en ARCA: ${error.message}`)
-    } finally {
-      setAuthorizingInvoiceId(null)
-    }
-  }
-
-  function canAuthorize(invoice) {
-    const status = invoice?.fiscal_status || 'draft'
-    return isAdmin && (invoice?.fiscal_kind || (invoice?.declared ? 'fiscal' : 'internal')) === 'fiscal' && ['draft', 'rejected'].includes(status)
   }
 
   function itemSecondaryLabel(item) {
@@ -236,7 +205,7 @@ export default function InvoiceHistory() {
                   </div>
                   <div className="flex justify-between gap-3">
                     <span>Tipo</span>
-                    <span className="font-medium text-slate-800">{fiscalLabel(invoice)}</span>
+                    <span className="font-medium text-slate-800">{invoice.declared ? 'Declarada' : 'No declarada'}</span>
                   </div>
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
@@ -246,16 +215,6 @@ export default function InvoiceHistory() {
                   {isAdmin && (
                     <Button variant="secondary" className="w-full" onClick={() => handleEditInvoice(invoice.invoice_id)}>
                       Editar
-                    </Button>
-                  )}
-                  {canAuthorize(invoice) && (
-                    <Button
-                      variant="secondary"
-                      className="col-span-2"
-                      onClick={() => handleAuthorizeInvoice(invoice.invoice_id)}
-                      disabled={authorizingInvoiceId === invoice.invoice_id}
-                    >
-                      {authorizingInvoiceId === invoice.invoice_id ? 'Autorizando...' : 'Autorizar en ARCA'}
                     </Button>
                   )}
                   <span className="btn-secondary w-full cursor-not-allowed opacity-50" aria-disabled="true">XLSX</span>
@@ -320,7 +279,7 @@ export default function InvoiceHistory() {
                     <td className="table-cell break-words font-medium leading-snug" title={invoice.client_name}>{invoice.client_name}</td>
                     <td className={`table-cell whitespace-nowrap text-center ${isUpcoming ? 'text-slate-800' : 'text-slate-600'}`}>{invoice.order_date}</td>
                     <td className={`table-cell break-words leading-snug ${isUpcoming ? 'text-slate-800' : 'text-slate-600'}`} title={invoice.transport || 'Sin transporte'}>{invoice.transport || 'Sin transporte'}</td>
-                    <td className="table-cell text-center">{fiscalLabel(invoice)}</td>
+                    <td className="table-cell text-center">{invoice.declared ? 'Declarada' : 'No declarada'}</td>
                     <td className="table-cell whitespace-nowrap text-right font-medium">${money(invoice.final_total)}</td>
                     <td className="table-cell">
                       <div className="flex items-center justify-center gap-x-2 whitespace-nowrap text-xs leading-tight">
@@ -330,16 +289,6 @@ export default function InvoiceHistory() {
                         {isAdmin && (
                           <Button variant="ghost" className="px-0 py-0 text-brand-ink" onClick={() => handleEditInvoice(invoice.invoice_id)}>
                             Editar
-                          </Button>
-                        )}
-                        {canAuthorize(invoice) && (
-                          <Button
-                            variant="ghost"
-                            className="px-0 py-0 text-xs text-brand-red"
-                            onClick={() => handleAuthorizeInvoice(invoice.invoice_id)}
-                            disabled={authorizingInvoiceId === invoice.invoice_id}
-                          >
-                            {authorizingInvoiceId === invoice.invoice_id ? 'Autorizando...' : 'Autorizar ARCA'}
                           </Button>
                         )}
                         <a
@@ -438,7 +387,7 @@ export default function InvoiceHistory() {
               </div>
               <div>
                 <div className="text-xs uppercase tracking-wide text-slate-400">Tipo</div>
-                <div className="mt-1">{fiscalLabel(invoiceDetail)}</div>
+                <div className="mt-1">{invoiceDetail.declared ? 'Declarada' : 'No declarada'}</div>
               </div>
               <div>
                 <div className="text-xs uppercase tracking-wide text-slate-400">Lista</div>
@@ -527,16 +476,6 @@ export default function InvoiceHistory() {
               {isAdmin && (
                 <Button variant="secondary" className="w-full sm:w-auto" onClick={() => handleEditInvoice(invoiceDetail.id)}>
                   Editar factura
-                </Button>
-              )}
-              {canAuthorize(invoiceDetail) && (
-                <Button
-                  variant="secondary"
-                  className="w-full sm:w-auto"
-                  onClick={() => handleAuthorizeInvoice(invoiceDetail.id)}
-                  disabled={authorizingInvoiceId === invoiceDetail.id}
-                >
-                  {authorizingInvoiceId === invoiceDetail.id ? 'Autorizando...' : 'Autorizar en ARCA'}
                 </Button>
               )}
               <span className="btn-secondary w-full cursor-not-allowed opacity-50 sm:w-auto" aria-disabled="true">Descargar XLSX</span>

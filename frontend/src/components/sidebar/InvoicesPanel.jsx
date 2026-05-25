@@ -2,9 +2,7 @@ import Panel from '../ui/Panel'
 import { money } from '../../lib/format'
 
 function shortInvoiceNumber(invoice) {
-  if (invoice?.arca_invoice_number) return String(invoice.arca_invoice_number).padStart(8, '0')
-  if (invoice?.internal_number) return `INT-${String(invoice.internal_number).padStart(8, '0')}`
-  if (invoice?.invoice_number) return `INT-${String(invoice.invoice_number).padStart(8, '0')}`
+  if (invoice?.invoice_number) return String(invoice.invoice_number).padStart(8, '0')
   return `#${invoice?.invoice_id}`
 }
 

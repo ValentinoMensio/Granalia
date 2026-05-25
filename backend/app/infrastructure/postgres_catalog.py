@@ -68,8 +68,6 @@ class PostgresCatalogMixin(PostgresRepositoryProtocol):
                     "label": row["label"],
                     "price": int(row["price"]),
                     "net_weight_kg": float(row.get("net_weight_kg") or 0),
-                    "iva_rate_id": row.get("iva_rate_id"),
-                    "iva_rate_percent": float(row["iva_rate_percent"]) if row.get("iva_rate_percent") is not None else None,
                 }
             )
 

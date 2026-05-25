@@ -23,8 +23,6 @@ class CatalogOfferingData(TypedDict):
     price: int
     net_weight_kg: NotRequired[float]
     format_class: NotRequired[str]
-    iva_rate_id: NotRequired[int | None]
-    iva_rate_percent: NotRequired[float | None]
 
 
 class CatalogProductData(TypedDict):
@@ -78,7 +76,6 @@ class OrderData(TypedDict):
     date: str
     price_list_id: NotRequired[int | None]
     declared: NotRequired[bool]
-    fiscal_kind: NotRequired[str]
     secondary_line: str
     transport: str
     notes: list[str]
@@ -96,14 +93,6 @@ class InvoiceRowData(TypedDict):
     label: str
     quantity: float
     unit_price: int
-    iva_rate_id: NotRequired[int | None]
-    iva_rate_percent: NotRequired[float | None]
-    net_unit_price: NotRequired[float | None]
-    gross_unit_price: NotRequired[float | None]
-    tax_amount: NotRequired[float | None]
-    line_net_amount: NotRequired[float | None]
-    line_tax_amount: NotRequired[float | None]
-    line_total_amount: NotRequired[float | None]
     gross: int
     discount: int
     total: int
@@ -128,17 +117,7 @@ class InvoiceListItemData(TypedDict):
     document_type: str
     point_of_sale: int
     invoice_number: int
-    internal_number: int
-    fiscal_kind: str
-    fiscal_status: str
     fiscal_number: str
-    arca_environment: str | None
-    arca_cbte_tipo: int | None
-    arca_point_of_sale: int | None
-    arca_invoice_number: int | None
-    arca_cae: str | None
-    arca_cae_due_date: NotRequired[str | datetime | None]
-    arca_authorized_at: NotRequired[str | datetime | None]
     customer_id: int | None
     transport_id: int | None
     client_name: str
@@ -170,14 +149,6 @@ class InvoiceItemDetailData(TypedDict):
     label: str
     quantity: float
     unit_price: int
-    iva_rate_id: NotRequired[int | None]
-    iva_rate_percent: NotRequired[float | None]
-    net_unit_price: NotRequired[float | None]
-    gross_unit_price: NotRequired[float | None]
-    tax_amount: NotRequired[float | None]
-    line_net_amount: NotRequired[float | None]
-    line_tax_amount: NotRequired[float | None]
-    line_total_amount: NotRequired[float | None]
     gross: int
     discount: int
     total: int
@@ -193,22 +164,7 @@ class InvoiceDetailData(TypedDict):
     document_type: str
     point_of_sale: int
     invoice_number: int
-    internal_number: int
-    fiscal_kind: str
-    fiscal_status: str
     fiscal_number: str
-    arca_environment: str | None
-    arca_cbte_tipo: int | None
-    arca_point_of_sale: int | None
-    arca_invoice_number: int | None
-    arca_cae: str | None
-    arca_cae_due_date: NotRequired[str | datetime | None]
-    arca_authorized_at: NotRequired[str | datetime | None]
-    arca_result: NotRequired[str | None]
-    arca_observations_json: NotRequired[object | None]
-    arca_errors_json: NotRequired[object | None]
-    locked_at: NotRequired[str | datetime | None]
-    locked_by: NotRequired[str | None]
     customer_id: int | None
     transport_id: int | None
     legacy_key: str | None

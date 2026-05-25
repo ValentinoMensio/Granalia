@@ -350,7 +350,7 @@ function ProductRowsCard({
           onClick={onGenerate}
           disabled={generating}
         >
-          {generating ? 'Guardando...' : editingInvoiceId ? 'Actualizar comprobante' : 'Generar comprobante'}
+          {generating ? 'Guardando...' : editingInvoiceId ? 'Actualizar factura' : 'Generar factura'}
         </Button>
         <Button
           variant="secondary"
@@ -358,7 +358,7 @@ function ProductRowsCard({
           onClick={onClearInvoice}
           disabled={generating}
         >
-          Limpiar comprobante
+          Limpiar factura
         </Button>
         {editingInvoiceId && (
           <Button variant="secondary" className="w-full sm:min-w-[180px] sm:w-auto" onClick={onCancelEdit}>

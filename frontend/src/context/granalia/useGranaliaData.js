@@ -168,10 +168,6 @@ function useGranaliaData() {
   }
 
   function updateFormField(field, value) {
-    if (field === 'fiscalKind') {
-      setForm((current) => ({ ...current, fiscalKind: value, declared: value === 'fiscal' }))
-      return
-    }
     if (field === 'priceListId') {
       if (value) {
         request(`/api/price-lists/${value}/catalog`)
@@ -342,18 +338,6 @@ function useGranaliaData() {
     setStatus(`Factura ${invoiceId} eliminada.`)
   }
 
-  async function authorizeInvoiceInArca(invoiceId, password) {
-    const data = await request(`/api/invoices/${invoiceId}/arca/authorize`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password }),
-    })
-    await refreshInvoices()
-    await loadInvoiceDetail(invoiceId)
-    setStatus(data.message || `Factura ${invoiceId} enviada a ARCA.`)
-    return data
-  }
-
   async function saveCustomer() {
     if (!form.clientName.trim()) {
       setStatus('Ingresá un cliente.')
@@ -521,7 +505,6 @@ function useGranaliaData() {
     clearCurrentInvoice,
     startInvoiceEdit,
     deleteInvoice,
-    authorizeInvoiceInArca,
     invoiceDownloadUrl,
     invoicePdfUrl,
     downloadInvoice,

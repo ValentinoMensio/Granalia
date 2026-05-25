@@ -239,14 +239,6 @@ def expand_rows(order: Order, profile: CustomerProfile, catalog: list[CatalogPro
                     gross,
                     discount,
                     total,
-                    offering.get("iva_rate_id"),
-                    float(offering["iva_rate_percent"]) if offering.get("iva_rate_percent") is not None else None,
-                    float(unit_price),
-                    None,
-                    None,
-                    float(total),
-                    None,
-                    float(total),
                 )
             )
 

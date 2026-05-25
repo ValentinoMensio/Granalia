@@ -573,9 +573,9 @@ export default function InvoiceStats() {
             ))}
           </select>
           <select className="input" value={filters.declared} onChange={(event) => updateFilter('declared', event.target.value)}>
-            <option value="">Fiscales e internas</option>
-            <option value="true">Facturas fiscales</option>
-            <option value="false">Comprobantes internos</option>
+            <option value="">Declaradas y no declaradas</option>
+            <option value="true">Declaradas</option>
+            <option value="false">No declaradas</option>
           </select>
         </div>
 
