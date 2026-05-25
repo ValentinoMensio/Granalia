@@ -80,6 +80,7 @@ class InvoiceCreate(BaseModel):
     date: str = Field(min_length=10, max_length=10)
     price_list_id: int | None = None
     declared: bool = False
+    fiscal_kind: str | None = None
     secondary_line: str = Field(default="", max_length=MAX_SHORT_TEXT_LENGTH)
     transport: str = Field(default="", max_length=MAX_SHORT_TEXT_LENGTH)
     notes: list[str] = Field(default_factory=list, max_length=MAX_NOTES)
@@ -87,6 +88,16 @@ class InvoiceCreate(BaseModel):
 
     _normalize_client_name = field_validator("client_name")(_strip_required)
     _normalize_secondary_line = field_validator("secondary_line", "transport")(_strip_optional)
+
+    @field_validator("fiscal_kind")
+    @classmethod
+    def validate_fiscal_kind(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = str(value or "").strip().lower()
+        if normalized not in {"internal", "fiscal"}:
+            raise ValueError("fiscal_kind must be internal or fiscal")
+        return normalized
 
     @field_validator("notes")
     @classmethod
@@ -200,6 +211,8 @@ class ProductOfferingOut(BaseModel):
     label: str
     price: int
     net_weight_kg: float = 0
+    iva_rate_id: int | None = None
+    iva_rate_percent: float | None = None
 
 
 class ProductCatalogOut(BaseModel):
@@ -288,7 +301,17 @@ class InvoiceListItemOut(BaseModel):
     document_type: str = "FACTURA"
     point_of_sale: int = 1
     invoice_number: int = 0
+    internal_number: int = 0
+    fiscal_kind: str = "internal"
+    fiscal_status: str = "draft"
     fiscal_number: str = ""
+    arca_environment: str | None = None
+    arca_cbte_tipo: int | None = None
+    arca_point_of_sale: int | None = None
+    arca_invoice_number: int | None = None
+    arca_cae: str | None = None
+    arca_cae_due_date: str | None = None
+    arca_authorized_at: str | None = None
     customer_id: int | None = None
     transport_id: int | None = None
     client_name: str
@@ -316,6 +339,14 @@ class InvoiceItemOut(BaseModel):
     label: str
     quantity: float
     unit_price: int
+    iva_rate_id: int | None = None
+    iva_rate_percent: float | None = None
+    net_unit_price: float | None = None
+    gross_unit_price: float | None = None
+    tax_amount: float | None = None
+    line_net_amount: float | None = None
+    line_tax_amount: float | None = None
+    line_total_amount: float | None = None
     gross: int
     discount: int
     total: int
@@ -331,7 +362,22 @@ class InvoiceDetailOut(BaseModel):
     document_type: str = "FACTURA"
     point_of_sale: int = 1
     invoice_number: int = 0
+    internal_number: int = 0
+    fiscal_kind: str = "internal"
+    fiscal_status: str = "draft"
     fiscal_number: str = ""
+    arca_environment: str | None = None
+    arca_cbte_tipo: int | None = None
+    arca_point_of_sale: int | None = None
+    arca_invoice_number: int | None = None
+    arca_cae: str | None = None
+    arca_cae_due_date: str | None = None
+    arca_authorized_at: str | None = None
+    arca_result: str | None = None
+    arca_observations_json: Any | None = None
+    arca_errors_json: Any | None = None
+    locked_at: str | None = None
+    locked_by: str | None = None
     customer_id: int | None = None
     transport_id: int | None = None
     legacy_key: str | None = None
@@ -367,6 +413,18 @@ class InvoiceCreateOut(BaseModel):
     filename: str
     download_url: str
     summary: InvoiceSummaryOut
+
+
+class ArcaAuthorizeRequest(BaseModel):
+    password: str = Field(min_length=1, max_length=500)
+
+
+class ArcaStatusOut(BaseModel):
+    configured: bool
+    environment: str
+    fiscal_kind: str
+    fiscal_status: str
+    message: str = ""
 
 
 class AuthSessionOut(BaseModel):

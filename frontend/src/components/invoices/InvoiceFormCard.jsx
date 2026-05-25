@@ -57,10 +57,10 @@ function InvoiceFormCard({
           <p className="mt-1 text-xs text-slate-500">Si no elegís otra, se usa la lista activa: {defaultPriceListName}.</p>
         </Field>
 
-        <Field label="Declaración">
-          <select className="input" value={form.declared ? 'true' : 'false'} onChange={(event) => onFieldChange('declared', event.target.value === 'true')}>
-            <option value="false">No declarada</option>
-            <option value="true">Declarada</option>
+        <Field label="Tipo de comprobante">
+          <select className="input" value={form.fiscalKind || (form.declared ? 'fiscal' : 'internal')} onChange={(event) => onFieldChange('fiscalKind', event.target.value)}>
+            <option value="internal">Comprobante interno</option>
+            <option value="fiscal">Factura fiscal ARCA</option>
           </select>
         </Field>
 

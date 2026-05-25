@@ -5,6 +5,7 @@ function createInitialForm() {
     customerId: '',
     priceListId: '',
     declared: false,
+    fiscalKind: 'internal',
     clientName: '',
     date: new Date().toISOString().slice(0, 10),
     secondaryLine: '',

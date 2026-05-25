@@ -25,6 +25,9 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
     product_offerings: Table
     price_lists: Table
     invoice_sequences: Table
+    arca_iva_rates: Table
+    invoice_tax_breakdown: Table
+    arca_requests: Table
 
     def _fiscal_scope(self) -> tuple[str, int]:
         document_type = os.getenv("GRANALIA_DOCUMENT_TYPE", "FACTURA").strip().upper() or "FACTURA"
@@ -35,6 +38,17 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
 
     def _format_fiscal_number(self, document_type: str, point_of_sale: int, invoice_number: int) -> str:
         return f"{document_type} {point_of_sale:04d}-{invoice_number:08d}"
+
+    def _format_invoice_display_number(self, invoice: dict) -> str:
+        if invoice.get("arca_cae") and invoice.get("arca_point_of_sale") and invoice.get("arca_invoice_number"):
+            return f"FACTURA A {int(invoice['arca_point_of_sale']):04d}-{int(invoice['arca_invoice_number']):08d}"
+        return f"Interna {int(invoice.get('internal_number') or invoice.get('invoice_number') or 0):08d}"
+
+    def _fiscal_kind_for_order(self, order: OrderData) -> str:
+        fiscal_kind = str(order.get("fiscal_kind") or "").strip().lower()
+        if fiscal_kind in {"internal", "fiscal"}:
+            return fiscal_kind
+        return "fiscal" if bool(order.get("declared", False)) else "internal"
 
     def _next_fiscal_number(self, *, connection, document_type: str, point_of_sale: int, now) -> int:
         stmt = insert(self.invoice_sequences).values(
@@ -75,6 +89,16 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     self.invoices.c.document_type,
                     self.invoices.c.point_of_sale,
                     self.invoices.c.invoice_number,
+                    self.invoices.c.internal_number,
+                    self.invoices.c.fiscal_kind,
+                    self.invoices.c.fiscal_status,
+                    self.invoices.c.arca_environment,
+                    self.invoices.c.arca_cbte_tipo,
+                    self.invoices.c.arca_point_of_sale,
+                    self.invoices.c.arca_invoice_number,
+                    self.invoices.c.arca_cae,
+                    self.invoices.c.arca_cae_due_date,
+                    self.invoices.c.arca_authorized_at,
                     self.invoices.c.customer_id,
                     self.invoices.c.transport_id,
                     self.invoices.c.client_name,
@@ -100,7 +124,7 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
             rows = connection.execute(query).mappings().all()
         payload: list[InvoiceListItemData] = cast(list[InvoiceListItemData], [{key: serialize_value(value) for key, value in row.items()} for row in rows])
         for item in payload:
-            item["fiscal_number"] = self._format_fiscal_number(str(item.get("document_type") or "FACTURA"), int(item.get("point_of_sale") or 1), int(item.get("invoice_number") or 0))
+            item["fiscal_number"] = self._format_invoice_display_number(item)
         return payload
 
     def list_invoice_item_stats(self) -> list[dict[str, object]]:
@@ -111,6 +135,21 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     self.invoices.c.document_type,
                     self.invoices.c.point_of_sale,
                     self.invoices.c.invoice_number,
+                    self.invoices.c.internal_number,
+                    self.invoices.c.fiscal_kind,
+                    self.invoices.c.fiscal_status,
+                    self.invoices.c.arca_environment,
+                    self.invoices.c.arca_cbte_tipo,
+                    self.invoices.c.arca_point_of_sale,
+                    self.invoices.c.arca_invoice_number,
+                    self.invoices.c.arca_cae,
+                    self.invoices.c.arca_cae_due_date,
+                    self.invoices.c.arca_authorized_at,
+                    self.invoices.c.arca_result,
+                    self.invoices.c.arca_observations_json,
+                    self.invoices.c.arca_errors_json,
+                    self.invoices.c.locked_at,
+                    self.invoices.c.locked_by,
                     self.invoices.c.customer_id,
                     self.invoices.c.transport_id,
                     self.invoices.c.client_name,
@@ -235,7 +274,7 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
             ).mappings().all()
 
         invoice = {key: serialize_value(value) for key, value in invoice_row.items()}
-        invoice["fiscal_number"] = self._format_fiscal_number(str(invoice.get("document_type") or "FACTURA"), int(invoice.get("point_of_sale") or 1), int(invoice.get("invoice_number") or 0))
+        invoice["fiscal_number"] = self._format_invoice_display_number(invoice)
         items = [{key: serialize_value(value) for key, value in row.items()} for row in item_rows]
         invoice["items"] = items
         return cast(InvoiceDetailData, invoice)
@@ -264,8 +303,24 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
             "document_type": "FACTURA",
             "point_of_sale": 1,
             "invoice_number": 1,
+            "internal_number": 1,
+            "fiscal_kind": self._fiscal_kind_for_order(order),
+            "fiscal_status": "draft",
             "client_name": order["client_name"],
-            "declared": bool(order.get("declared", False)),
+            "declared": self._fiscal_kind_for_order(order) == "fiscal",
+            "arca_environment": None,
+            "arca_cbte_tipo": None,
+            "arca_point_of_sale": None,
+            "arca_invoice_number": None,
+            "arca_cae": None,
+            "arca_cae_due_date": None,
+            "arca_authorized_at": None,
+            "arca_result": None,
+            "arca_observations_json": None,
+            "arca_errors_json": None,
+            "arca_request_id": None,
+            "locked_at": None,
+            "locked_by": None,
             "price_list_name": str(order.get("price_list_name") or ""),
             "price_list_effective_date": None,
             "customer_cuit": str(profile.get("cuit", "") or ""),
@@ -302,6 +357,14 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     "label": item["label"],
                     "quantity": float(item["quantity"]),
                     "unit_price": int(item["unit_price"]),
+                    "iva_rate_id": item.get("iva_rate_id"),
+                    "iva_rate_percent": item.get("iva_rate_percent"),
+                    "net_unit_price": item.get("net_unit_price"),
+                    "gross_unit_price": item.get("gross_unit_price"),
+                    "tax_amount": item.get("tax_amount"),
+                    "line_net_amount": item.get("line_net_amount"),
+                    "line_tax_amount": item.get("line_tax_amount"),
+                    "line_total_amount": item.get("line_total_amount"),
                     "gross": int(item["gross"]),
                     "discount": int(item["discount"]),
                     "total": int(item["total"]),
@@ -317,6 +380,7 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                 point_of_sale=point_of_sale,
                 now=created_at,
             )
+            invoice_payload["internal_number"] = invoice_payload["invoice_number"]
             if invoice_payload["price_list_id"]:
                 price_list_row = connection.execute(
                     select(self.price_lists.c.name, self.price_lists.c.uploaded_at).where(self.price_lists.c.id == invoice_payload["price_list_id"])
@@ -387,6 +451,8 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
             ).mappings().first()
             if not existing_invoice:
                 raise ValueError("Factura no encontrada")
+            if str(existing_invoice.get("fiscal_status") or "") == "authorized":
+                raise ValueError("No se puede editar una factura autorizada por ARCA")
 
             transport_name = order.get("transport") or profile.get("transport") or ""
             price_list_name = str(order.get("price_list_name") or "")
@@ -430,7 +496,9 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     transport_id=transport_id,
                     price_list_id=order.get("price_list_id"),
                     client_name=order["client_name"],
-                    declared=bool(order.get("declared", False)),
+                    fiscal_kind=self._fiscal_kind_for_order(order),
+                    fiscal_status=str(existing_invoice.get("fiscal_status") or "draft"),
+                    declared=self._fiscal_kind_for_order(order) == "fiscal",
                     price_list_name=price_list_name,
                     price_list_effective_date=price_list_effective_date,
                     customer_cuit=str(profile.get("cuit", "") or ""),
@@ -473,6 +541,14 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                         "label": item["label"],
                         "quantity": float(item["quantity"]),
                         "unit_price": int(item["unit_price"]),
+                        "iva_rate_id": item.get("iva_rate_id"),
+                        "iva_rate_percent": item.get("iva_rate_percent"),
+                        "net_unit_price": item.get("net_unit_price"),
+                        "gross_unit_price": item.get("gross_unit_price"),
+                        "tax_amount": item.get("tax_amount"),
+                        "line_net_amount": item.get("line_net_amount"),
+                        "line_tax_amount": item.get("line_tax_amount"),
+                        "line_total_amount": item.get("line_total_amount"),
                         "gross": int(item["gross"]),
                         "discount": int(item["discount"]),
                         "total": int(item["total"]),
@@ -485,6 +561,11 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
 
     def delete_invoice(self, invoice_id: int) -> None:
         with self.engine.begin() as connection:
+            existing_invoice = connection.execute(
+                select(self.invoices.c.fiscal_status).where(self.invoices.c.id == invoice_id)
+            ).mappings().first()
+            if existing_invoice and str(existing_invoice.get("fiscal_status") or "") == "authorized":
+                raise ValueError("No se puede eliminar una factura autorizada por ARCA")
             result = connection.execute(
                 self.invoices.delete().where(self.invoices.c.id == invoice_id)
             )

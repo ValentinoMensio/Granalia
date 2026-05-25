@@ -59,13 +59,22 @@ class CatalogOffering:
     label: str
     price: int
     net_weight_kg: float = 0
+    iva_rate_id: int | None = None
+    iva_rate_percent: float | None = None
 
     @classmethod
     def from_data(cls, data: CatalogOfferingData) -> "CatalogOffering":
-        return cls(id=data["id"], label=str(data["label"]), price=int(data["price"]), net_weight_kg=float(data.get("net_weight_kg") or 0))
+        return cls(
+            id=data["id"],
+            label=str(data["label"]),
+            price=int(data["price"]),
+            net_weight_kg=float(data.get("net_weight_kg") or 0),
+            iva_rate_id=data.get("iva_rate_id"),
+            iva_rate_percent=float(data["iva_rate_percent"]) if data.get("iva_rate_percent") is not None else None,
+        )
 
     def to_data(self) -> CatalogOfferingData:
-        return {"id": self.id, "label": self.label, "price": self.price, "net_weight_kg": self.net_weight_kg}
+        return {"id": self.id, "label": self.label, "price": self.price, "net_weight_kg": self.net_weight_kg, "iva_rate_id": self.iva_rate_id, "iva_rate_percent": self.iva_rate_percent}
 
 
 @dataclass(slots=True)
@@ -201,6 +210,14 @@ class InvoiceRow:
     gross: int
     discount: int
     total: int
+    iva_rate_id: int | None = None
+    iva_rate_percent: float | None = None
+    net_unit_price: float | None = None
+    gross_unit_price: float | None = None
+    tax_amount: float | None = None
+    line_net_amount: float | None = None
+    line_tax_amount: float | None = None
+    line_total_amount: float | None = None
 
     def to_data(self) -> InvoiceRowData:
         return asdict(self)

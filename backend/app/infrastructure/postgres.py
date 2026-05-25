@@ -31,6 +31,9 @@ class PostgresRepository(
     invoices: Table
     invoice_items: Table
     invoice_sequences: Table
+    arca_iva_rates: Table
+    invoice_tax_breakdown: Table
+    arca_requests: Table
     app_users: Table
 
     def __init__(self, base_dir: Path) -> None:
