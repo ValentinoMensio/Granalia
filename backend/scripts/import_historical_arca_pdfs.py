@@ -700,6 +700,7 @@ def create_arca_request(repo: PostgresRepository, connection, invoice_id: int, i
             sanitized_response=response,
             status="authorized",
             created_at=now,
+            updated_at=now,
         )
         .returning(repo.arca_requests.c.id)
     ).scalar_one())
