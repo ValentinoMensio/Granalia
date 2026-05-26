@@ -901,6 +901,97 @@ def delete_historical(repo: PostgresRepository, *, dry_run: bool) -> int:
         return len(ids)
 
 
+def repair_historical_numbers(repo: PostgresRepository, *, pdf_dir: Path, point_of_sale: int, environment: str, dry_run: bool) -> tuple[int, int]:
+    repaired = 0
+    skipped = 0
+    now = utc_now()
+    with repo.engine.begin() as connection:
+        for path in iter_pdf_files(pdf_dir):
+            filename_number = invoice_number_from_filename(path)
+            if filename_number is None:
+                skipped += 1
+                continue
+            invoice = parse_pdf(path, forced_point_of_sale=point_of_sale)
+            if invoice.invoice_number == filename_number:
+                skipped += 1
+                continue
+
+            row = connection.execute(
+                select(repo.invoices.c.id, repo.invoices.c.arca_request_id)
+                .where(
+                    repo.invoices.c.legacy_key == f"historical-arca:{environment}:{invoice.cbte_tipo}:{invoice.point_of_sale}:{filename_number}",
+                    repo.invoices.c.arca_environment == environment,
+                    repo.invoices.c.arca_cbte_tipo == invoice.cbte_tipo,
+                    repo.invoices.c.arca_point_of_sale == invoice.point_of_sale,
+                    repo.invoices.c.arca_invoice_number == filename_number,
+                )
+                .limit(1)
+            ).mappings().first()
+            if row is None:
+                skipped += 1
+                continue
+
+            duplicate_id = connection.execute(
+                select(repo.invoices.c.id)
+                .where(
+                    repo.invoices.c.id != int(row["id"]),
+                    repo.invoices.c.arca_environment == environment,
+                    repo.invoices.c.arca_cbte_tipo == invoice.cbte_tipo,
+                    repo.invoices.c.arca_point_of_sale == invoice.point_of_sale,
+                    repo.invoices.c.arca_invoice_number == invoice.invoice_number,
+                )
+                .limit(1)
+            ).scalar_one_or_none()
+            if duplicate_id is not None:
+                raise ValueError(f"{path.name}: ya existe un comprobante con numero ARCA {invoice.invoice_number}")
+
+            print(f"{path.name}: {'repair' if not dry_run else 'would repair'} Nro {filename_number} -> {invoice.invoice_number}")
+            if dry_run:
+                repaired += 1
+                continue
+
+            arca_request_id = row.get("arca_request_id")
+            payload = {
+                "source": "historical_pdf_import",
+                "source_pdf": str(invoice.source_pdf),
+                "PtoVta": invoice.point_of_sale,
+                "CbteTipo": invoice.cbte_tipo,
+                "CbteNro": invoice.invoice_number,
+            }
+            response = {
+                "result": "HISTORICO",
+                "invoice_number": invoice.invoice_number,
+                "cae": invoice.cae,
+                "cae_expires_at": invoice.cae_expires_at.isoformat() if invoice.cae_expires_at else None,
+            }
+            request_hash = hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
+            connection.execute(
+                update(repo.invoices)
+                .where(repo.invoices.c.id == int(row["id"]))
+                .values(
+                    invoice_number=invoice.invoice_number,
+                    arca_invoice_number=invoice.invoice_number,
+                    arca_cae=invoice.cae,
+                    arca_cae_expires_at=invoice.cae_expires_at,
+                    legacy_key=f"historical-arca:{environment}:{invoice.cbte_tipo}:{invoice.point_of_sale}:{invoice.invoice_number}",
+                    arca_observations={"source_pdf": str(invoice.source_pdf), "repaired_from_invoice_number": filename_number},
+                )
+            )
+            if arca_request_id:
+                connection.execute(
+                    update(repo.arca_requests)
+                    .where(repo.arca_requests.c.id == int(arca_request_id))
+                    .values(
+                        request_hash=request_hash,
+                        sanitized_request=payload,
+                        sanitized_response=response,
+                        updated_at=now,
+                    )
+                )
+            repaired += 1
+    return repaired, skipped
+
+
 def iter_pdf_files(pdf_dir: Path) -> list[Path]:
     return sorted(
         (path for path in pdf_dir.iterdir() if path.suffix.lower() == ".pdf"),
@@ -929,6 +1020,7 @@ def main() -> None:
     parser.add_argument("--only-credit-notes", action="store_true", help="Importa solo notas de crédito")
     parser.add_argument("--delete-historical", action="store_true", help="Borra solo comprobantes históricos importados por este script")
     parser.add_argument("--replace-historical", action="store_true", help="Borra históricos importados y vuelve a cargar desde los PDFs")
+    parser.add_argument("--repair-historical-numbers", action="store_true", help="Corrige números fiscales históricos parseados desde el nombre del PDF")
     parser.add_argument("--debug-pdf", type=Path, help="Imprime el texto extraído de un PDF y sale")
     parser.add_argument("--debug-limit", type=int, default=6000, help="Cantidad de caracteres a imprimir con --debug-pdf")
     parser.add_argument("--apply", action="store_true", help="Escribe cambios. Sin este flag solo muestra dry-run.")
@@ -945,6 +1037,12 @@ def main() -> None:
 
     repo = PostgresRepository(BACKEND_DIR)
     dry_run = not args.apply
+    if args.repair_historical_numbers:
+        repaired, skipped = repair_historical_numbers(repo, pdf_dir=args.pdf_dir, point_of_sale=args.point_of_sale, environment=args.environment, dry_run=dry_run)
+        print(f"Históricos {'a reparar' if dry_run else 'reparados'}: {repaired}; omitidos: {skipped}")
+        if dry_run:
+            print("Dry-run finalizado. Ejecutá nuevamente con --apply para escribir cambios.")
+        return
     if args.delete_historical or args.replace_historical:
         count = delete_historical(repo, dry_run=dry_run)
         print(f"Históricos {'a borrar' if dry_run else 'borrados'}: {count}")
