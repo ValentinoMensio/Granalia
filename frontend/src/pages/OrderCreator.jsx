@@ -1,6 +1,7 @@
 import InvoiceFormCard from '../components/invoices/InvoiceFormCard'
 import PageSectionHeader from '../components/ui/PageSectionHeader'
 import ProductRowsCard from '../components/invoices/ProductRowsCard'
+import Button from '../components/ui/Button'
 import { useGranalia } from '../context/GranaliaContext'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
@@ -86,6 +87,8 @@ export default function OrderCreator() {
   const { session } = useAuth()
   const isAdmin = session?.role === 'admin'
   const [fiscalCatalog, setFiscalCatalog] = useState([])
+  const [authorizationModalOpen, setAuthorizationModalOpen] = useState(false)
+  const [authorizationPassword, setAuthorizationPassword] = useState('')
   const {
     bootstrap,
     customers,
@@ -159,10 +162,24 @@ export default function OrderCreator() {
   }
 
   async function handleGenerateInvoice() {
-    const result = await generateInvoice()
+    const billingMode = form.billingMode || (form.declared ? 'fiscal_only' : 'internal_only')
+    if (['fiscal_only', 'split'].includes(billingMode) && !authorizationModalOpen) {
+      setAuthorizationPassword('')
+      setAuthorizationModalOpen(true)
+      return
+    }
+    const result = await generateInvoice(authorizationPassword)
+    setAuthorizationModalOpen(false)
+    setAuthorizationPassword('')
     if (result?.updated) {
       navigate('/history')
     }
+  }
+
+  function closeAuthorizationModal() {
+    if (generating) return
+    setAuthorizationModalOpen(false)
+    setAuthorizationPassword('')
   }
 
   function handleClearInvoice() {
@@ -221,6 +238,28 @@ export default function OrderCreator() {
           onRemoveItem={removeItemRow}
           onUpdateItem={updateItem}
         />
+
+        {authorizationModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-6">
+            <form onSubmit={(event) => { event.preventDefault(); handleGenerateInvoice() }} className="surface w-full max-w-md p-5 shadow-xl">
+              <h3 className="subsection-title text-xl">Autorización requerida</h3>
+              <p className="mt-2 text-sm text-slate-600">Ingresá la contraseña para guardar un comprobante fiscal o dividido.</p>
+              <input
+                className="input mt-4"
+                type="password"
+                value={authorizationPassword}
+                onChange={(event) => setAuthorizationPassword(event.target.value)}
+                placeholder="Contraseña de autorización"
+                autoComplete="current-password"
+                autoFocus
+              />
+              <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
+                <Button type="button" variant="secondary" onClick={closeAuthorizationModal} disabled={generating}>Cancelar</Button>
+                <Button type="submit" disabled={!authorizationPassword || generating}>{generating ? 'Guardando...' : 'Continuar'}</Button>
+              </div>
+            </form>
+          </div>
+        )}
 
       </section>
     </main>

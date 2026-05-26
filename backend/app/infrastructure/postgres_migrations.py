@@ -24,6 +24,7 @@ class PostgresMigrationMixin(PostgresRepositoryProtocol):
     invoice_tax_breakdown: Table
     credit_note_item_sources: Table
     arca_requests: Table
+    arca_iva_conditions: Table
     price_lists: Table
     price_list_versions: Table
 
@@ -627,6 +628,7 @@ class PostgresMigrationMixin(PostgresRepositoryProtocol):
                 ("customer_address", "ALTER TABLE invoices ADD COLUMN customer_address TEXT"),
                 ("customer_business_name", "ALTER TABLE invoices ADD COLUMN customer_business_name VARCHAR(255)"),
                 ("customer_iva_condition", "ALTER TABLE invoices ADD COLUMN customer_iva_condition VARCHAR(120) NOT NULL DEFAULT ''"),
+                ("customer_fiscal_snapshot", "ALTER TABLE invoices ADD COLUMN customer_fiscal_snapshot JSONB"),
                 ("customer_email", "ALTER TABLE invoices ADD COLUMN customer_email VARCHAR(255)"),
             ]
             for column_name, statement in invoice_fields:
@@ -813,7 +815,7 @@ class PostgresMigrationMixin(PostgresRepositoryProtocol):
             connection.execute(text("ALTER TABLE invoices DROP CONSTRAINT IF EXISTS ck_invoices_invoice_number_positive"))
             connection.execute(text("ALTER TABLE invoices ADD CONSTRAINT ck_invoices_invoice_number_positive CHECK (invoice_number IS NULL OR invoice_number > 0)"))
             connection.execute(text("ALTER TABLE invoices DROP CONSTRAINT IF EXISTS ck_invoices_fiscal_status_valid"))
-            connection.execute(text("ALTER TABLE invoices ADD CONSTRAINT ck_invoices_fiscal_status_valid CHECK (fiscal_status IN ('internal', 'draft', 'authorizing', 'authorized', 'rejected', 'error'))"))
+            connection.execute(text("ALTER TABLE invoices ADD CONSTRAINT ck_invoices_fiscal_status_valid CHECK (fiscal_status IN ('internal', 'draft', 'authorizing', 'authorized', 'authorized_homologation', 'authorization_failed', 'rejected', 'error'))"))
             connection.execute(
                 text(
                     """
@@ -881,13 +883,55 @@ class PostgresMigrationMixin(PostgresRepositoryProtocol):
                         invoice_id BIGINT NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
                         operation VARCHAR(80) NOT NULL,
                         environment VARCHAR(20) NOT NULL,
+                        issuer_cuit VARCHAR(32),
+                        point_of_sale INTEGER,
+                        cbte_tipo INTEGER,
+                        cbte_number BIGINT,
+                        idempotency_key VARCHAR(120),
+                        soap_action VARCHAR(120),
+                        retry_of BIGINT REFERENCES arca_requests(id) ON DELETE SET NULL,
                         request_hash VARCHAR(64) NOT NULL,
                         sanitized_request JSONB NOT NULL,
                         sanitized_response JSONB,
                         status VARCHAR(20) NOT NULL,
                         error_code VARCHAR(50),
                         error_message TEXT,
-                        created_at TIMESTAMPTZ NOT NULL
+                        created_at TIMESTAMPTZ NOT NULL,
+                        updated_at TIMESTAMPTZ NOT NULL
+                    )
+                    """
+                )
+            )
+        if self._table_exists(connection, "arca_requests"):
+            arca_request_fields = [
+                ("issuer_cuit", "ALTER TABLE arca_requests ADD COLUMN issuer_cuit VARCHAR(32)"),
+                ("point_of_sale", "ALTER TABLE arca_requests ADD COLUMN point_of_sale INTEGER"),
+                ("cbte_tipo", "ALTER TABLE arca_requests ADD COLUMN cbte_tipo INTEGER"),
+                ("cbte_number", "ALTER TABLE arca_requests ADD COLUMN cbte_number BIGINT"),
+                ("idempotency_key", "ALTER TABLE arca_requests ADD COLUMN idempotency_key VARCHAR(120)"),
+                ("soap_action", "ALTER TABLE arca_requests ADD COLUMN soap_action VARCHAR(120)"),
+                ("retry_of", "ALTER TABLE arca_requests ADD COLUMN retry_of BIGINT REFERENCES arca_requests(id) ON DELETE SET NULL"),
+                ("updated_at", "ALTER TABLE arca_requests ADD COLUMN updated_at TIMESTAMPTZ"),
+            ]
+            for column_name, statement in arca_request_fields:
+                self._add_column_if_missing(connection, "arca_requests", column_name, statement)
+            connection.execute(text("UPDATE arca_requests SET updated_at = created_at WHERE updated_at IS NULL"))
+            connection.execute(text("ALTER TABLE arca_requests ALTER COLUMN updated_at SET NOT NULL"))
+            connection.execute(text("ALTER TABLE arca_requests DROP CONSTRAINT IF EXISTS ck_arca_requests_status_valid"))
+            connection.execute(text("ALTER TABLE arca_requests ADD CONSTRAINT ck_arca_requests_status_valid CHECK (status IN ('pending', 'authorized', 'rejected', 'authorization_failed', 'error'))"))
+            connection.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_arca_requests_reserved_number ON arca_requests (environment, issuer_cuit, point_of_sale, cbte_tipo, cbte_number) WHERE cbte_number IS NOT NULL"))
+
+        if not self._table_exists(connection, "arca_iva_conditions"):
+            connection.execute(
+                text(
+                    """
+                    CREATE TABLE arca_iva_conditions (
+                        arca_id INTEGER PRIMARY KEY,
+                        description VARCHAR(255) NOT NULL,
+                        normalized_description VARCHAR(255) NOT NULL UNIQUE,
+                        enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                        valid_from DATE,
+                        last_seen_at TIMESTAMPTZ NOT NULL
                     )
                     """
                 )

@@ -269,7 +269,7 @@ Pendiente de confirmar:
 ### Implementacion Segura
 
 - No guardar la contrasena en texto plano.
-- Usar hash fuerte, preferentemente bcrypt.
+- Usar hash fuerte `scrypt$...` generado por el backend. No se soporta bcrypt en esta etapa.
 - Configuracion sugerida: `GRANALIA_INVOICE_AUTH_PASSWORD_HASH`.
 - El frontend pide la contrasena en modal y la envia solo en la request necesaria.
 - El backend valida y descarta la contrasena inmediatamente.

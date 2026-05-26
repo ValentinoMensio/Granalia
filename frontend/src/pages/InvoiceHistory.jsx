@@ -60,6 +60,8 @@ function fiscalStatusLabel(invoice) {
     draft: 'Pendiente',
     authorizing: 'Autorizando',
     authorized: 'Autorizada',
+    authorized_homologation: 'Autorizada homologación',
+    authorization_failed: 'Autorización fallida',
     rejected: 'Rechazada',
     error: 'Error',
   }
@@ -95,8 +97,9 @@ function fiscalTotal(invoice) {
 
 function canAuthorizeInArca(invoice) {
   if (!invoice) return false
+  if (invoice.arca_cae && invoice.arca_invoice_number) return false
   const status = String(invoice.fiscal_status || '')
-  return (invoice.declared || invoice.split_kind === 'fiscal') && ['draft', 'rejected', 'error'].includes(status)
+  return (invoice.declared || invoice.split_kind === 'fiscal') && ['draft', 'authorization_failed', 'rejected', 'error'].includes(status)
 }
 
 function canCreateCreditNote(invoice) {
@@ -149,6 +152,7 @@ export default function InvoiceHistory() {
   const [creditNoteManualDescription, setCreditNoteManualDescription] = useState('')
   const [creditNoteManualAmount, setCreditNoteManualAmount] = useState('')
   const [creditNoteManualIvaRate, setCreditNoteManualIvaRate] = useState('0.21')
+  const [creditNoteAuthorizationPassword, setCreditNoteAuthorizationPassword] = useState('')
   const [creditNoteDate, setCreditNoteDate] = useState(new Date().toLocaleDateString('en-CA'))
   const [creditNoteError, setCreditNoteError] = useState('')
   const [creatingCreditNote, setCreatingCreditNote] = useState(false)
@@ -269,6 +273,7 @@ export default function InvoiceHistory() {
       setCreditNoteManualDescription('')
       setCreditNoteManualAmount('')
       setCreditNoteManualIvaRate('0.21')
+      setCreditNoteAuthorizationPassword('')
       setCreditNoteDate(todayKey)
     } finally {
       setLoadingDetail(false)
@@ -282,6 +287,7 @@ export default function InvoiceHistory() {
     setCreditNoteManualDescription('')
     setCreditNoteManualAmount('')
     setCreditNoteManualIvaRate('0.21')
+    setCreditNoteAuthorizationPassword('')
     setCreditNoteError('')
   }
 
@@ -336,6 +342,10 @@ export default function InvoiceHistory() {
       setCreditNoteError('Ingresá al menos una cantidad o un concepto manual a acreditar.')
       return
     }
+    if (isFiscalInvoice(creditNoteTarget) && !creditNoteAuthorizationPassword) {
+      setCreditNoteError('Ingresá la contraseña de autorización para generar la nota de crédito fiscal.')
+      return
+    }
     setCreatingCreditNote(true)
     setCreditNoteError('')
     try {
@@ -344,6 +354,7 @@ export default function InvoiceHistory() {
         reason: creditNoteReason,
         items: selectedItems.map(({ item, quantity }) => ({ invoice_item_id: item.id, quantity })),
         manual_item: manualItem,
+        authorization: isFiscalInvoice(creditNoteTarget) ? { password: creditNoteAuthorizationPassword } : null,
       })
       closeCreditNoteModal()
     } catch (error) {
@@ -927,6 +938,16 @@ export default function InvoiceHistory() {
               <input className="input" type="date" value={creditNoteDate} onChange={(event) => setCreditNoteDate(event.target.value)} />
               <input className="input" value={creditNoteReason} onChange={(event) => setCreditNoteReason(event.target.value)} placeholder="Motivo" />
             </div>
+            {isFiscalInvoice(creditNoteTarget) && (
+              <input
+                className="input mt-4"
+                type="password"
+                value={creditNoteAuthorizationPassword}
+                onChange={(event) => setCreditNoteAuthorizationPassword(event.target.value)}
+                placeholder="Contraseña de autorización fiscal"
+                autoComplete="current-password"
+              />
+            )}
             <div className="mt-4 space-y-2">
               {(creditNoteTarget.items || []).filter((item) => String(item.line_type || 'sale') === 'sale' && Number(item.quantity || 0) > 0).map((item) => (
                 <div key={item.id} className="grid gap-2 rounded-xl border border-slate-200 p-3 text-sm sm:grid-cols-[1fr_90px_120px] sm:items-center">

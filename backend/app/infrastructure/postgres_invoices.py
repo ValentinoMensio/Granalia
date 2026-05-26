@@ -4,6 +4,7 @@ import os
 import hashlib
 import json
 import re
+import unicodedata
 from decimal import Decimal, ROUND_HALF_UP
 from datetime import date, datetime
 from typing import cast
@@ -40,6 +41,7 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
     invoice_tax_breakdown: Table
     credit_note_item_sources: Table
     arca_requests: Table
+    arca_iva_conditions: Table
     invoice_sequences: Table
 
     def _round_money(self, value: Decimal) -> Decimal:
@@ -80,6 +82,72 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
 
     def _arca_iva_id(self, iva_rate: Decimal) -> int:
         return 4 if iva_rate == Decimal("0.105") else 5
+
+    def _normalize_iva_condition(self, value: object) -> str:
+        text_value = unicodedata.normalize("NFKD", str(value or ""))
+        text_value = "".join(ch for ch in text_value if not unicodedata.combining(ch))
+        return re.sub(r"[^a-z0-9]+", " ", text_value.lower()).strip()
+
+    def upsert_arca_iva_conditions(self, conditions: list[dict[str, object]]) -> None:
+        if not conditions:
+            return
+        now = utc_now()
+        payloads = []
+        for condition in conditions:
+            arca_id = condition.get("arca_id") or condition.get("id") or condition.get("Id")
+            description = str(condition.get("description") or condition.get("desc") or condition.get("Desc") or "").strip()
+            if not arca_id or not description:
+                continue
+            payloads.append(
+                {
+                    "arca_id": int(arca_id),
+                    "description": description,
+                    "normalized_description": self._normalize_iva_condition(description),
+                    "enabled": bool(condition.get("enabled", True)),
+                    "valid_from": condition.get("valid_from"),
+                    "last_seen_at": now,
+                }
+            )
+        if not payloads:
+            return
+        with self.engine.begin() as connection:
+            stmt = insert(self.arca_iva_conditions).values(payloads)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=[self.arca_iva_conditions.c.arca_id],
+                set_={
+                    "description": stmt.excluded.description,
+                    "normalized_description": stmt.excluded.normalized_description,
+                    "enabled": stmt.excluded.enabled,
+                    "valid_from": stmt.excluded.valid_from,
+                    "last_seen_at": stmt.excluded.last_seen_at,
+                },
+            )
+            connection.execute(stmt)
+
+    def resolve_arca_iva_condition_id(self, description: str) -> int | None:
+        normalized = self._normalize_iva_condition(description)
+        if not normalized:
+            return None
+        with self.engine.connect() as connection:
+            exact = connection.execute(
+                select(self.arca_iva_conditions.c.arca_id)
+                .where(
+                    self.arca_iva_conditions.c.enabled.is_(True),
+                    self.arca_iva_conditions.c.normalized_description == normalized,
+                )
+                .limit(1)
+            ).scalar_one_or_none()
+            if exact is not None:
+                return int(exact)
+            rows = connection.execute(
+                select(self.arca_iva_conditions.c.arca_id, self.arca_iva_conditions.c.normalized_description)
+                .where(self.arca_iva_conditions.c.enabled.is_(True))
+            ).mappings().all()
+        for row in rows:
+            candidate = str(row["normalized_description"] or "")
+            if normalized in candidate or candidate in normalized:
+                return int(row["arca_id"])
+        return None
 
     def _fiscal_scope(self) -> tuple[str, int]:
         document_type = os.getenv("GRANALIA_DOCUMENT_TYPE", "FACTURA").strip().upper() or "FACTURA"
@@ -384,6 +452,7 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     self.invoices.c.customer_address,
                     self.invoices.c.customer_business_name,
                     self.invoices.c.customer_iva_condition,
+                    self.invoices.c.customer_fiscal_snapshot,
                     self.invoices.c.customer_email,
                     self.invoices.c.declared,
                     self.invoices.c.split_kind,
@@ -667,6 +736,7 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
             "customer_address": str(profile.get("address", "") or ""),
             "customer_business_name": str(profile.get("business_name", "") or ""),
             "customer_iva_condition": str(profile.get("iva_condition", "") or ""),
+            "customer_fiscal_snapshot": snapshot.get("customer_fiscal_snapshot"),
             "customer_email": str(profile.get("email", "") or ""),
             "order_date": order_date,
             "secondary_line": order.get("secondary_line") or profile.get("secondary_line") or "",
@@ -800,11 +870,11 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
         with self.engine.begin() as connection:
             if replace_batch_id is not None:
                 existing = connection.execute(
-                    select(self.invoices.c.id, self.invoices.c.fiscal_status)
+                    select(self.invoices.c.id, self.invoices.c.fiscal_status, self.invoices.c.arca_environment)
                     .where(self.invoices.c.batch_id == replace_batch_id)
                     .with_for_update()
                 ).mappings().all()
-                if any(str(row["fiscal_status"] or "") == "authorized" for row in existing):
+                if any(str(row["fiscal_status"] or "") == "authorized" and str(row.get("arca_environment") or "") in {"produccion", "production"} for row in existing):
                     raise ValueError("No se puede editar un batch split con parte fiscal autorizada")
                 connection.execute(self.invoices.delete().where(self.invoices.c.batch_id == replace_batch_id))
                 connection.execute(self.invoice_batches.delete().where(self.invoice_batches.c.id == replace_batch_id))
@@ -901,6 +971,7 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                     "customer_address": str(invoice_profile.get("address", "") or ""),
                     "customer_business_name": str(invoice_profile.get("business_name", "") or ""),
                     "customer_iva_condition": str(invoice_profile.get("iva_condition", "") or ""),
+                    "customer_fiscal_snapshot": snapshot.get("customer_fiscal_snapshot"),
                     "customer_email": str(invoice_profile.get("email", "") or ""),
                     "order_date": order_date,
                     "secondary_line": order.get("secondary_line") or invoice_profile.get("secondary_line") or "",
@@ -996,6 +1067,13 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
         operation: str,
         environment: str,
         sanitized_request: dict[str, object],
+        issuer_cuit: str | None = None,
+        point_of_sale: int | None = None,
+        cbte_tipo: int | None = None,
+        cbte_number: int | None = None,
+        idempotency_key: str | None = None,
+        soap_action: str | None = None,
+        retry_of: int | None = None,
         status: str = "pending",
         sanitized_response: dict[str, object] | None = None,
         error_code: str | None = None,
@@ -1004,27 +1082,92 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
         created_at = utc_now()
         encoded_request = json.dumps(sanitized_request, sort_keys=True, default=str).encode("utf-8")
         request_hash = hashlib.sha256(encoded_request).hexdigest()
+        values = {
+            "invoice_id": invoice_id,
+            "operation": operation,
+            "environment": environment,
+            "issuer_cuit": issuer_cuit,
+            "point_of_sale": point_of_sale,
+            "cbte_tipo": cbte_tipo,
+            "cbte_number": cbte_number,
+            "idempotency_key": idempotency_key,
+            "soap_action": soap_action,
+            "retry_of": retry_of,
+            "request_hash": request_hash,
+            "sanitized_request": sanitized_request,
+            "sanitized_response": sanitized_response,
+            "status": status,
+            "error_code": error_code,
+            "error_message": error_message,
+            "created_at": created_at,
+            "updated_at": created_at,
+        }
         with self.engine.begin() as connection:
-            arca_request_id = int(
-                connection.execute(
-                    self.arca_requests.insert()
-                    .values(
-                        invoice_id=invoice_id,
-                        operation=operation,
-                        environment=environment,
-                        request_hash=request_hash,
-                        sanitized_request=sanitized_request,
-                        sanitized_response=sanitized_response,
-                        status=status,
-                        error_code=error_code,
-                        error_message=error_message,
-                        created_at=created_at,
-                    )
-                    .returning(self.arca_requests.c.id)
+            if issuer_cuit and point_of_sale and cbte_tipo and cbte_number:
+                insert_stmt = insert(self.arca_requests).values(**values)
+                insert_stmt = insert_stmt.on_conflict_do_nothing(
+                    index_elements=[
+                        self.arca_requests.c.environment,
+                        self.arca_requests.c.issuer_cuit,
+                        self.arca_requests.c.point_of_sale,
+                        self.arca_requests.c.cbte_tipo,
+                        self.arca_requests.c.cbte_number,
+                    ],
+                    index_where=self.arca_requests.c.cbte_number.is_not(None),
+                ).returning(self.arca_requests.c.id)
+                arca_request_id = connection.execute(insert_stmt).scalar_one_or_none()
+                if arca_request_id is None:
+                    existing_request = connection.execute(
+                        select(self.arca_requests.c.id, self.arca_requests.c.invoice_id)
+                        .where(
+                            self.arca_requests.c.environment == environment,
+                            self.arca_requests.c.issuer_cuit == issuer_cuit,
+                            self.arca_requests.c.point_of_sale == point_of_sale,
+                            self.arca_requests.c.cbte_tipo == cbte_tipo,
+                            self.arca_requests.c.cbte_number == cbte_number,
+                        )
+                        .limit(1)
+                    ).mappings().first()
+                    if not existing_request:
+                        raise ValueError("No se pudo resolver el intento ARCA existente")
+                    if int(existing_request["invoice_id"]) != int(invoice_id):
+                        raise ValueError("El numero ARCA ya esta reservado por otra factura")
+                    arca_request_id = existing_request["id"]
+            else:
+                arca_request_id = connection.execute(
+                    self.arca_requests.insert().values(**values).returning(self.arca_requests.c.id)
                 ).scalar_one()
-            )
             connection.execute(update(self.invoices).where(self.invoices.c.id == invoice_id).values(arca_request_id=str(arca_request_id)))
-        return arca_request_id
+        return int(arca_request_id)
+
+    def get_arca_request(self, arca_request_id: int) -> dict[str, object] | None:
+        with self.engine.connect() as connection:
+            row = connection.execute(
+                select(self.arca_requests).where(self.arca_requests.c.id == arca_request_id)
+            ).mappings().first()
+        return {key: serialize_value(value) for key, value in row.items()} if row else None
+
+    def get_current_arca_request(self, invoice_id: int) -> dict[str, object] | None:
+        invoice = self.get_invoice_detail(invoice_id)
+        request_id = invoice.get("arca_request_id") if invoice else None
+        if not request_id:
+            return None
+        try:
+            return self.get_arca_request(int(request_id))
+        except (TypeError, ValueError):
+            return None
+
+    def clear_invoice_arca_request(self, invoice_id: int) -> None:
+        with self.engine.begin() as connection:
+            connection.execute(
+                update(self.invoices)
+                .where(
+                    self.invoices.c.id == invoice_id,
+                    self.invoices.c.arca_cae.is_(None),
+                    self.invoices.c.arca_invoice_number.is_(None),
+                )
+                .values(arca_request_id=None)
+            )
 
     def reserve_invoice_arca_authorization(self, invoice_id: int) -> bool:
         now = utc_now()
@@ -1033,7 +1176,7 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                 update(self.invoices)
                 .where(
                     self.invoices.c.id == invoice_id,
-                    self.invoices.c.fiscal_status.in_(["draft", "rejected", "error"]),
+                    self.invoices.c.fiscal_status.in_(["draft", "authorization_failed", "rejected", "error"]),
                     self.invoices.c.arca_cae.is_(None),
                     self.invoices.c.arca_invoice_number.is_(None),
                 )
@@ -1062,7 +1205,7 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
             connection.execute(
                 update(self.arca_requests)
                 .where(self.arca_requests.c.id == arca_request_id)
-                .values(status=status, sanitized_response=sanitized_response, error_code=error_code, error_message=error_message)
+                .values(status=status, sanitized_response=sanitized_response, error_code=error_code, error_message=error_message, updated_at=utc_now())
             )
 
     def update_invoice_arca_status(
@@ -1089,7 +1232,7 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
         now = utc_now()
         values = {
             "fiscal_status": fiscal_status,
-            "fiscal_locked_at": now if fiscal_status == "authorized" else None,
+            "fiscal_locked_at": now if fiscal_status == "authorized" and arca_environment in {"produccion", "production"} else None,
             "arca_environment": arca_environment,
             "arca_cuit_emisor": arca_cuit_emisor,
             "arca_cbte_tipo": arca_cbte_tipo,
@@ -1101,10 +1244,10 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
             "arca_error_message": arca_error_message,
             "arca_request_id": str(arca_request_id),
         }
-        if fiscal_status == "authorized":
+        if fiscal_status in {"authorized", "authorized_homologation"} or arca_invoice_number is not None or arca_cae is not None:
             values.update(
                 {
-                    "fiscal_authorized_at": now,
+                    "fiscal_authorized_at": now if fiscal_status in {"authorized", "authorized_homologation"} else None,
                     "arca_invoice_number": arca_invoice_number,
                     "arca_cae": arca_cae,
                     "arca_cae_expires_at": arca_cae_expires_at,
@@ -1190,6 +1333,7 @@ class PostgresInvoiceMixin(PostgresRepositoryProtocol):
                 "customer_address": str(profile.get("address", "") or ""),
                 "customer_business_name": str(profile.get("business_name", "") or ""),
                 "customer_iva_condition": str(profile.get("iva_condition", "") or ""),
+                "customer_fiscal_snapshot": snapshot.get("customer_fiscal_snapshot"),
                 "customer_email": str(profile.get("email", "") or ""),
                 "order_date": order_date,
                 "secondary_line": order.get("secondary_line") or profile.get("secondary_line") or "",

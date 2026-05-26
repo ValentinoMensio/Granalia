@@ -693,7 +693,7 @@ function useGranaliaData() {
     setStatus('Lista predeterminada actualizada.')
   }
 
-  async function generateInvoice() {
+  async function generateInvoice(authorizationPassword = '') {
     const isInternalCreditNote = (form.billingMode || 'internal_only') === 'internal_credit_note'
     if (!form.clientName.trim()) {
       setStatus('Ingresá un cliente.')
@@ -736,7 +736,7 @@ function useGranaliaData() {
       const data = await request(isEditing ? `/api/invoices/${invoiceId}` : '/api/invoices', {
         method: isEditing ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildInvoicePayload(form, currentCustomer)),
+        body: JSON.stringify(buildInvoicePayload(form, currentCustomer, authorizationPassword)),
       })
       const createdInvoices = data.invoices || []
       const previewInvoiceId = data.invoice_id || createdInvoices[0]?.invoice_id

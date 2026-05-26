@@ -208,6 +208,7 @@ class CreditNoteRequest(BaseModel):
     items: list[CreditNoteItemInput] = Field(default_factory=list, max_length=MAX_INVOICE_ITEMS)
     manual_item: CreditNoteManualItemInput | None = None
     manual_items: list[CreditNoteManualItemInput] = Field(default_factory=list, max_length=MAX_INVOICE_ITEMS)
+    authorization: AuthorizationPayload | None = None
 
     _normalize_reason = field_validator("reason")(_strip_required)
 
@@ -552,6 +553,7 @@ class InvoiceDetailOut(BaseModel):
     customer_address: str | None = None
     customer_business_name: str | None = None
     customer_iva_condition: str | None = None
+    customer_fiscal_snapshot: Any | None = None
     customer_email: str | None = None
     transport_name: str | None = None
     items: list[InvoiceItemOut] = Field(default_factory=list)

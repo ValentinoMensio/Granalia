@@ -35,6 +35,7 @@ class PostgresRepository(
     invoice_tax_breakdown: Table
     credit_note_item_sources: Table
     arca_requests: Table
+    arca_iva_conditions: Table
     invoice_sequences: Table
     app_users: Table
 

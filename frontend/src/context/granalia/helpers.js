@@ -203,7 +203,7 @@ function buildProfilePayload(currentCustomer, form) {
   }
 }
 
-function buildInvoicePayload(form, currentCustomer) {
+function buildInvoicePayload(form, currentCustomer, authorizationPassword = '') {
   const profile = buildProfilePayload(currentCustomer, form)
   const billingMode = form.billingMode || (form.declared ? 'fiscal_only' : 'internal_only')
   const manualItems = (form.creditNoteManualItems || [
@@ -212,7 +212,7 @@ function buildInvoicePayload(form, currentCustomer) {
     .map((item) => ({ description: String(item.description || '').trim(), amount: Number(item.amount || 0) }))
     .filter((item) => item.description && item.amount > 0)
 
-  return {
+  const payload = {
     order: {
       client_name: form.clientName,
       date: form.date,
@@ -241,6 +241,10 @@ function buildInvoicePayload(form, currentCustomer) {
     },
     profile,
   }
+  if (authorizationPassword) {
+    payload.authorization = { password: authorizationPassword }
+  }
+  return payload
 }
 
 function buildFormFromInvoiceDetail(invoiceDetail, customers) {

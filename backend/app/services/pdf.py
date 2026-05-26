@@ -706,19 +706,27 @@ def _arca_qr_url(invoice: dict) -> str | None:
     invoice_number = int(invoice.get("arca_invoice_number") or 0)
     if not cae or not invoice_number:
         return None
+    fiscal_snapshot = invoice.get("customer_fiscal_snapshot") if isinstance(invoice.get("customer_fiscal_snapshot"), dict) else {}
+    issuer_cuit = _digits(invoice.get("arca_cuit_emisor"))
+    point_of_sale = invoice.get("arca_point_of_sale")
+    cbte_tipo = invoice.get("arca_cbte_tipo")
+    doc_tipo = invoice.get("arca_doc_tipo") or fiscal_snapshot.get("doc_tipo")
+    doc_nro = _digits(invoice.get("arca_doc_nro") or fiscal_snapshot.get("doc_nro"))
+    if not issuer_cuit or not point_of_sale or not cbte_tipo or not doc_tipo or not doc_nro:
+        raise ValueError("No se puede generar QR fiscal sin datos autorizados completos")
 
     payload = {
         "ver": 1,
         "fecha": str(invoice.get("order_date") or invoice.get("date") or ""),
-        "cuit": int(_digits(invoice.get("arca_cuit_emisor") or _env("GRANALIA_ARCA_CUIT", "20225790346")) or 0),
-        "ptoVta": int(invoice.get("arca_point_of_sale") or _env("GRANALIA_ARCA_POINT_OF_SALE", "1") or 1),
-        "tipoCmp": int(invoice.get("arca_cbte_tipo") or 1),
+        "cuit": int(issuer_cuit),
+        "ptoVta": int(point_of_sale),
+        "tipoCmp": int(cbte_tipo),
         "nroCmp": invoice_number,
         "importe": float(_fiscal_total(invoice)),
         "moneda": "PES",
         "ctz": 1,
-        "tipoDocRec": int(invoice.get("arca_doc_tipo") or 80),
-        "nroDocRec": int(_digits(invoice.get("arca_doc_nro") or invoice.get("customer_cuit")) or 0),
+        "tipoDocRec": int(doc_tipo),
+        "nroDocRec": int(doc_nro),
         "tipoCodAut": "E",
         "codAut": int(_digits(cae) or 0),
     }
@@ -879,10 +887,11 @@ def _draw_fiscal_receiver(pdf: canvas.Canvas, invoice: dict, width: float, y: fl
     top = y
     height_box = 64
     bottom = top - height_box
-    name = invoice.get("customer_business_name") or invoice.get("client_name") or invoice.get("customer_name") or ""
-    address = invoice.get("customer_address") or ""
-    cuit = _format_cuit(invoice.get("arca_doc_nro") or invoice.get("customer_cuit") or "")
-    iva_condition = invoice.get("customer_iva_condition") or "IVA Responsable Inscripto"
+    fiscal_snapshot = invoice.get("customer_fiscal_snapshot") if isinstance(invoice.get("customer_fiscal_snapshot"), dict) else {}
+    name = fiscal_snapshot.get("fiscal_name") or invoice.get("customer_business_name") or invoice.get("client_name") or invoice.get("customer_name") or ""
+    address = fiscal_snapshot.get("fiscal_address") or invoice.get("customer_address") or ""
+    cuit = _format_cuit(invoice.get("arca_doc_nro") or fiscal_snapshot.get("doc_nro") or invoice.get("customer_cuit") or "")
+    iva_condition = fiscal_snapshot.get("iva_condition") or invoice.get("customer_iva_condition") or "IVA Responsable Inscripto"
     sale_condition = invoice.get("payment_condition") or invoice.get("sale_condition") or "Cuenta Corriente"
 
     pdf.setLineWidth(0.6)
@@ -923,6 +932,16 @@ def _draw_fiscal_receiver(pdf: canvas.Canvas, invoice: dict, width: float, y: fl
     pdf.setFont(FONT_REGULAR, 8)
     pdf.drawString(left + 100, top - 54, str(sale_condition))
     return bottom - 46
+
+
+def _draw_fiscal_draft_watermark(pdf: canvas.Canvas, width: float, height: float) -> None:
+    pdf.saveState()
+    pdf.setFillColorRGB(0.75, 0.1, 0.1, alpha=0.14)
+    pdf.setFont(FONT_BOLD, 28)
+    pdf.translate(width / 2, height / 2)
+    pdf.rotate(32)
+    pdf.drawCentredString(0, 0, "BORRADOR - NO VALIDO COMO COMPROBANTE FISCAL")
+    pdf.restoreState()
 
 
 def _draw_fiscal_items_header(pdf: canvas.Canvas, width: float, y: float) -> float:
@@ -1067,9 +1086,24 @@ def _draw_fiscal_copy(pdf: canvas.Canvas, invoice: dict, width: float, height: f
             y = _draw_fiscal_items_header(pdf, width, y)
         y = _draw_fiscal_item(pdf, item, width, y, index)
     _draw_fiscal_footer(pdf, invoice, width, y)
+    if not invoice.get("arca_cae"):
+        _draw_fiscal_draft_watermark(pdf, width, height)
 
 
 def build_fiscal_invoice_pdf(invoice: dict) -> bytes:
+    if invoice.get("arca_cae"):
+        required = [
+            invoice.get("arca_cae"),
+            invoice.get("arca_cae_expires_at"),
+            invoice.get("arca_invoice_number"),
+            invoice.get("arca_point_of_sale"),
+            invoice.get("arca_cbte_tipo"),
+            invoice.get("arca_cuit_emisor"),
+            invoice.get("customer_fiscal_snapshot"),
+            invoice.get("items"),
+        ]
+        if any(not value for value in required):
+            raise ValueError("No se puede generar PDF fiscal autorizado sin datos ARCA completos")
     buffer = BytesIO()
     pdf = canvas.Canvas(buffer, pagesize=PAGE_SIZE)
     width, height = PAGE_SIZE

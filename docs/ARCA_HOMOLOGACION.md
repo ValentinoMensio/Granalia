@@ -16,7 +16,7 @@ GRANALIA_ARCA_KEY_PATH=/ruta/a/la/private.key
 GRANALIA_ARCA_KEY_PASSWORD=<si_aplica>
 GRANALIA_ARCA_DRY_RUN=true
 GRANALIA_ARCA_MARK_AUTHORIZED=false
-GRANALIA_INVOICE_AUTH_PASSWORD_HASH=<hash_bcrypt>
+GRANALIA_INVOICE_AUTH_PASSWORD_HASH=<hash_scrypt>
 ```
 
 URLs por defecto en homologacion:
@@ -82,3 +82,7 @@ Usar `GRANALIA_ARCA_WSFE_URL` para sobrescribir el endpoint de facturacion. No c
 
 Para precargar datos fiscales del receptor, el backend usa por defecto `ws_sr_constancia_inscripcion` con el endpoint `personaServiceA5` y la operacion `getPersona_v2`.
 Ese servicio reemplaza a los viejos `ws_sr_padron_*` para la consulta de constancia de inscripcion.
+
+## Hash de autorizacion
+
+`GRANALIA_INVOICE_AUTH_PASSWORD_HASH` debe usar el formato interno `scrypt$...` generado por `AuthManager.hash_password`. No se soportan hashes bcrypt en esta etapa.

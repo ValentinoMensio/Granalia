@@ -145,6 +145,27 @@ class WsfeClient:
                 points.append(int(nro))
         return points
 
+    def get_receiver_iva_conditions(self) -> list[dict[str, object]]:
+        root = request_operation(self.config, "FEParamGetCondicionIvaReceptor", auth_xml(self.config, self.ticket))
+        conditions: list[dict[str, object]] = []
+        for item in root.iter():
+            names = {local_name(child.tag) for child in list(item)}
+            if "Id" not in names or not ({"Desc", "Descripcion"} & names):
+                continue
+            raw_id = first_text(item, "Id")
+            description = first_text(item, "Desc") or first_text(item, "Descripcion")
+            if not raw_id.isdigit() or not description:
+                continue
+            conditions.append(
+                {
+                    "arca_id": int(raw_id),
+                    "description": description,
+                    "enabled": True,
+                    "valid_from": parse_yyyymmdd(first_text(item, "FchDesde") or first_text(item, "FchVigDesde")),
+                }
+            )
+        return conditions
+
     def get_last_authorized(self, point_of_sale: int, cbte_tipo: int) -> int:
         body = f"""{auth_xml(self.config, self.ticket)}
 <ar:PtoVta>{point_of_sale}</ar:PtoVta>

@@ -73,5 +73,12 @@ def validate_invoice_authorization_password(password: str) -> None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Contraseña de autorización inválida")
 
 
+def require_invoice_authorization_password(authorization: object | None) -> None:
+    password = getattr(authorization, "password", None) if authorization is not None else None
+    if not password:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Contraseña de autorización requerida")
+    validate_invoice_authorization_password(str(password))
+
+
 def current_role(request: Request) -> str:
     return str(require_session_payload(request).get("role") or "operator")

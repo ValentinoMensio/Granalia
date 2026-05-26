@@ -7,11 +7,12 @@ from decimal import Decimal, ROUND_HALF_UP
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 
-from ...dependencies import current_role, get_repository, require_admin, validate_invoice_authorization_password
+from ...dependencies import current_role, get_repository, require_admin, require_invoice_authorization_password, validate_invoice_authorization_password
 from ...schemas import ArcaAuthorizationOut, AuthorizationPayload, CreditNoteRequest, InvoiceCreateOut, InvoiceDetailOut, InvoiceListItemOut, InvoiceRequest, StatusResponse
 from ...services.arca import ArcaDisabledError, ArcaNotConfiguredError, ArcaRejectedError, ArcaTechnicalError
 from ...services.arca.authorization import ArcaAuthorizationConflict, authorize_invoice_in_arca as authorize_invoice_service
 from ...services.arca.padron import get_taxpayer_data, lookup_taxpayer_data
+from ...services.fiscal_invoice import FISCAL_DRAFT_STATUSES, FiscalInvoiceService, is_invoice_fiscally_locked
 from ...services.pdf import build_invoice_pdf, invoice_pdf_filename
 from ...services.invoicing import generate_invoice_document
 
@@ -215,12 +216,12 @@ def build_split_orders(order: dict, internal_catalog: list[dict], fiscal_catalog
 
 
 def ensure_invoice_editable(invoice: dict) -> None:
-    if str(invoice.get("fiscal_status") or "") == "authorized":
+    if is_invoice_fiscally_locked(invoice):
         raise HTTPException(status_code=400, detail="No se puede editar un comprobante fiscal autorizado")
 
 
 def ensure_invoice_deletable(invoice: dict) -> None:
-    if str(invoice.get("fiscal_status") or "") == "authorized" and str(invoice.get("arca_environment") or "") != "homologacion":
+    if is_invoice_fiscally_locked(invoice):
         raise HTTPException(status_code=400, detail="No se puede eliminar un comprobante fiscal autorizado")
 
 
@@ -427,7 +428,7 @@ def ensure_batch_editable(repository, batch_id: int | None) -> None:
     if not batch_id:
         return
     statuses = repository.list_batch_invoice_statuses(batch_id)
-    if any(str(item.get("fiscal_status") or "") == "authorized" and str(item.get("arca_environment") or "") != "homologacion" for item in statuses):
+    if any(is_invoice_fiscally_locked(item) for item in statuses):
         raise HTTPException(status_code=400, detail="No se puede editar un batch split con parte fiscal autorizada")
 
 
@@ -447,8 +448,7 @@ def build_and_save_split(repository, order: dict, profile: dict, *, update_custo
         batch_invoices.append({"order": internal_order, "snapshot": internal_snapshot, "split_kind": "internal", "split_percentage": 100 - declared_percentage, "fiscal_status": "internal"})
     if fiscal_order.get("items"):
         fiscal_profile = profile_with_arca_taxpayer_data(profile)
-        fiscal_snapshot = generate_invoice_document(fiscal_order, fiscal_profile, fiscal_catalog)
-        fiscal_snapshot = fiscalize_snapshot(fiscal_snapshot, fiscal_catalog)
+        fiscal_snapshot = FiscalInvoiceService(repository).prepare_fiscal_invoice(fiscal_order, fiscal_profile, fiscal_catalog).snapshot
         batch_invoices.append({"order": fiscal_order, "profile": fiscal_profile, "snapshot": fiscal_snapshot, "split_kind": "fiscal", "split_percentage": declared_percentage, "fiscal_status": "draft"})
     if not batch_invoices:
         raise ValueError("No hay cantidades para generar")
@@ -522,6 +522,8 @@ def create_invoice(payload: InvoiceRequest, role: str = Depends(current_role)) -
     billing_mode = str(order.get("billing_mode") or ("fiscal_only" if order.get("declared") else "internal_only"))
     if role == "operator":
         ensure_operator_internal_billing(order)
+    if billing_mode in {"fiscal_only", "split"}:
+        require_invoice_authorization_password(payload.authorization)
     try:
         if billing_mode == "internal_credit_note":
             order, source_links = build_internal_credit_note_from_sources(repository, order, profile)
@@ -577,8 +579,7 @@ def create_invoice(payload: InvoiceRequest, role: str = Depends(current_role)) -
             order["items"] = [{**item, "bonus_quantity": 0} for item in order.get("items", [])]
             profile = profile_with_arca_taxpayer_data(profile)
             catalog = repository.get_catalog_for_price_list(int(order["price_list_id"])) if order.get("price_list_id") else repository.get_active_catalog()
-            snapshot = generate_invoice_document(order, profile, catalog)
-            snapshot = fiscalize_snapshot(snapshot, catalog)
+            snapshot = FiscalInvoiceService(repository).prepare_fiscal_invoice(order, profile, catalog).snapshot
             invoice_id = repository.save_invoice(order, profile, snapshot, update_customer=role == "admin", split_kind="fiscal", fiscal_status="draft")
             return InvoiceCreateOut.model_validate({
                 "invoice_id": invoice_id,
@@ -601,6 +602,8 @@ def create_credit_note(invoice_id: int, payload: CreditNoteRequest, _: str = Dep
         raise HTTPException(status_code=400, detail="No se puede emitir una nota de crédito sobre otra nota de crédito")
     if is_fiscal_invoice(invoice) and str(invoice.get("fiscal_status") or "") != "authorized":
         raise HTTPException(status_code=400, detail="La factura fiscal debe estar autorizada para emitir una nota de crédito")
+    if is_fiscal_invoice(invoice):
+        require_invoice_authorization_password(payload.authorization)
     try:
         order, iva_by_key = build_credit_note_order(invoice, payload, repository.credited_quantities_for_invoice(invoice_id))
         profile = profile_from_invoice(invoice)
@@ -617,6 +620,8 @@ def create_credit_note(invoice_id: int, payload: CreditNoteRequest, _: str = Dep
                 if iva_rate is None:
                     raise ValueError(f"Falta IVA fiscal para {row.get('label')}")
                 row["iva_rate"] = iva_rate
+            snapshot["customer_fiscal_snapshot"] = invoice.get("customer_fiscal_snapshot")
+            FiscalInvoiceService(repository).validate_tax_breakdown(snapshot)
         credit_note_id = repository.save_invoice(
             order,
             profile,
@@ -687,6 +692,8 @@ def update_invoice(invoice_id: int, payload: InvoiceRequest, role: str = Depends
     profile = payload.profile.model_dump()
     if role == "operator":
         ensure_operator_internal_billing(order)
+    if is_fiscal_invoice(invoice) and str(invoice.get("fiscal_status") or "") in FISCAL_DRAFT_STATUSES:
+        require_invoice_authorization_password(payload.authorization)
     is_internal_credit_note = is_credit_note(invoice) and invoice.get("fiscal_status") == "internal"
     try:
         if is_internal_credit_note:
@@ -723,7 +730,10 @@ def update_invoice(invoice_id: int, payload: InvoiceRequest, role: str = Depends
 
         base_catalog = repository.get_catalog_for_price_list(int(order["price_list_id"])) if order.get("price_list_id") else repository.get_active_catalog()
         catalog = catalog_with_invoice_history(base_catalog, invoice, order)
-        snapshot = generate_invoice_document(order, profile, catalog)
+        if is_fiscal_invoice(invoice):
+            snapshot = FiscalInvoiceService(repository).prepare_fiscal_invoice(order, profile, catalog).snapshot
+        else:
+            snapshot = generate_invoice_document(order, profile, catalog)
         repository.update_invoice(invoice_id, order, profile, snapshot)
     except (RuntimeError, ValueError) as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
