@@ -333,6 +333,7 @@ def parse_untaxed_invoice_items(detail_text: str) -> list[HistoricalInvoiceItem]
 
 def parse_number_pair(text: str) -> tuple[int, int] | None:
     patterns = [
+        r"Punto\s+de\s+Venta\s*:?\s*Comp\.?\s*Nro\s*:?\s*(\d{1,5})\s+(\d{1,8})",
         r"Punto\s+de\s+Venta\s*:?\s*(\d{1,5}).{0,80}?Comp\.?\s*Nro\s*:?\s*(\d+)",
         r"Punto\s+de\s+Venta\s*:?\s*(\d{1,5}).{0,120}?Comp\.?\s*(?:Nro|N[°º])\s*:?\s*(\d+)",
         r"Pto\.?\s*Vta\.?\s*:?\s*(\d{1,5}).{0,80}?Nro\.?\s*:?\s*(\d+)",
@@ -403,6 +404,8 @@ def parse_pdf(path: Path, forced_point_of_sale: int | None = None, raw_text: str
     if number_pair:
         parsed_point_of_sale, invoice_number = number_pair
     elif forced_point_of_sale and invoice_number_from_filename(path):
+        if re.search(r"Comp\.?\s*(?:Nro|N[°º])", text, re.IGNORECASE):
+            raise ValueError("No se pudo leer número de comprobante desde el encabezado del PDF")
         parsed_point_of_sale = forced_point_of_sale
         invoice_number = invoice_number_from_filename(path) or 0
     else:
